@@ -1,0 +1,85 @@
+import {
+  Activity,
+  AlarmClock,
+  BarChart3,
+  BookOpen,
+  Boxes,
+  CalendarClock,
+  ClipboardList,
+  FileCheck2,
+  FlaskConical,
+  GitBranch,
+  GraduationCap,
+  Inbox,
+  LayoutDashboard,
+  Library,
+  MessagesSquare,
+  Network,
+  Radar,
+  Repeat,
+  Route,
+  ScrollText,
+  ShieldCheck,
+  Siren,
+  Sunrise,
+  Table2,
+  Vault,
+  type LucideIcon,
+} from "lucide-react";
+import type { Area } from "@/lib/auth";
+import type { MessageKey } from "@/lib/i18n";
+
+export type NavItem = { href: string; label: MessageKey; icon: LucideIcon; exact?: boolean };
+export type NavArea = { area: Area; label: MessageKey; home: string; items: NavItem[] };
+
+export const NAV: NavArea[] = [
+  {
+    area: "L1",
+    label: "tier.L1",
+    home: "/l1",
+    items: [
+      { href: "/l1", label: "nav.overview", icon: LayoutDashboard, exact: true },
+      { href: "/l1/digest", label: "nav.digest", icon: Sunrise },
+      { href: "/l1/approvals", label: "nav.approvals", icon: Inbox },
+      { href: "/l1/entity", label: "nav.entity", icon: CalendarClock },
+      { href: "/l1/evidence", label: "nav.evidence", icon: FileCheck2 },
+      { href: "/l1/analytics", label: "nav.analytics", icon: BarChart3 },
+      { href: "/l1/audit", label: "nav.audit", icon: ScrollText },
+    ],
+  },
+  {
+    area: "L2",
+    label: "tier.L2",
+    home: "/l2/graph",
+    items: [
+      { href: "/l2/graph", label: "nav.graph", icon: Network },
+      { href: "/l2/versioning", label: "nav.versioning", icon: GitBranch },
+      { href: "/l2/library", label: "nav.library", icon: Library },
+      { href: "/l2/vault", label: "nav.vault", icon: Vault },
+      { href: "/l2/policies", label: "nav.policies", icon: BookOpen },
+      { href: "/l2/skills", label: "nav.skills", icon: GraduationCap },
+      { href: "/l2/resolver", label: "nav.resolver", icon: Route },
+      { href: "/l2/templates", label: "nav.templates", icon: ClipboardList },
+      { href: "/l2/sensors", label: "nav.sensors", icon: Radar },
+      { href: "/l2/loops", label: "nav.loops", icon: Repeat },
+      { href: "/l2/readiness", label: "nav.readiness", icon: AlarmClock },
+      { href: "/l2/security", label: "nav.security", icon: ShieldCheck },
+    ],
+  },
+  {
+    area: "L3",
+    label: "tier.L3",
+    home: "/l3",
+    items: [
+      { href: "/l3", label: "nav.fleet", icon: Boxes, exact: true },
+      { href: "/l3/runs", label: "nav.runs", icon: Activity },
+      { href: "/l3/conversations", label: "nav.conversations", icon: MessagesSquare },
+      { href: "/l3/escalations", label: "nav.escalations", icon: Siren },
+      { href: "/l3/templates", label: "nav.templateBoard", icon: Table2 },
+    ],
+  },
+];
+
+export const RESEARCH_NAV: NavArea = { area: "research", label: "tier.research", home: "/research", items: [{ href: "/research", label: "nav.research", icon: FlaskConical, exact: true }] };
+
+export const AREA_ICON: Record<Area, LucideIcon> = { L1: LayoutDashboard, L2: ShieldCheck, L3: Activity, research: FlaskConical };

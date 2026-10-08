@@ -1,0 +1,256 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Product tokens */
+  --color-crit-0: var(--crit-0);
+  --color-crit-1: var(--crit-1);
+  --color-crit-2: var(--crit-2);
+  --color-crit-3: var(--crit-3);
+  --color-crit-4: var(--crit-4);
+  --color-env-production: var(--env-production);
+  --color-env-staging: var(--env-staging);
+  --color-env-sandbox: var(--env-sandbox);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-warn-fg: var(--warn-fg);
+  --color-risk: var(--risk);
+  --color-agent: var(--agent);
+  --color-surface: var(--surface);
+}
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(0.985 0.003 255);
+  --foreground: oklch(0.21 0.02 262);
+  --surface: oklch(0.965 0.005 255);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.02 262);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.02 262);
+  --primary: oklch(0.47 0.2 277);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.955 0.008 262);
+  --secondary-foreground: oklch(0.27 0.03 262);
+  --muted: oklch(0.955 0.006 262);
+  --muted-foreground: oklch(0.46 0.02 262);
+  --accent: oklch(0.95 0.012 277);
+  --accent-foreground: oklch(0.3 0.08 277);
+  --destructive: oklch(0.56 0.21 25);
+  --border: oklch(0.91 0.008 262);
+  --input: oklch(0.89 0.01 262);
+  --ring: oklch(0.6 0.16 277);
+  --chart-1: oklch(0.55 0.19 277);
+  --chart-2: oklch(0.62 0.13 195);
+  --chart-3: oklch(0.7 0.15 75);
+  --chart-4: oklch(0.6 0.19 15);
+  --chart-5: oklch(0.55 0.04 262);
+  --sidebar: oklch(0.975 0.004 255);
+  --sidebar-foreground: oklch(0.27 0.02 262);
+  --sidebar-primary: oklch(0.5 0.2 277);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.94 0.012 277);
+  --sidebar-accent-foreground: oklch(0.3 0.08 277);
+  --sidebar-border: oklch(0.91 0.008 262);
+  --sidebar-ring: oklch(0.6 0.16 277);
+
+  /* Criticality C0 to C4, one scale everywhere */
+  --crit-0: oklch(0.48 0.02 262);
+  --crit-1: oklch(0.48 0.14 240);
+  --crit-2: oklch(0.47 0.12 140);
+  --crit-3: oklch(0.52 0.15 50);
+  --crit-4: oklch(0.5 0.2 25);
+  /* Environments: hues never shared with criticality */
+  --env-production: oklch(0.5 0.19 355);
+  --env-staging: oklch(0.6 0.13 85);
+  --env-sandbox: oklch(0.52 0.2 300);
+  --ok: oklch(0.46 0.1 165);
+  --warn: oklch(0.72 0.15 75);
+  --warn-fg: oklch(0.47 0.11 65);
+  --risk: oklch(0.52 0.2 25);
+  --agent: oklch(0.48 0.2 290);
+}
+
+.dark {
+  --background: oklch(0.165 0.014 265);
+  --foreground: oklch(0.94 0.008 262);
+  --surface: oklch(0.19 0.016 265);
+  --card: oklch(0.205 0.016 265);
+  --card-foreground: oklch(0.94 0.008 262);
+  --popover: oklch(0.22 0.016 265);
+  --popover-foreground: oklch(0.94 0.008 262);
+  --primary: oklch(0.68 0.16 277);
+  --primary-foreground: oklch(0.16 0.02 270);
+  --secondary: oklch(0.26 0.018 265);
+  --secondary-foreground: oklch(0.92 0.008 262);
+  --muted: oklch(0.25 0.016 265);
+  --muted-foreground: oklch(0.7 0.02 262);
+  --accent: oklch(0.28 0.04 277);
+  --accent-foreground: oklch(0.92 0.03 277);
+  --destructive: oklch(0.68 0.19 22);
+  --border: oklch(1 0 0 / 9%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.68 0.16 277);
+  --chart-1: oklch(0.7 0.16 277);
+  --chart-2: oklch(0.74 0.12 195);
+  --chart-3: oklch(0.8 0.14 80);
+  --chart-4: oklch(0.7 0.17 15);
+  --chart-5: oklch(0.7 0.03 262);
+  --sidebar: oklch(0.18 0.015 265);
+  --sidebar-foreground: oklch(0.9 0.01 262);
+  --sidebar-primary: oklch(0.68 0.16 277);
+  --sidebar-primary-foreground: oklch(0.16 0.02 270);
+  --sidebar-accent: oklch(0.26 0.03 277);
+  --sidebar-accent-foreground: oklch(0.94 0.02 277);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.68 0.16 277);
+
+  --crit-0: oklch(0.72 0.02 262);
+  --crit-1: oklch(0.74 0.13 235);
+  --crit-2: oklch(0.78 0.15 135);
+  --crit-3: oklch(0.78 0.15 60);
+  --crit-4: oklch(0.7 0.19 25);
+  --env-production: oklch(0.5 0.19 355);
+  --env-staging: oklch(0.8 0.13 85);
+  --env-sandbox: oklch(0.5 0.19 300);
+  --ok: oklch(0.75 0.13 165);
+  --warn: oklch(0.82 0.14 80);
+  --warn-fg: oklch(0.86 0.13 85);
+  --risk: oklch(0.7 0.19 25);
+  --agent: oklch(0.72 0.16 290);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "cv11";
+  }
+  html {
+    @apply font-sans;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* ---------------------------------------------------------------- motion vocabulary
+   Each effect means exactly one thing. See PLAN.md section 6. */
+
+/* Thinking orb: an agent is working, and what kind of work. */
+@keyframes orb-spin { to { transform: rotate(360deg); } }
+@keyframes orb-breathe { 0%, 100% { transform: scale(0.92); opacity: 0.85; } 50% { transform: scale(1.06); opacity: 1; } }
+.orb {
+  position: relative;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 30%, oklch(1 0 0 / 0.9), transparent 38%), conic-gradient(from 0deg, var(--orb-a), var(--orb-b), var(--orb-a));
+  animation: orb-spin 2.4s linear infinite, orb-breathe 1.8s ease-in-out infinite;
+  box-shadow: 0 0 10px -2px var(--orb-a);
+}
+.orb[data-kind="retrieval"] { --orb-a: oklch(0.7 0.14 220); --orb-b: oklch(0.6 0.16 260); }
+.orb[data-kind="judgment"] { --orb-a: oklch(0.65 0.2 295); --orb-b: oklch(0.7 0.16 330); }
+.orb[data-kind="tool"] { --orb-a: oklch(0.72 0.15 160); --orb-b: oklch(0.65 0.14 200); }
+
+/* Border beam: live and needs attention now. At most three per screen. */
+@property --beam-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@keyframes beam { to { --beam-angle: 360deg; } }
+.beam {
+  position: relative;
+  isolation: isolate;
+}
+.beam::before {
+  content: "";
+  position: absolute;
+  inset: -1.5px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(from var(--beam-angle), transparent 0deg, var(--beam-color, var(--primary)) 50deg, transparent 110deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: beam 3s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Liquid metal: irreversible commitment. Only on C3 and C4 commit buttons. */
+@keyframes metal { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+.metal {
+  background-image: linear-gradient(110deg, oklch(0.42 0.02 262), oklch(0.82 0.01 262) 18%, oklch(0.5 0.02 262) 32%, oklch(0.95 0.005 262) 46%, oklch(0.45 0.02 262) 62%, oklch(0.8 0.01 262) 78%, oklch(0.42 0.02 262));
+  background-size: 200% 100%;
+  animation: metal 4s linear infinite;
+  color: oklch(0.15 0.01 262);
+  text-shadow: 0 1px 0 oklch(1 0 0 / 0.5);
+  border: 1px solid oklch(0.35 0.02 262);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6), 0 1px 2px oklch(0 0 0 / 0.25);
+}
+
+/* Ambient surface: the brain's presence. One per screen, hero, sign in and empty states only. */
+@keyframes drift { 0% { transform: translate3d(-4%, -2%, 0) scale(1); } 50% { transform: translate3d(3%, 2%, 0) scale(1.08); } 100% { transform: translate3d(-4%, -2%, 0) scale(1); } }
+.ambient::before {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(40% 50% at 20% 30%, oklch(0.6 0.18 277 / 0.22), transparent 70%),
+    radial-gradient(35% 45% at 80% 60%, oklch(0.7 0.13 195 / 0.2), transparent 70%),
+    radial-gradient(30% 40% at 50% 90%, oklch(0.65 0.18 320 / 0.14), transparent 70%);
+  animation: drift 18s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb, .beam::before, .metal, .ambient::before { animation: none !important; }
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}
+
+.scrollbar-thin { scrollbar-width: thin; }
+.tabular { font-variant-numeric: tabular-nums; }
