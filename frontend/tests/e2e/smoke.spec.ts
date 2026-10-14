@@ -34,7 +34,23 @@ test("Ask the Brain answers with citations and valid time", async ({ page }) => 
   await setPersona(page, "h-founder");
   await page.goto("/l1");
   await page.getByRole("button", { name: "Ask the Brain" }).click();
-  await page.getByRole("button", { name: "What is our refund window?" }).click();
+  // The panel opens on the current page; company wide questions live under the whole-system scope.
+  const panel = page.getByRole("complementary", { name: "Ask the Brain" });
+  await panel.getByRole("tab", { name: "Whole system" }).click();
+  await panel.getByRole("button", { name: "What is our refund window?" }).click();
   await expect(page.getByTestId("ask-answer")).toContainText("30 days");
   await expect(page.getByText(/true from/).first()).toBeVisible();
+});
+
+test("conversation list: Needs a human filter and search find the escalated refund", async ({ page }) => {
+  await setPersona(page, "h-op");
+  await page.goto("/l3/conversations");
+  const list = page.getByRole("list", { name: "Conversations" });
+  await page.getByRole("radio", { name: /Needs a human/ }).click();
+  await expect(list.getByRole("link").first()).toBeVisible();
+  for (const item of await list.getByRole("listitem").all()) await expect(item).toContainText("needs a human");
+  await page.getByRole("radio", { name: /^All/ }).click();
+  await page.getByRole("textbox", { name: "Search conversations" }).fill("conv-1042");
+  await expect(list.getByRole("link")).toHaveCount(1);
+  await expect(list.getByRole("link").first()).toHaveAttribute("href", "/l3/conversations/conv-1042");
 });

@@ -14,6 +14,7 @@ import { date, pct } from "@/lib/format";
 import { useCurrentUser } from "@/lib/auth";
 import { useStudio } from "@/features/studio/state";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 
 function signals(p: Policy, now: number) {
@@ -147,6 +148,11 @@ function PolicyTimeline({ versions, now, tz }: { versions: Policy[]; now: number
     return item ? [{ name: w.name, href: `/studio?wf=${w.id}&focus=${encodeURIComponent(item)}&view=chat` }] : [];
   });
   const activeSignal = sigs.find((s) => s.key === signalKey) ?? null;
+  // "As of": for any date, what was true then (valid time) and what the system believed then (recorded time).
+  const [asOf, setAsOf] = useState(now);
+  const validAt = (v: Policy, t: number) => Date.parse(v.validFrom) <= t && (!v.validTo || Date.parse(v.validTo) > t);
+  const trueThen = onMain.find((v) => validAt(v, asOf)) ?? null;
+  const believedThen = [...onMain].filter((v) => Date.parse(v.recordedAt) <= asOf).sort((a, b) => b.version - a.version).find((v) => Date.parse(v.validFrom) <= asOf) ?? null;
   // Freshness markers: dated signals sit at their date, the rest gather at today.
   const markerAt = (key: string): number =>
     key === "interval" && live.validTo ? Date.parse(live.validTo) : key === "drift" && live.freshness.driftPointAt ? Date.parse(live.freshness.driftPointAt) : now;
@@ -231,7 +237,7 @@ function PolicyTimeline({ versions, now, tz }: { versions: Policy[]; now: number
           <div className="absolute inset-x-0 top-8 h-12" role="group" aria-label="Freshness signals">
             {sigs.map((s, i) => {
               const at = markerAt(s.key);
-              const dated = s.key === "interval" || s.key === "drift";
+              const dated = (s.key === "interval" && !!live.validTo) || (s.key === "drift" && !!live.freshness.driftPointAt);
               return (
                 <button
                   key={s.key}
@@ -239,6 +245,7 @@ function PolicyTimeline({ versions, now, tz }: { versions: Policy[]; now: number
                   onClick={() => setSignalKey(signalKey === s.key ? null : s.key)}
                   aria-pressed={signalKey === s.key}
                   title={`${s.label}: ${s.detail}`}
+                  aria-label={`${s.label}: ${s.detail}`}
                   className={cn("absolute grid size-6 -translate-x-1/2 place-items-center rounded-full border bg-card shadow-sm transition-transform hover:scale-110 focus-visible:outline-2", s.fired ? "border-warn text-warn-fg" : "text-ok opacity-70", signalKey === s.key && "ring-2 ring-primary")}
                   style={{ left: dated ? pos(at) : `calc(${pos(at)} + ${(i - 2) * 26}px)`, top: dated ? 0 : 24 }}
                 >
@@ -247,6 +254,9 @@ function PolicyTimeline({ versions, now, tz }: { versions: Policy[]; now: number
               );
             })}
           </div>
+
+          {/* as of marker */}
+          <div className="pointer-events-none absolute bottom-0 top-6 w-0 border-l-2 border-dashed border-primary" style={{ left: pos(asOf) }} aria-hidden />
 
           {/* version bars */}
           <div className="absolute inset-x-0 bottom-8 top-24 flex flex-col justify-center gap-4" role="list" aria-label="Policy versions">
@@ -290,6 +300,23 @@ function PolicyTimeline({ versions, now, tz }: { versions: Policy[]; now: number
           <p className="mt-1.5 text-xs text-muted-foreground">
             Valid {date(selected.validFrom, tz)} → {selected.validTo ? date(selected.validTo, tz) : "open"} · recorded {date(selected.recordedAt, tz)}
           </p>
+        </section>
+        <section className={`${panel} p-3`} aria-label="As of">
+          <div className="mb-2 flex items-center justify-between text-xs">
+            <span className="font-semibold">As of</span>
+            <span className="font-medium">{date(new Date(asOf).toISOString(), tz)}</span>
+          </div>
+          <Slider min={fitStart} max={fitEnd} step={DAY} value={[Math.min(Math.max(asOf, fitStart), fitEnd)]} onValueChange={(v) => setAsOf(v[0])} aria-label="As of date" valueText={date(new Date(asOf).toISOString(), tz)} />
+          <div className="mt-3 grid gap-2 text-xs" aria-live="polite">
+            <div>
+              <div className="text-muted-foreground">What was true then (valid time)</div>
+              <div className="mt-0.5 text-sm font-medium" data-testid="true-then">{trueThen ? `v${trueThen.version}: ${trueThen.statement}` : "No version valid"}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">What the system believed then (recorded time)</div>
+              <div className="mt-0.5 text-sm font-medium" data-testid="believed-then">{believedThen ? `v${believedThen.version}: ${believedThen.statement}` : "Nothing recorded yet"}</div>
+            </div>
+          </div>
         </section>
         {canEdit && (
           <section className={`${panel} p-3`} aria-label="Change this policy">

@@ -194,26 +194,43 @@ function WorkflowDetails({ detail, onFocus, onAsk, summaries }: Props) {
         </div>
       )}
       <Findings workflowId={wf.id} />
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <Label>Parts</Label>
-        {MEMBER_ORDER.map((k) => {
-          const list = detail.items.filter((i) => i.kind === k);
-          if (!list.length) return null;
-          return (
-            <div key={k}>
-              <div className="mb-0.5 flex items-center gap-1.5 text-[11px] font-medium"><KindIcon kind={k} className="size-3" />{KIND_PLURAL[k]} <span className="text-muted-foreground">{list.length}</span></div>
-              <ul className="space-y-0.5">
-                {list.map((i) => (
-                  <li key={i.id}>
-                    <button type="button" className="min-h-6 w-full truncate rounded px-1.5 py-0.5 text-left text-xs hover:bg-accent" onClick={() => onFocus({ kind: i.kind, id: i.id })}>
-                      {i.name} {i.status !== "active" && <span className="text-muted-foreground">({i.status})</span>}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          );
-        })}
+        <div className="overflow-hidden rounded-lg border">
+          <table className="w-full table-fixed text-xs" aria-label="Parts">
+            <thead className="bg-surface text-[10px] uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th scope="col" className="px-2 py-1.5 text-left font-medium">Part</th>
+                <th scope="col" className="w-10 px-1 py-1.5 text-right font-medium">Ver</th>
+                <th scope="col" className="w-[76px] px-2 py-1.5 text-left font-medium">Status</th>
+              </tr>
+            </thead>
+            {MEMBER_ORDER.map((k) => {
+              const list = detail.items.filter((i) => i.kind === k);
+              if (!list.length) return null;
+              return (
+                <tbody key={k} className="border-t">
+                  <tr className="bg-muted/40">
+                    <th scope="rowgroup" colSpan={3} className="px-2 py-1 text-left text-[11px] font-medium">
+                      <span className="inline-flex items-center gap-1.5"><KindIcon kind={k} className="size-3" />{KIND_PLURAL[k]} <span className="text-muted-foreground">{list.length}</span></span>
+                    </th>
+                  </tr>
+                  {list.map((i) => (
+                    <tr key={i.id} className="cursor-pointer border-t border-border/60 hover:bg-accent" onClick={() => onFocus({ kind: i.kind, id: i.id })}>
+                      <td className="px-2 py-1">
+                        <button type="button" className="min-h-6 w-full truncate text-left hover:underline" onClick={(e) => { e.stopPropagation(); onFocus({ kind: i.kind, id: i.id }); }} title={i.name}>
+                          {i.name}
+                        </button>
+                      </td>
+                      <td className="px-1 py-1 text-right tabular text-muted-foreground">v{i.version}</td>
+                      <td className="px-2 py-1"><Status value={i.status} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              );
+            })}
+          </table>
+        </div>
       </div>
     </div>
   );

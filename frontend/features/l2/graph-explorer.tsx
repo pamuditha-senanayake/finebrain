@@ -12,7 +12,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { KeyValue, LoadingState, Mono, QueryView, StatusChip } from "@/components/brain/primitives";
 import { useAgents, useGraph, useHumans } from "@/lib/api/hooks";
 import { agentPrincipal, checkEdge, checkNode, humanPrincipal, type Principal } from "@/lib/governance/access";
-import { TYPE_COLOR } from "./graph-canvas";
+import { TYPE_COLOR } from "./graph-colors";
 
 // React.lazy, not next/dynamic: the chunk loads only when this view renders, never on route prefetch.
 const GraphCanvas = lazy(() => import("./graph-canvas"));
@@ -152,9 +152,9 @@ export function GraphExplorer() {
                   {visible.size === TYPES.length ? "Hide all" : "Show all"}
                 </button>
               </div>
-              <div className="space-y-1.5 overflow-auto">
+              <div className="space-y-0.5 overflow-auto">
                 {TYPES.map((t) => (
-                  <div key={t} className="flex items-center gap-2">
+                  <div key={t} className="flex min-h-6 items-center gap-2">
                     <Checkbox
                       id={`layer-${t}`}
                       checked={visible.has(t)}

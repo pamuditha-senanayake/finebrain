@@ -4,18 +4,7 @@ import Graph from "graphology";
 import { useEffect, useRef } from "react";
 import Sigma from "sigma";
 import type { Graph as GraphData, NodeType } from "@/contracts";
-
-export const TYPE_COLOR: Record<NodeType, string> = {
-  agent: "#8b5cf6",
-  skill: "#6366f1",
-  tool: "#10b981",
-  policy: "#f59e0b",
-  security: "#ef4444",
-  fact: "#0ea5e9",
-  document: "#64748b",
-  template: "#14b8a6",
-  sensor: "#ec4899",
-};
+import { TYPE_COLOR } from "./graph-colors";
 
 type Props = {
   data: GraphData;

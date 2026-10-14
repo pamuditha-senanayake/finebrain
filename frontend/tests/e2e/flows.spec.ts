@@ -58,11 +58,11 @@ test("2. tax readiness: scheduler finds missing proof 21 days ahead, DRI uploads
 
   await switchPersona(page, "h-fd");
   await page.goto("/l1/evidence");
-  const vatCards = page.locator('[data-testid^="evidence-"]').filter({ hasText: "VAT return, September 2026" });
-  await expect(vatCards).toHaveCount(2);
+  const vatRows = page.getByRole("row").filter({ hasText: "VAT return, September 2026" });
+  await expect(page.getByRole("table", { name: "Open requests" }).getByRole("row").filter({ hasText: "VAT return, September 2026" })).toHaveCount(2);
 
   // The grant path shows scope, retention, agents and revoke before anything is granted.
-  await vatCards.filter({ hasText: "Input VAT invoices" }).getByRole("button", { name: /Grant a data source instead/ }).click();
+  await vatRows.filter({ hasText: "Input VAT invoices" }).getByRole("button", { name: /Grant a data source/ }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("September 2026 only");
   await expect(dialog).toContainText("90 days");
@@ -71,13 +71,14 @@ test("2. tax readiness: scheduler finds missing proof 21 days ahead, DRI uploads
   await dialog.getByRole("button", { name: "Cancel" }).click();
 
   for (const item of ["Input VAT invoices", "Bank statement"]) {
-    const card = vatCards.filter({ hasText: item });
-    await card.locator('input[type="file"]').setInputFiles({ name: `${item}.pdf`, mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 sample") });
-    await expect(card.getByText(/Fulfilled by an upload/)).toBeVisible();
+    await vatRows.filter({ hasText: item }).locator('input[type="file"]').setInputFiles({ name: `${item}.pdf`, mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 sample") });
+    // A fulfilled request moves to the Fulfilled table and says how it was fulfilled.
+    const done = page.getByRole("table", { name: "Fulfilled requests" }).getByRole("row").filter({ hasText: "VAT return, September 2026" }).filter({ hasText: item });
+    await expect(done.getByText(/Fulfilled by an upload/)).toBeVisible();
   }
 
   await page.goto("/l1/entity");
-  const vat = page.getByTestId("obligation-ob-vat-sep");
+  const vat = page.getByRole("row").filter({ has: page.getByTestId("obligation-ob-vat-sep") });
   await expect(vat.getByTestId("readiness")).toHaveText("100%");
   await expect(vat.getByText("green")).toBeVisible();
 
@@ -90,7 +91,9 @@ test("2. tax readiness: scheduler finds missing proof 21 days ahead, DRI uploads
 test("3. policy drift: librarian proposes invalidation, dependents update in one change request, as of slider shows both versions", async ({ page }) => {
   await setPersona(page, "h-ks");
   await page.goto("/l2/policies/refund-window");
-  await expect(page.getByText("Observed behaviour shows a drift point")).toBeVisible();
+  // The drift marker sits on the timeline at its date; opening it shows the signal.
+  await page.getByRole("button", { name: /Observed behaviour shows a drift point/ }).click();
+  await expect(page.getByRole("region", { name: "Freshness signal" })).toContainText("Observed behaviour shows a drift point");
 
   await page.goto("/l2/vault");
   await page.getByTestId("propose-lib-refund-window").click();

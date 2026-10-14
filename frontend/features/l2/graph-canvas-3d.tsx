@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { Graph as GraphData, NodeType } from "@/contracts";
-import { TYPE_COLOR } from "./graph-canvas";
+import { TYPE_COLOR } from "./graph-colors";
 
 type Props = {
   data: GraphData;
