@@ -1,7 +1,7 @@
 "use client";
 
 import { useReducedMotion } from "motion/react";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Eye, FlaskConical, Play, Square, ThumbsDown, ThumbsUp } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -10,7 +10,9 @@ import type { Experiment } from "@/contracts";
 import { Button } from "@/components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Beam } from "@/components/brain/motion";
+import { WorkflowFilter, countByMany } from "@/components/brain/category-filter";
 import { PersonChip, useLookup } from "@/components/brain/names";
+import { useWorkflowIndex } from "@/lib/workflow-index";
 import { CritBadge, LoadingState, Mono, PageHeader, QueryView, Section, Status } from "@/components/brain/primitives";
 import { useChangeRequests, useExperiments, useLoop, useLoops, useOp } from "@/lib/api/hooks";
 import { useCurrentUser } from "@/lib/auth";
@@ -22,11 +24,17 @@ const LoopCanvas = lazy(() => import("./loop-canvas"));
 export function LoopsIndex() {
   const loops = useLoops();
   const lookup = useLookup();
+  const index = useWorkflowIndex();
+  const [wf, setWf] = useState("all");
   return (
     <div>
       <PageHeader title="Loops" description="Every function is a loop: sensor, policy, tool, quality gate, learning, and back to the sensor. A loop that runs with little intervention keeps improving." />
       <QueryView query={loops}>
-        {(ls) => (
+        {(all) => {
+          const ls = wf === "all" ? all : all.filter((l) => index.of("loop", l.id).includes(wf));
+          return (
+          <div className="space-y-3">
+          <WorkflowFilter value={wf} onChange={setWf} options={countByMany(all, (l) => index.of("loop", l.id))} />
           <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {ls.map((l) => (
               <li key={l.id}>
@@ -34,7 +42,7 @@ export function LoopsIndex() {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <h3 className="text-sm font-semibold">{l.name}</h3>
-                      <p className="text-xs text-muted-foreground">{lookup.cluster(l.clusterId)}</p>
+                      <p className="text-xs text-muted-foreground">{lookup.cluster(l.clusterId)}{index.of("loop", l.id).length > 0 && ` · ${index.of("loop", l.id).join(", ")}`}</p>
                     </div>
                     {l.stages.some((s) => s.pending > 0) && <Status value="pending" />}
                   </div>
@@ -56,7 +64,9 @@ export function LoopsIndex() {
               </li>
             ))}
           </ul>
-        )}
+          </div>
+          );
+        }}
       </QueryView>
     </div>
   );

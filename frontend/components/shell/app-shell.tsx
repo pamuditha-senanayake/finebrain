@@ -139,6 +139,9 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
   const [mobileNav, setMobileNav] = useState(false);
   const hover = useHoverPeek(collapsed);
   const allowed = canView(user, area);
+  // Full-bleed canvases (maps, graphs, the studio) fill the page. Everything else keeps a readable width, so collapsing the sidebar never stretches tables and cards.
+  const pathname = usePathname();
+  const fullBleed = /^\/(l1|studio|l2\/graph|l2\/policies\/.+)\/?$/.test(pathname);
 
   return (
     <BeamScope>
@@ -190,7 +193,7 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
               </button>
               <ShellMenu />
             </header>
-            <main id="main" className="mx-auto w-full max-w-[1600px] flex-1 px-3 py-4 sm:px-6 sm:py-5">
+            <main id="main" className={cn("w-full flex-1 px-3 py-4 sm:px-6 sm:py-5", !fullBleed && "mx-auto max-w-[1280px]")}>
               {isLoading ? <LoadingState /> : !allowed ? <DeniedState reason={user ? `${user.name} (${user.tier}) cannot open ${area === "research" ? "the Research Console" : `${area} ${t(`tier.${area}`)}`}.` : "No persona selected."} home={homeFor(user)} /> : <Suspense fallback={<LoadingState />}>{children}</Suspense>}
             </main>
           </div>

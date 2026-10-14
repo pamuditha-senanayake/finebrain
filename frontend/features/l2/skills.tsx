@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CategoryFilter, countBy } from "@/components/brain/category-filter";
+import { CategoryFilter, WorkflowFilter, countBy, countByMany } from "@/components/brain/category-filter";
 import { DataTable, type Column } from "@/components/brain/data-table";
 import { AgentChip, PersonChip, useLookup } from "@/components/brain/names";
 import { EmptyState, KeyValue, Mono, PageHeader, QueryView, Section, Status, StatusChip } from "@/components/brain/primitives";
@@ -47,6 +47,7 @@ export function SkillsStudio() {
   const lookup = useLookup();
   const workflows = useStudioWorkflows();
   const [category, setCategory] = useState("all");
+  const [wf, setWf] = useState("all");
   // Related workflows come from each workflow's members; a skill's category is its first workflow's lead topic.
   const info = useMemo(() => {
     const m = new Map<string, { workflows: string[]; category: string }>();
@@ -87,7 +88,7 @@ export function SkillsStudio() {
           <TabsTrigger value="academy">Academy</TabsTrigger>
         </TabsList>
         <TabsContent value="skills" className="mt-3">
-          <QueryView query={skills}>{() => <DataTable label="Skills" data={category === "all" ? main : main.filter((s) => categoryOf(s) === category)} toolbar={<CategoryFilter label="Filter by category" allLabel="All categories" value={category} onChange={setCategory} options={countBy(main, categoryOf)} />} columns={columns} getRowId={(s) => `${s.id}@${s.branch}`} onRowClick={(s) => router.push(`/l2/skills/${s.id}`)} initialSort={{ id: "conf", desc: false }} height="calc(100dvh - 280px)" />}</QueryView>
+          <QueryView query={skills}>{() => <DataTable label="Skills" data={main.filter((s) => (category === "all" || categoryOf(s) === category) && (wf === "all" || (info.get(s.id)?.workflows ?? []).includes(wf)))} toolbar={<><CategoryFilter label="Filter by category" allLabel="All categories" value={category} onChange={setCategory} options={countBy(main, categoryOf)} /><WorkflowFilter value={wf} onChange={setWf} options={countByMany(main, (s) => info.get(s.id)?.workflows ?? [])} /></>} columns={columns} getRowId={(s) => `${s.id}@${s.branch}`} onRowClick={(s) => router.push(`/l2/skills/${s.id}`)} initialSort={{ id: "conf", desc: false }} height="calc(100dvh - 280px)" />}</QueryView>
         </TabsContent>
         <TabsContent value="drafts" className="mt-3">
           {drafts.length === 0 ? (

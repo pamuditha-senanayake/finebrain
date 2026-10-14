@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Policy } from "@/contracts";
-import { CategoryFilter, countBy } from "@/components/brain/category-filter";
+import { CategoryFilter, WorkflowFilter, countBy, countByMany } from "@/components/brain/category-filter";
 import { DataTable, type Column } from "@/components/brain/data-table";
 import { PersonChip, useLookup } from "@/components/brain/names";
 import { CritBadge, KeyValue, Mono, PageHeader, QueryView, StatusChip } from "@/components/brain/primitives";
@@ -43,6 +43,7 @@ export function PolicyRegistry() {
   const policies = usePolicies();
   const map = useBrainMap();
   const [category, setCategory] = useState("all");
+  const [wf, setWf] = useState("all");
   const router = useRouter();
   const lookup = useLookup();
   const now = useNow();
@@ -75,7 +76,7 @@ export function PolicyRegistry() {
     <div>
       <PageHeader title="Policy registry" description="Each version carries valid from, valid to, recorded at and superseded by. Freshness signals warn when a policy may be going stale. Nothing is invalidated without approval." />
       <QueryView query={policies}>
-        {() => <DataTable label="Policies" data={category === "all" ? current : current.filter((p) => policyCategory(p) === category)} columns={columns} getRowId={(p) => p.id} onRowClick={(p) => router.push(`/l2/policies/${p.key}`)} initialSort={{ id: "signals", desc: true }} height="calc(100dvh - 240px)" toolbar={<CategoryFilter label="Filter by category" allLabel="All categories" value={category} onChange={setCategory} options={countBy(current, policyCategory)} />} />}
+        {() => <DataTable label="Policies" data={current.filter((p) => (category === "all" || policyCategory(p) === category) && (wf === "all" || (workflowsOf.get(p.key) ?? []).includes(wf)))} columns={columns} getRowId={(p) => p.id} onRowClick={(p) => router.push(`/l2/policies/${p.key}`)} initialSort={{ id: "signals", desc: true }} height="calc(100dvh - 240px)" toolbar={<><CategoryFilter label="Filter by category" allLabel="All categories" value={category} onChange={setCategory} options={countBy(current, policyCategory)} /><WorkflowFilter value={wf} onChange={setWf} options={countByMany(current, (p) => workflowsOf.get(p.key) ?? [])} /></>} />}
       </QueryView>
     </div>
   );

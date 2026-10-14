@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { WorkflowFilter, countByMany } from "@/components/brain/category-filter";
+import { useWorkflowIndex } from "@/lib/workflow-index";
 import type { ResolverRule } from "@/contracts";
 import { DataTable, type Column } from "@/components/brain/data-table";
 import { AgentChip, useLookup } from "@/components/brain/names";
@@ -13,22 +15,27 @@ import { cn } from "@/lib/utils";
 export function Resolver() {
   const rules = useResolver();
   const lookup = useLookup();
+  const index = useWorkflowIndex();
+  const [wf, setWf] = useState("all");
+  const wfOf = (r: ResolverRule) => index.of("skill", r.skill.id);
   const columns: Column<ResolverRule>[] = useMemo(
     () => [
       { id: "priority", header: "#", width: "44px", align: "right", value: (r) => r.priority, cell: (r) => <span className="text-muted-foreground">{r.priority}</span> },
       { id: "event", header: "When this happens", width: "minmax(220px,2fr)", value: (r) => r.event, cell: (r) => <span className="truncate" title={r.event}>{r.event}</span> },
       { id: "match", header: "Matches", width: "minmax(140px,1fr)", value: (r) => r.match, hideOnMobile: true, cell: (r) => <Mono className="truncate">{r.match}</Mono> },
       { id: "skill", header: "Skill", width: "minmax(160px,1.2fr)", value: (r) => r.skill.id, cell: (r) => <Link href={`/l2/skills/${r.skill.id}`} className="truncate hover:underline" onClick={(e) => e.stopPropagation()}><Mono>{r.skill.id} v{r.skill.version}</Mono></Link> },
+      { id: "workflow", header: "Workflow", width: "minmax(150px,1.1fr)", value: (r) => wfOf(r).join(", "), cell: (r) => { const w = wfOf(r); return w.length ? <span className="truncate" title={w.join(", ")}>{w[0]}{w.length > 1 && <span className="text-muted-foreground"> +{w.length - 1}</span>}</span> : <span className="text-muted-foreground">none</span>; } },
       { id: "agent", header: "Agent", width: "minmax(130px,1fr)", value: (r) => lookup.name(r.agentId), hideOnMobile: true, cell: (r) => <AgentChip id={r.agentId} /> },
       { id: "eval", header: "Trigger evals", width: "120px", align: "right", value: (r) => r.triggerEval.passRate, cell: (r) => <span className={cn("tabular", r.triggerEval.passRate < 0.9 && "text-warn-fg")}>{pct(r.triggerEval.passRate)} of {r.triggerEval.cases}</span> },
       { id: "ran", header: "Last run", width: "100px", value: (r) => r.triggerEval.lastRunAt, hideOnMobile: true, cell: (r) => <span className="text-muted-foreground">{relTime(r.triggerEval.lastRunAt)}</span> },
     ],
-    [lookup],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lookup, index],
   );
   return (
     <div>
       <PageHeader title="Resolver" description="The org chart for tasks: it routes each incoming event to an agent and a skill. Trigger evals prove the right skill fires." />
-      <QueryView query={rules}>{(rs) => <DataTable label="Resolver rules" data={rs} columns={columns} getRowId={(r) => r.id} initialSort={{ id: "priority", desc: false }} height="calc(100dvh - 240px)" />}</QueryView>
+      <QueryView query={rules}>{(rs) => <DataTable label="Resolver rules" data={wf === "all" ? rs : rs.filter((r) => wfOf(r).includes(wf))} toolbar={<WorkflowFilter value={wf} onChange={setWf} options={countByMany(rs, wfOf)} />} columns={columns} getRowId={(r) => r.id} initialSort={{ id: "priority", desc: false }} height="calc(100dvh - 240px)" />}</QueryView>
     </div>
   );
 }
