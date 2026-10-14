@@ -8,37 +8,24 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CommitButton } from "@/components/brain/motion";
 import { PersonChip, useLookup } from "@/components/brain/names";
+import { SimpleTable } from "@/components/brain/simple-table";
 import { EmptyState, KeyValue, PageHeader, QueryView, SampleBadge, Section, Status, StatusChip } from "@/components/brain/primitives";
 import { useEvidenceRequests, useGrants, useObligations, useOp } from "@/lib/api/hooks";
 import { useCurrentUser } from "@/lib/auth";
 import { date, relTime } from "@/lib/format";
 
-function RequestCard({ req }: { req: EvidenceRequest }) {
+/** Row actions: upload a document, or grant a data source instead. Also states how a request was fulfilled. */
+function RequestActions({ req }: { req: EvidenceRequest }) {
   const lookup = useLookup();
-  const obligations = useObligations();
-  const ob = obligations.data?.find((o) => o.id === req.obligationId);
   const fileRef = useRef<HTMLInputElement>(null);
   const [grantOpen, setGrantOpen] = useState(false);
   const upload = useOp<{ requestId: string; fileName: string; sizeKb: number }>("uploadEvidence", { success: "Evidence filed. A fact with provenance was recorded." });
   const grant = useOp<{ requestId: string }>("requestGrant", { success: "Grant requested. C4 needs two L1 approvals." });
   const g = req.suggestedGrant;
   return (
-    <li className="rounded-xl border bg-card p-4" data-testid={`evidence-${req.id}`}>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold">{req.item}</h3>
-          <p className="text-xs text-muted-foreground">
-            for {ob?.title ?? req.obligationId} · due {date(ob?.dueAt ?? req.dueAt, lookup.tz)} · requested {relTime(req.createdAt)}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {req.escalationLevel > 0 && <StatusChip tone={req.escalationLevel >= 3 ? "risk" : "warn"}>escalation {req.escalationLevel}</StatusChip>}
-          <Status value={req.status} />
-        </div>
-      </div>
-      <div className="mt-2 text-xs">From <PersonChip id={req.requestedFrom} /></div>
+    <div data-testid={`evidence-${req.id}`}>
       {req.status === "open" && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
           <input
             ref={fileRef}
             type="file"
@@ -50,22 +37,22 @@ function RequestCard({ req }: { req: EvidenceRequest }) {
               if (f) upload.mutate({ requestId: req.id, fileName: f.name, sizeKb: f.size / 1024 });
             }}
           />
-          <Button size="sm" onClick={() => fileRef.current?.click()} disabled={upload.isPending}>
+          <Button size="xs" onClick={() => fileRef.current?.click()} disabled={upload.isPending}>
             <Upload /> Upload document
           </Button>
           {g && (
-            <Button size="sm" variant="outline" onClick={() => setGrantOpen(true)}>
-              <KeyRound /> Grant a data source instead
+            <Button size="xs" variant="outline" onClick={() => setGrantOpen(true)}>
+              <KeyRound /> Grant a data source
             </Button>
           )}
         </div>
       )}
       {req.status === "awaiting_grant_approval" && (
-        <p className="mt-3 text-xs text-muted-foreground">
-          Grant requested. It needs two L1 approvals. <Link href="/l1/approvals" className="text-primary hover:underline">Open approvals</Link>
+        <p className="text-xs text-muted-foreground">
+          Needs two L1 approvals. <Link href="/l1/approvals" className="text-primary hover:underline">Open approvals</Link>
         </p>
       )}
-      {req.fulfilledBy && <p className="mt-3 text-xs text-ok">Fulfilled by {req.fulfilledBy.kind === "upload" ? "an upload" : "a granted source"} ({req.fulfilledBy.ref}).</p>}
+      {req.fulfilledBy && <p className="text-xs text-ok">Fulfilled by {req.fulfilledBy.kind === "upload" ? "an upload" : "a granted source"} ({req.fulfilledBy.ref}).</p>}
       {g && (
         <Dialog open={grantOpen} onOpenChange={setGrantOpen}>
           <DialogContent>
@@ -85,7 +72,42 @@ function RequestCard({ req }: { req: EvidenceRequest }) {
           </DialogContent>
         </Dialog>
       )}
-    </li>
+    </div>
+  );
+}
+
+function RequestTable({ rows, label }: { rows: EvidenceRequest[]; label: string }) {
+  const lookup = useLookup();
+  const obligations = useObligations();
+  return (
+    <SimpleTable
+      label={label}
+      rows={rows}
+      getRowId={(r) => r.id}
+      columns={[
+        { id: "item", header: "Evidence", className: "font-medium", cell: (r) => r.item },
+        { id: "obligation", header: "For obligation", className: "text-xs", cell: (r) => obligations.data?.find((o) => o.id === r.obligationId)?.title ?? r.obligationId },
+        {
+          id: "due",
+          header: "Due",
+          className: "whitespace-nowrap text-xs",
+          cell: (r) => date(obligations.data?.find((o) => o.id === r.obligationId)?.dueAt ?? r.dueAt, lookup.tz),
+        },
+        { id: "requested", header: "Requested", className: "whitespace-nowrap text-xs text-muted-foreground", cell: (r) => relTime(r.createdAt) },
+        { id: "from", header: "From", cell: (r) => <PersonChip id={r.requestedFrom} /> },
+        {
+          id: "status",
+          header: "Status",
+          cell: (r) => (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Status value={r.status} />
+              {r.escalationLevel > 0 && <StatusChip tone={r.escalationLevel >= 3 ? "risk" : "warn"}>escalation {r.escalationLevel}</StatusChip>}
+            </div>
+          ),
+        },
+        { id: "actions", header: "Action", cell: (r) => <RequestActions req={r} /> },
+      ]}
+    />
   );
 }
 
@@ -96,7 +118,7 @@ export function EvidenceRequests() {
   const { user } = useCurrentUser();
   const revoke = useOp<{ grantId: string }>("revokeGrant", { success: "Access revoked" });
   return (
-    <div className="mx-auto max-w-4xl">
+    <div>
       <PageHeader title="Evidence requests" description="When the system needs proof, the DRI uploads a document or grants a data source. Requests start early and escalate as deadlines approach." actions={<SampleBadge />} />
       <QueryView query={requests} empty={<EmptyState title="No evidence requests" description="Run the readiness scheduler in L2 to look for gaps." action={<Button asChild size="sm" variant="outline"><Link href="/l2/readiness">Readiness scheduler</Link></Button>} />}>
         {(list) => {
@@ -107,12 +129,12 @@ export function EvidenceRequests() {
             <div className="space-y-5">
               <section aria-label="Open requests">
                 <h2 className="mb-2 text-sm font-semibold">Open ({open.length})</h2>
-                {open.length === 0 ? <EmptyState title="Nothing open" /> : <ul className="space-y-2">{mineFirst.map((r) => <RequestCard key={r.id} req={r} />)}</ul>}
+                {open.length === 0 ? <EmptyState title="Nothing open" /> : <RequestTable label="Open requests" rows={mineFirst} />}
               </section>
               {done.length > 0 && (
                 <section aria-label="Fulfilled requests">
                   <h2 className="mb-2 text-sm font-semibold">Fulfilled ({done.length})</h2>
-                  <ul className="space-y-2">{done.map((r) => <RequestCard key={r.id} req={r} />)}</ul>
+                  <RequestTable label="Fulfilled requests" rows={done} />
                 </section>
               )}
             </div>
@@ -122,24 +144,29 @@ export function EvidenceRequests() {
       <Section title="Data source grants" className="mt-5">
         <QueryView query={grants} rows={2}>
           {(gs) => (
-            <ul className="divide-y">
-              {gs.map((g) => (
-                <li key={g.id} className="flex flex-wrap items-center gap-3 py-2 text-sm">
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium">{g.source}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {g.scope} · {g.retentionDays} days · {g.agents.map((a) => lookup.name(a)).join(", ")}
-                    </div>
-                  </div>
-                  <Status value={g.status} />
-                  {g.status === "active" && user && user.tier !== "L3" && (
-                    <Button size="xs" variant="outline" onClick={() => revoke.mutate({ grantId: g.id })}>
-                      <ShieldOff /> Revoke
-                    </Button>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <SimpleTable
+              label="Data source grants"
+              rows={gs}
+              getRowId={(g) => g.id}
+              columns={[
+                { id: "source", header: "Source", className: "font-medium", cell: (g) => g.source },
+                { id: "scope", header: "Scope", className: "text-xs text-muted-foreground", cell: (g) => g.scope },
+                { id: "retention", header: "Retention", className: "whitespace-nowrap text-xs", cell: (g) => `${g.retentionDays} days` },
+                { id: "agents", header: "Agents", className: "text-xs", cell: (g) => g.agents.map((a) => lookup.name(a)).join(", ") },
+                { id: "status", header: "Status", cell: (g) => <Status value={g.status} /> },
+                {
+                  id: "actions",
+                  header: "",
+                  className: "w-24 text-right",
+                  cell: (g) =>
+                    g.status === "active" && user && user.tier !== "L3" ? (
+                      <Button size="xs" variant="outline" onClick={() => revoke.mutate({ grantId: g.id })}>
+                        <ShieldOff /> Revoke
+                      </Button>
+                    ) : null,
+                },
+              ]}
+            />
           )}
         </QueryView>
       </Section>

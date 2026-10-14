@@ -12,7 +12,7 @@ export const en = {
   "nav.studio": "Workflow Studio",
   "nav.overview": "Brain overview",
   "nav.digest": "Morning digest",
-  "nav.approvals": "Approvals",
+  "nav.approvals": "All approvals",
   "nav.entity": "Entity protection",
   "nav.evidence": "Evidence requests",
   "nav.analytics": "Progress and analytics",

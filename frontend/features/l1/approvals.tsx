@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Clock, MessageSquareWarning, Share2, UserCheck, X } from "lucide-react";
+import { Check, MessageSquareWarning, Share2, UserCheck, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -10,8 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Textarea } from "@/components/ui/textarea";
 import { ChangeRequestSummary } from "@/components/brain/change-request";
-import { Beam, CommitButton } from "@/components/brain/motion";
+import { CommitButton } from "@/components/brain/motion";
 import { PersonChip, useLookup } from "@/components/brain/names";
+import { SimpleTable } from "@/components/brain/simple-table";
 import { CritBadge, EmptyState, KeyValue, PageHeader, QueryView, Section, Status } from "@/components/brain/primitives";
 import { useApproval, useApprovals, useChangeRequest, useGrants, useHumans, useOp } from "@/lib/api/hooks";
 import { useCurrentUser } from "@/lib/auth";
@@ -28,6 +29,7 @@ function waitingOn(a: Approval, userId: string | undefined, tier: string | undef
 export function ApprovalsInbox() {
   const approvals = useApprovals();
   const { user } = useCurrentUser();
+  const router = useRouter();
   const [tab, setTab] = useState<"mine" | "pending" | "decided">("mine");
   const list = useMemo(() => {
     const all = approvals.data ?? [];
@@ -35,8 +37,8 @@ export function ApprovalsInbox() {
     return [...filtered].sort((a, b) => (tab === "decided" ? (a.createdAt < b.createdAt ? 1 : -1) : b.criticality - a.criticality || (a.dueAt < b.dueAt ? -1 : 1)));
   }, [approvals.data, tab, user]);
   return (
-    <div className="mx-auto max-w-4xl">
-      <PageHeader title="Approvals" description="Sorted by criticality, then deadline. C4 needs two L1 approvers. Requests expire and can be delegated, never silently skipped." />
+    <div>
+      <PageHeader title="All approvals" description="Sorted by criticality, then deadline. C4 needs two L1 approvers. Requests expire and can be delegated, never silently skipped." />
       <ToggleGroup type="single" value={tab} onValueChange={(v) => v && setTab(v as typeof tab)} variant="outline" size="sm" className="mb-3" aria-label="Which approvals">
         <ToggleGroupItem value="mine" className="px-3 text-xs">Waiting on me</ToggleGroupItem>
         <ToggleGroupItem value="pending" className="px-3 text-xs">All pending</ToggleGroupItem>
@@ -47,33 +49,36 @@ export function ApprovalsInbox() {
           list.length === 0 ? (
             <EmptyState title={tab === "mine" ? "Nothing is waiting on you" : "No approvals here"} />
           ) : (
-            <ul className="space-y-2" aria-label="Approvals">
-              {list.map((a, i) => {
-                const approvedCount = new Set(a.votes.filter((v) => v.decision === "approve").map((v) => v.by)).size;
-                return (
-                  <li key={a.id}>
-                    <Beam active={tab === "mine" && i < 3} className="rounded-xl">
-                      <Link href={`/l1/approvals/${a.id}`} className="block rounded-xl border bg-card p-3 hover:border-primary/40 sm:p-4" data-testid={`approval-${a.id}`}>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <CritBadge level={a.criticality} />
-                          <span className="text-sm font-semibold">{a.title}</span>
-                          <span className="ml-auto"><Status value={a.status} /></span>
-                        </div>
-                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{a.summary}</p>
-                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-                          <span className="inline-flex items-center gap-1"><Clock className="size-3" /> due {relTime(a.dueAt)}</span>
-                          <span>
-                            {approvedCount} of {a.requiredApprovers.count} {a.requiredApprovers.tier} approvals
-                          </span>
-                          <span>drafted by {a.drafter.name}</span>
-                          <span className="inline-flex items-center gap-1">DRI <PersonChip id={a.dri} /></span>
-                        </div>
-                      </Link>
-                    </Beam>
-                  </li>
-                );
-              })}
-            </ul>
+            <SimpleTable
+              label="All approvals"
+              rows={list}
+              getRowId={(a) => a.id}
+              onRowClick={(a) => router.push(`/l1/approvals/${a.id}`)}
+              rowClassName={() => "align-middle"}
+              columns={[
+                { id: "crit", header: "Level", className: "w-16", cell: (a) => <CritBadge level={a.criticality} /> },
+                {
+                  id: "title",
+                  header: "Approval",
+                  cell: (a) => (
+                    <Link href={`/l1/approvals/${a.id}`} className="font-medium hover:text-primary hover:underline" data-testid={`approval-${a.id}`} onClick={(e) => e.stopPropagation()}>
+                      {a.title}
+                    </Link>
+                  ),
+                },
+                { id: "summary", header: "Summary", className: "max-w-sm text-xs text-muted-foreground", cell: (a) => <span className="line-clamp-2">{a.summary}</span> },
+                { id: "due", header: "Due", className: "whitespace-nowrap text-xs", cell: (a) => relTime(a.dueAt) },
+                {
+                  id: "votes",
+                  header: "Approvals",
+                  className: "whitespace-nowrap text-xs tabular",
+                  cell: (a) => `${new Set(a.votes.filter((v) => v.decision === "approve").map((v) => v.by)).size} of ${a.requiredApprovers.count} ${a.requiredApprovers.tier}`,
+                },
+                { id: "drafter", header: "Drafted by", className: "text-xs", cell: (a) => a.drafter.name },
+                { id: "dri", header: "DRI", cell: (a) => <PersonChip id={a.dri} /> },
+                { id: "status", header: "Status", cell: (a) => <Status value={a.status} /> },
+              ]}
+            />
           )
         }
       </QueryView>
@@ -120,7 +125,7 @@ export function ApprovalDetail() {
             );
           return (
             <div>
-              <PageHeader eyebrow={<Link href="/l1/approvals" className="hover:underline">Approvals</Link>} title={a.title} description={a.summary} actions={<Status value={a.status} />} />
+              <PageHeader eyebrow={<Link href="/l1/approvals" className="hover:underline">All approvals</Link>} title={a.title} description={a.summary} actions={<Status value={a.status} />} />
               <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
                 <div className="space-y-4">
                   {isMerge ? (

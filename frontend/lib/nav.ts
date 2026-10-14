@@ -30,7 +30,7 @@ import {
 import type { Area } from "@/lib/auth";
 import type { MessageKey } from "@/lib/i18n";
 
-export type NavItem = { href: string; label: MessageKey; icon: LucideIcon; exact?: boolean };
+export type NavItem = { href: string; label: MessageKey; icon: LucideIcon; exact?: boolean; /** Items sharing a group render together; a divider separates groups. */ group?: number };
 export type NavArea = { area: Area; label: MessageKey; home: string; items: NavItem[] };
 
 export const NAV: NavArea[] = [
@@ -39,14 +39,14 @@ export const NAV: NavArea[] = [
     label: "tier.L1",
     home: "/l1",
     items: [
-      { href: "/l1", label: "nav.overview", icon: LayoutDashboard, exact: true },
-      { href: "/studio", label: "nav.studio", icon: Workflow },
-      { href: "/l1/digest", label: "nav.digest", icon: Sunrise },
-      { href: "/l1/approvals", label: "nav.approvals", icon: Inbox },
-      { href: "/l1/entity", label: "nav.entity", icon: CalendarClock },
-      { href: "/l1/evidence", label: "nav.evidence", icon: FileCheck2 },
-      { href: "/l1/analytics", label: "nav.analytics", icon: BarChart3 },
-      { href: "/l1/audit", label: "nav.audit", icon: ScrollText },
+      { href: "/l1", label: "nav.overview", icon: LayoutDashboard, exact: true, group: 0 },
+      { href: "/l1/digest", label: "nav.digest", icon: Sunrise, group: 0 },
+      { href: "/l1/approvals", label: "nav.approvals", icon: Inbox, group: 1 },
+      { href: "/studio", label: "nav.studio", icon: Workflow, group: 1 },
+      { href: "/l1/entity", label: "nav.entity", icon: CalendarClock, group: 1 },
+      { href: "/l1/evidence", label: "nav.evidence", icon: FileCheck2, group: 1 },
+      { href: "/l1/analytics", label: "nav.analytics", icon: BarChart3, group: 2 },
+      { href: "/l1/audit", label: "nav.audit", icon: ScrollText, group: 3 },
     ],
   },
   {

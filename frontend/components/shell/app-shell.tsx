@@ -3,7 +3,7 @@
 import { Brain, Menu, PanelLeftClose, PanelLeftOpen, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Suspense, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { BeamScope } from "@/components/brain/motion";
@@ -27,10 +27,11 @@ function NavList({ area, onNavigate }: { area: NavArea; onNavigate?: () => void 
   const pathname = usePathname();
   return (
     <ul className="space-y-0.5">
-      {area.items.map((item) => {
+      {area.items.map((item, idx) => {
+        const newGroup = idx > 0 && (item.group ?? 0) !== (area.items[idx - 1].group ?? 0);
         const active = item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
         return (
-          <li key={item.href}>
+          <li key={item.href} className={cn(newGroup && "mt-2 border-t border-sidebar-border pt-2")}>
             <Link
               href={item.href}
               onClick={onNavigate}
@@ -110,12 +111,33 @@ function AskFab() {
   );
 }
 
+/** While the sidebar is collapsed, hovering the toggle slides it out as an overlay. No click needed. */
+function useHoverPeek(enabled: boolean) {
+  const [peek, setPeek] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancel = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  const enter = () => {
+    cancel();
+    setPeek(true);
+  };
+  const leave = () => {
+    cancel();
+    timer.current = setTimeout(() => setPeek(false), 150);
+  };
+  useEffect(() => cancel, []);
+  return { peek: enabled && peek, enter, leave, close: () => { cancel(); setPeek(false); } };
+}
+
 export function AppShell({ area, children }: { area: Area; children: ReactNode }) {
   const { user, isLoading } = useCurrentUser();
   const setPalette = useUi((s) => s.setPaletteOpen);
   const collapsed = useUi((s) => s.sidebarCollapsed);
   const toggleSidebar = useUi((s) => s.toggleSidebar);
   const [mobileNav, setMobileNav] = useState(false);
+  const hover = useHoverPeek(collapsed);
   const allowed = canView(user, area);
 
   return (
@@ -127,12 +149,22 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
               <Sidebar area={area} />
             </div>
           </aside>
+          {hover.peek && (
+            <aside
+              className="fixed inset-y-0 left-0 z-50 hidden w-60 border-r bg-sidebar shadow-xl animate-in slide-in-from-left-4 fade-in-0 duration-150 lg:block"
+              aria-label="Sidebar preview"
+              onMouseEnter={hover.enter}
+              onMouseLeave={hover.leave}
+            >
+              <Sidebar area={area} onNavigate={hover.close} />
+            </aside>
+          )}
           <div className="flex min-w-0 flex-1 flex-col">
             <header className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur sm:px-4">
               <Button variant="ghost" size="icon-sm" className="lg:hidden" onClick={() => setMobileNav(true)} aria-label="Open navigation">
                 <Menu />
               </Button>
-              <Button variant="ghost" size="icon-sm" className="max-lg:hidden" onClick={toggleSidebar} aria-label={collapsed ? "Show sidebar" : "Hide sidebar"} aria-pressed={!collapsed} data-testid="sidebar-toggle">
+              <Button variant="ghost" size="icon-sm" className="max-lg:hidden" onClick={() => { hover.close(); toggleSidebar(); }} onMouseEnter={hover.enter} onMouseLeave={hover.leave} onFocus={hover.enter} aria-label={collapsed ? "Show sidebar" : "Hide sidebar"} aria-pressed={!collapsed} data-testid="sidebar-toggle">
                 {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
               </Button>
               {collapsed && (
