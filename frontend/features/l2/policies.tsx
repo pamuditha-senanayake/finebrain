@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { Policy } from "@/contracts";
-import { Slider } from "@/components/ui/slider";
+import { CategoryFilter, countBy } from "@/components/brain/category-filter";
 import { DataTable, type Column } from "@/components/brain/data-table";
 import { PersonChip, useLookup } from "@/components/brain/names";
-import { CritBadge, KeyValue, Mono, PageHeader, QueryView, Section, StatusChip } from "@/components/brain/primitives";
-import { useNow, usePolicies, usePolicyVersions } from "@/lib/api/hooks";
+import { CritBadge, KeyValue, Mono, PageHeader, QueryView, StatusChip } from "@/components/brain/primitives";
+import { useBrainMap, useNow, usePolicies, usePolicyVersions } from "@/lib/api/hooks";
 import { date, pct } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -23,15 +23,41 @@ function signals(p: Policy, now: number) {
   ];
 }
 
+const CATEGORY_BY_RULE: Record<string, string> = {
+  max_days_since_purchase: "financial limits",
+  max_amount_minor: "financial limits",
+  mask_by_default: "privacy and data",
+  retention_days: "privacy and data",
+  tone_gate: "communication",
+  requires_l1: "approvals",
+  evidence_required: "compliance",
+  periodic_review: "security and access",
+};
+/** A policy's category, from the kind of rule it enforces. */
+export const policyCategory = (p: Policy) => CATEGORY_BY_RULE[p.rule.kind] ?? "general";
+
 export function PolicyRegistry() {
   const policies = usePolicies();
-    const router = useRouter();
+  const map = useBrainMap();
+  const [category, setCategory] = useState("all");
+  const router = useRouter();
   const lookup = useLookup();
   const now = useNow();
   const current = useMemo(() => (policies.data ?? []).filter((p) => p.branch === "main" && !p.supersededBy), [policies.data]);
+  // Which workflows use each policy, read from the workflow maps.
+  const workflowsOf = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const w of map.data?.workflows ?? []) for (const i of w.items) if (i.kind === "policy") {
+      const key = i.id.split(".policy.")[1];
+      if (key) m.set(key, [...(m.get(key) ?? []), w.name]);
+    }
+    return m;
+  }, [map.data]);
   const columns: Column<Policy>[] = useMemo(
     () => [
       { id: "name", header: "Policy", width: "minmax(180px,1.4fr)", value: (p) => p.name, cell: (p) => <span className="font-medium">{p.name} <Mono className="text-muted-foreground">v{p.version}</Mono></span> },
+      { id: "category", header: "Category", width: "150px", value: (p) => policyCategory(p), cell: (p) => <StatusChip tone="info" className="capitalize">{policyCategory(p)}</StatusChip> },
+      { id: "workflow", header: "Workflow", width: "minmax(160px,1.2fr)", value: (p) => (workflowsOf.get(p.key) ?? []).join(", "), cell: (p) => { const w = workflowsOf.get(p.key) ?? []; return w.length ? <span className="truncate" title={w.join(", ")}>{w[0]}{w.length > 1 && <span className="text-muted-foreground"> +{w.length - 1}</span>}</span> : <span className="text-muted-foreground">none</span>; } },
       { id: "statement", header: "Statement", width: "minmax(240px,2.4fr)", value: (p) => p.statement, hideOnMobile: true, cell: (p) => <span className="truncate text-muted-foreground" title={p.statement}>{p.statement}</span> },
       { id: "crit", header: "Level", width: "56px", value: (p) => p.criticality, cell: (p) => <CritBadge level={p.criticality} /> },
       { id: "from", header: "Valid from", width: "110px", value: (p) => p.validFrom, hideOnMobile: true, cell: (p) => <span className="text-muted-foreground">{date(p.validFrom, lookup.tz)}</span> },
@@ -40,13 +66,13 @@ export function PolicyRegistry() {
         return n ? <StatusChip tone={n > 1 ? "risk" : "warn"}>{n} signal{n > 1 ? "s" : ""}</StatusChip> : <StatusChip tone="ok">fresh</StatusChip>;
       } },
     ],
-    [lookup.tz, now],
+    [lookup.tz, now, workflowsOf],
   );
   return (
     <div>
       <PageHeader title="Policy registry" description="Each version carries valid from, valid to, recorded at and superseded by. Freshness signals warn when a policy may be going stale. Nothing is invalidated without approval." />
       <QueryView query={policies}>
-        {() => <DataTable label="Policies" data={current} columns={columns} getRowId={(p) => p.id} onRowClick={(p) => router.push(`/l2/policies/${p.key}`)} initialSort={{ id: "signals", desc: true }} height="calc(100dvh - 240px)" />}
+        {() => <DataTable label="Policies" data={category === "all" ? current : current.filter((p) => policyCategory(p) === category)} columns={columns} getRowId={(p) => p.id} onRowClick={(p) => router.push(`/l2/policies/${p.key}`)} initialSort={{ id: "signals", desc: true }} height="calc(100dvh - 240px)" toolbar={<CategoryFilter label="Filter by category" allLabel="All categories" value={category} onChange={setCategory} options={countBy(current, policyCategory)} />} />}
       </QueryView>
     </div>
   );
@@ -64,107 +90,158 @@ export function PolicyDetail() {
   );
 }
 
+const DAY = 86_400_000;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 function PolicyTimeline({ versions, now, tz }: { versions: Policy[]; now: number; tz?: string }) {
   const onMain = versions.filter((v) => v.branch === "main");
   const drafts = versions.filter((v) => v.branch !== "main");
   const all = [...onMain, ...drafts];
-  const start = Math.min(...all.map((v) => Date.parse(v.validFrom)), ...all.map((v) => Date.parse(v.recordedAt)));
-  const end = Math.max(now + 120 * 86_400_000, ...all.map((v) => Date.parse(v.validFrom) + 60 * 86_400_000));
-  const [asOf, setAsOf] = useState(now);
-  const pos = (t: number) => `${((t - start) / (end - start)) * 100}%`;
   const live = onMain.find((v) => !v.supersededBy) ?? onMain.at(-1)!;
-  const trueThen = onMain.find((v) => Date.parse(v.validFrom) <= asOf && (!v.validTo || Date.parse(v.validTo) > asOf)) ?? null;
-  const believedThen = [...onMain].filter((v) => Date.parse(v.recordedAt) <= asOf).sort((a, b) => b.version - a.version).find((v) => Date.parse(v.validFrom) <= asOf && (!v.validTo || Date.parse(v.validTo) > asOf || Date.parse(v.recordedAt) > asOf)) ?? null;
+  const [selectedId, setSelectedId] = useState<string>(live.id);
+  const [signalKey, setSignalKey] = useState<string | null>(null);
+  const selected = all.find((v) => v.id === selectedId) ?? live;
+  const start = Math.min(...all.map((v) => Date.parse(v.validFrom)), ...all.map((v) => Date.parse(v.recordedAt))) - 20 * DAY;
+  const end = Math.max(now + 120 * DAY, ...all.map((v) => Date.parse(v.validFrom) + 60 * DAY));
+  const pos = (t: number) => `${((t - start) / (end - start)) * 100}%`;
   const sigs = signals(live, now);
+  const activeSignal = sigs.find((s) => s.key === signalKey) ?? null;
+  // Freshness markers: dated signals sit at their date, the rest gather at today.
+  const markerAt = (key: string): number =>
+    key === "interval" && live.validTo ? Date.parse(live.validTo) : key === "drift" && live.freshness.driftPointAt ? Date.parse(live.freshness.driftPointAt) : now;
+  // Month ticks along the top.
+  const ticks: { t: number; label: string }[] = [];
+  const d0 = new Date(start);
+  for (let t = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() + 1, 1); t < end; ) {
+    const d = new Date(t);
+    ticks.push({ t, label: d.getUTCMonth() === 0 ? `${MONTHS[0]} ${d.getUTCFullYear()}` : MONTHS[d.getUTCMonth()] });
+    t = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1);
+  }
+  const every = Math.max(1, Math.ceil(ticks.length / 14));
+  const panel = "rounded-xl border bg-card/90 shadow-md backdrop-blur";
   return (
-    <div>
-      <PageHeader eyebrow={<Link href="/l2/policies" className="hover:underline">Policy registry</Link>} title={live.name} description={live.statement} actions={<CritBadge level={live.criticality} showLabel />} />
-      <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
-        <div className="space-y-4">
-          <Section title="Validity timeline" description="Bars show when each version is true in the world. Ticks show when the system recorded it. Drafts on sandbox branches are dashed.">
-            <div className="relative mt-2 space-y-2" role="list" aria-label="Policy versions">
-              {all.map((v) => (
-                <div key={v.id} role="listitem" className="relative h-9">
-                  <div
-                    className={cn("absolute top-1 flex h-7 items-center overflow-hidden whitespace-nowrap rounded-md border px-2 text-xs", v.branch === "main" ? "border-primary/40 bg-primary/12" : "border-dashed border-env-sandbox bg-env-sandbox/10")}
-                    style={{ left: pos(Date.parse(v.validFrom)), width: `calc(${pos(v.validTo ? Date.parse(v.validTo) : end)} - ${pos(Date.parse(v.validFrom))})` }}
-                    title={`v${v.version}: ${v.statement}`}
-                  >
-                    <span className="font-medium">v{v.version}</span>
-                    <span className="ml-2 truncate text-muted-foreground">{String(v.rule.params.days ?? "")}{v.rule.params.days ? " days" : ""}</span>
-                    {v.branch !== "main" && <span className="ml-2 text-env-sandbox">draft</span>}
-                  </div>
-                  <div className="absolute top-0 h-9 w-px bg-foreground/40" style={{ left: pos(Date.parse(v.recordedAt)) }} title={`recorded ${v.recordedAt.slice(0, 10)}`} />
-                </div>
-              ))}
-              <div className="pointer-events-none absolute -top-1 bottom-0 w-0.5 bg-env-production" style={{ left: pos(asOf) }} aria-hidden />
-            </div>
-            <div className="mt-4">
-              <div className="mb-2 flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">As of</span>
-                <span className="font-medium">{date(new Date(asOf).toISOString(), tz)}</span>
-              </div>
-              <Slider min={start} max={end} step={86_400_000} value={[asOf]} onValueChange={(v) => setAsOf(v[0])} aria-label="As of date" valueText={date(new Date(asOf).toISOString(), tz)} />
-            </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2" aria-live="polite">
-              <div className="rounded-lg border p-3">
-                <div className="text-xs text-muted-foreground">What was true then (valid time)</div>
-                <div className="mt-1 text-sm font-medium" data-testid="true-then">{trueThen ? `v${trueThen.version}: ${trueThen.statement}` : "No version valid"}</div>
-              </div>
-              <div className="rounded-lg border p-3">
-                <div className="text-xs text-muted-foreground">What the system believed then (recorded time)</div>
-                <div className="mt-1 text-sm font-medium" data-testid="believed-then">{believedThen ? `v${believedThen.version}: ${believedThen.statement}` : "Nothing recorded yet"}</div>
-              </div>
-            </div>
-          </Section>
-          <Section title="Versions">
-            <ul className="divide-y text-sm">
-              {all.map((v) => (
-                <li key={v.id} className="py-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Mono>v{v.version}</Mono>
-                    <span>{v.statement}</span>
-                    {v.branch !== "main" && <StatusChip tone="info">{v.branch}</StatusChip>}
-                    {v.supersededBy && <StatusChip tone="neutral">superseded by {v.supersededBy.split("@")[1]}</StatusChip>}
-                  </div>
-                  <div className="mt-0.5 text-xs text-muted-foreground">
-                    valid {date(v.validFrom, tz)} → {v.validTo ? date(v.validTo, tz) : "open"} · recorded {date(v.recordedAt, tz)}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </Section>
+    <div className="relative -mx-3 -my-4 h-[calc(100dvh-3rem)] min-h-[520px] overflow-hidden sm:-mx-6 sm:-my-5">
+      <h1 className="sr-only">{live.name}</h1>
+      {/* title, top left */}
+      <div className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-2">
+        <Link href="/l2/policies" className={`${panel} px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground`}>
+          ← Policy registry
+        </Link>
+        <div className={`${panel} flex items-center gap-2 px-3 py-1.5`}>
+          <span className="text-sm font-semibold">{live.name}</span>
+          <CritBadge level={live.criticality} showLabel />
+          <StatusChip tone="info" className="capitalize">{policyCategory(live)}</StatusChip>
         </div>
-        <div className="space-y-4">
-          <Section title="Freshness signals" description="Signals create invalidation proposals. Nothing is invalidated without approval.">
-            <ul className="space-y-2">
-              {sigs.map((s) => (
-                <li key={s.key} className="flex items-start gap-2 text-sm">
-                  {s.fired ? <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warn-fg" aria-label="signal fired" /> : <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-ok" aria-label="ok" />}
-                  <span>
-                    {s.label}
-                    <span className="block text-xs text-muted-foreground">{s.detail}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {sigs.some((s) => s.fired) && (
-              <Link href="/l2/vault" className="mt-3 inline-block text-xs text-primary hover:underline">
+      </div>
+
+      {/* the graph: fills the page. Bars are versions, clickable. */}
+      <div className="absolute inset-0 pb-6 pt-16 lg:pr-[368px]" role="group" aria-label="Validity timeline">
+        <div className="relative mx-4 h-full">
+          <div className="absolute inset-x-0 top-0 h-6 border-b text-[10px] text-muted-foreground" aria-hidden>
+            {ticks.map((k, i) => (
+              <span key={k.t} className={cn("absolute top-0 -translate-x-1/2", i % every !== 0 && "hidden")} style={{ left: pos(k.t) }}>{k.label}</span>
+            ))}
+          </div>
+          {ticks.map((k, i) => (
+            <div key={`g-${k.t}`} className={cn("absolute bottom-0 top-6 w-px bg-border/50", i % every !== 0 && "hidden")} style={{ left: pos(k.t) }} aria-hidden />
+          ))}
+          {/* today */}
+          <div className="pointer-events-none absolute bottom-0 top-6 w-0.5 bg-env-production" style={{ left: pos(now) }} aria-hidden />
+          <span className="pointer-events-none absolute bottom-0 -translate-x-1/2 rounded bg-env-production px-1.5 py-0.5 text-[10px] font-medium text-white" style={{ left: pos(now) }}>today</span>
+
+          {/* freshness markers */}
+          <div className="absolute inset-x-0 top-8 h-12" role="group" aria-label="Freshness signals">
+            {sigs.map((s, i) => {
+              const at = markerAt(s.key);
+              const dated = s.key === "interval" || s.key === "drift";
+              return (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => setSignalKey(signalKey === s.key ? null : s.key)}
+                  aria-pressed={signalKey === s.key}
+                  title={`${s.label}: ${s.detail}`}
+                  className={cn("absolute grid size-6 -translate-x-1/2 place-items-center rounded-full border bg-card shadow-sm transition-transform hover:scale-110 focus-visible:outline-2", s.fired ? "border-warn text-warn-fg" : "text-ok opacity-70", signalKey === s.key && "ring-2 ring-primary")}
+                  style={{ left: dated ? pos(at) : `calc(${pos(at)} + ${(i - 2) * 26}px)`, top: dated ? 0 : 24 }}
+                >
+                  {s.fired ? <AlertTriangle className="size-3.5" aria-label="signal fired" /> : <CheckCircle2 className="size-3.5" aria-label="ok" />}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* version bars */}
+          <div className="absolute inset-x-0 bottom-8 top-24 flex flex-col justify-center gap-4" role="list" aria-label="Policy versions">
+            {all.map((v) => {
+              const on = v.id === selected.id;
+              return (
+                <div key={v.id} role="listitem" className="relative h-14">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(v.id)}
+                    aria-pressed={on}
+                    aria-label={`Version ${v.version}${v.branch !== "main" ? `, draft on ${v.branch}` : ""}. Show details.`}
+                    className={cn(
+                      "absolute top-1 flex h-12 items-center gap-2 overflow-hidden whitespace-nowrap rounded-lg border px-3 text-left text-sm transition-shadow hover:shadow-md focus-visible:outline-2",
+                      v.branch === "main" ? "border-primary/40 bg-primary/12" : "border-dashed border-env-sandbox bg-env-sandbox/10",
+                      on && "ring-2 ring-primary",
+                    )}
+                    style={{ left: pos(Date.parse(v.validFrom)), width: `calc(${pos(v.validTo ? Date.parse(v.validTo) : end)} - ${pos(Date.parse(v.validFrom))})` }}
+                  >
+                    <span className="font-semibold">v{v.version}</span>
+                    <span className="truncate text-muted-foreground">{v.statement}</span>
+                    {v.branch !== "main" && <span className="shrink-0 text-xs text-env-sandbox">draft</span>}
+                  </button>
+                  <div className="pointer-events-none absolute top-0 h-14 w-px bg-foreground/40" style={{ left: pos(Date.parse(v.recordedAt)) }} title={`recorded ${v.recordedAt.slice(0, 10)}`} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* boxes inside the graph */}
+      <div className="absolute bottom-3 right-3 top-14 z-10 hidden w-[344px] flex-col gap-3 overflow-auto lg:flex">
+        <section className={`${panel} p-3`} aria-label="Selected version">
+          <div className="flex items-center gap-2">
+            <Mono className="text-sm font-semibold">v{selected.version}</Mono>
+            {selected.branch !== "main" && <StatusChip tone="info">{selected.branch}</StatusChip>}
+            {selected.supersededBy && <StatusChip tone="neutral">superseded by {selected.supersededBy.split("@")[1]}</StatusChip>}
+          </div>
+          <p className="mt-1.5 text-sm">{selected.statement}</p>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Valid {date(selected.validFrom, tz)} → {selected.validTo ? date(selected.validTo, tz) : "open"} · recorded {date(selected.recordedAt, tz)}
+          </p>
+        </section>
+        {activeSignal && (
+          <section className={`${panel} border-warn/40 p-3`} aria-label="Freshness signal">
+            <div className="flex items-start gap-2 text-sm">
+              {activeSignal.fired ? <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warn-fg" /> : <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-ok" />}
+              <span>
+                {activeSignal.label}
+                <span className="block text-xs text-muted-foreground">{activeSignal.detail}</span>
+              </span>
+            </div>
+            {activeSignal.fired && (
+              <Link href="/l2/vault" className="mt-2 inline-block text-xs text-primary hover:underline">
                 See the librarian proposal
               </Link>
             )}
-          </Section>
-          <Section title="Details">
-            <KeyValue items={[["Key", <Mono key="k">{live.key}</Mono>], ["Rule", <Mono key="r">{live.rule.kind}({Object.entries(live.rule.params).map(([k, v]) => `${k}=${v}`).join(", ")})</Mono>], ["DRI", <PersonChip key="d" id={live.dri} />]]} />
-          </Section>
-          <Section title="Dependents">
-            <ul className="space-y-1 text-xs">
-              {live.dependents.map((d) => (
-                <li key={d.id}><Mono className="text-muted-foreground">{d.type}</Mono> {d.label}</li>
-              ))}
-            </ul>
-          </Section>
-        </div>
+          </section>
+        )}
+        <section className={`${panel} p-3`} aria-label="Details">
+          <h2 className="mb-2 text-xs font-semibold">Details</h2>
+          <KeyValue items={[["Key", <Mono key="k">{live.key}</Mono>], ["Rule", <Mono key="r">{live.rule.kind}({Object.entries(live.rule.params).map(([k, v]) => `${k}=${v}`).join(", ")})</Mono>], ["DRI", <PersonChip key="d" id={live.dri} />]]} />
+        </section>
+        <section className={`${panel} p-3`} aria-label="Dependents">
+          <h2 className="mb-2 text-xs font-semibold">Dependents</h2>
+          <ul className="space-y-1 text-xs">
+            {live.dependents.length === 0 && <li className="text-muted-foreground">Nothing depends on it yet</li>}
+            {live.dependents.map((d) => (
+              <li key={d.id}><Mono className="text-muted-foreground">{d.type}</Mono> {d.label}</li>
+            ))}
+          </ul>
+        </section>
       </div>
     </div>
   );

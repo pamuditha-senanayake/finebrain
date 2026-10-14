@@ -1,6 +1,5 @@
 "use client";
 
-import { Scale } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo } from "react";
@@ -8,7 +7,7 @@ import type { Fact } from "@/contracts";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable, type Column } from "@/components/brain/data-table";
-import { Beam } from "@/components/brain/motion";
+import { SimpleTable } from "@/components/brain/simple-table";
 import { useLookup } from "@/components/brain/names";
 import { EmptyState, KeyValue, Mono, PageHeader, QueryView, Section, Status, StatusChip } from "@/components/brain/primitives";
 import { useDocuments, useFacts, useLibrarian, useOp } from "@/lib/api/hooks";
@@ -52,54 +51,66 @@ export function Vault() {
         <TabsContent value="queue" className="mt-3">
           <QueryView query={librarian} empty={<EmptyState title="The librarian queue is empty" />}>
             {(items) => (
-              <ul className="space-y-3">
-                {items.map((item, i) => (
-                  <li key={item.id}>
-                    <Beam active={item.kind === "conflict" && item.status === "open" && i === 0} className="rounded-xl">
-                      <div className="rounded-xl border bg-card p-4" data-testid={`librarian-${item.id}`}>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <StatusChip tone={item.kind === "conflict" ? "risk" : item.kind === "stale" || item.kind === "unverified" ? "warn" : "neutral"}>{item.kind}</StatusChip>
-                          <h3 className="text-sm font-semibold">{item.title}</h3>
-                          <span className="ml-auto"><Status value={item.status} /></span>
-                        </div>
-                        <p className="mt-1.5 text-sm text-muted-foreground">{item.detail}</p>
-                        {item.factIds.length > 0 && (
-                          <ul className="mt-2 flex flex-wrap gap-1.5">
-                            {item.factIds.map((f) => (
-                              <li key={f}>
-                                <Link href={`/l2/vault?fact=${f}`} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] hover:underline">{f}</Link>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                        {item.proposal && (
-                          <div className="mt-3 rounded-lg bg-surface p-3 text-sm">
-                            <div className="mb-1 flex items-center gap-1.5 text-xs font-medium"><Scale className="size-3.5" /> Librarian proposal</div>
-                            <KeyValue items={[["Winning source", item.proposal.winningSource], ["New validity from", date(item.proposal.newValidFrom, lookup.tz)], ["Dependents updated", item.proposal.dependents.map((d) => d.label).join(", ") || "none"]]} />
-                          </div>
-                        )}
-                        <div className="mt-3 flex gap-2">
-                          {item.status === "open" && (
-                            <Button size="sm" onClick={() => propose.mutate({ itemId: item.id }, { onSuccess: (cr) => router.push(`/l2/versioning/${(cr as { id: string }).id}`) })} disabled={propose.isPending || !user || user.tier === "L3"} data-testid={`propose-${item.id}`}>
-                              {item.kind === "conflict" ? "Propose resolution" : "Draft fix"}
-                            </Button>
-                          )}
-                          {item.changeRequestId && (
-                            <Button size="sm" variant="outline" asChild>
-                              <Link href={`/l2/versioning/${item.changeRequestId}`}>Open change request</Link>
-                            </Button>
-                          )}
-                          {item.policyId && (
-                            <Button size="sm" variant="ghost" asChild>
-                              <Link href={`/l2/policies/${item.policyId.split("@")[0]}`}>Policy timeline</Link>
-                            </Button>
-                          )}
-                        </div>
+              <SimpleTable
+                label="Librarian queue"
+                rows={items}
+                getRowId={(i) => i.id}
+                columns={[
+                  { id: "kind", header: "Type", cell: (i) => <StatusChip tone={i.kind === "conflict" ? "risk" : i.kind === "stale" || i.kind === "unverified" ? "warn" : "neutral"}>{i.kind}</StatusChip> },
+                  { id: "title", header: "Item", className: "font-medium", cell: (i) => <span data-testid={`librarian-${i.id}`}>{i.title}</span> },
+                  { id: "detail", header: "Detail", className: "max-w-md text-xs text-muted-foreground", cell: (i) => i.detail },
+                  {
+                    id: "facts",
+                    header: "Facts",
+                    cell: (i) => (
+                      <div className="flex flex-wrap gap-1">
+                        {i.factIds.map((f) => (
+                          <Link key={f} href={`/l2/vault?fact=${f}`} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] hover:underline">{f}</Link>
+                        ))}
                       </div>
-                    </Beam>
-                  </li>
-                ))}
-              </ul>
+                    ),
+                  },
+                  {
+                    id: "proposal",
+                    header: "Librarian proposal",
+                    className: "max-w-xs text-xs",
+                    cell: (i) =>
+                      i.proposal ? (
+                        <div className="space-y-0.5">
+                          <div><span className="text-muted-foreground">Winning source:</span> {i.proposal.winningSource}</div>
+                          <div><span className="text-muted-foreground">Valid from:</span> {date(i.proposal.newValidFrom, lookup.tz)}</div>
+                          <div><span className="text-muted-foreground">Updates:</span> {i.proposal.dependents.map((d) => d.label).join(", ") || "none"}</div>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">none yet</span>
+                      ),
+                  },
+                  { id: "status", header: "Status", cell: (i) => <Status value={i.status} /> },
+                  {
+                    id: "actions",
+                    header: "Fix",
+                    cell: (i) => (
+                      <div className="flex flex-wrap gap-1.5">
+                        {i.status === "open" && (
+                          <Button size="xs" onClick={() => propose.mutate({ itemId: i.id }, { onSuccess: (cr) => router.push(`/l2/versioning/${(cr as { id: string }).id}`) })} disabled={propose.isPending || !user || user.tier === "L3"} data-testid={`propose-${i.id}`}>
+                            {i.kind === "conflict" ? "Propose resolution" : "Draft fix"}
+                          </Button>
+                        )}
+                        {i.changeRequestId && (
+                          <Button size="xs" variant="outline" asChild>
+                            <Link href={`/l2/versioning/${i.changeRequestId}`}>Change request</Link>
+                          </Button>
+                        )}
+                        {i.policyId && (
+                          <Button size="xs" variant="ghost" asChild>
+                            <Link href={`/l2/policies/${i.policyId.split("@")[0]}`}>Policy timeline</Link>
+                          </Button>
+                        )}
+                      </div>
+                    ),
+                  },
+                ]}
+              />
             )}
           </QueryView>
         </TabsContent>

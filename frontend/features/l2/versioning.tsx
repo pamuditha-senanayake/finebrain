@@ -9,16 +9,20 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChangeRequestSummary, StructuredDiff } from "@/components/brain/change-request";
+import { CategoryFilter, countBy } from "@/components/brain/category-filter";
 import { DataTable, type Column } from "@/components/brain/data-table";
 import { Beam, CommitButton } from "@/components/brain/motion";
 import { PersonChip, useLookup } from "@/components/brain/names";
-import { CritBadge, LoadingState, Mono, PageHeader, QueryView, Section, Status } from "@/components/brain/primitives";
+import { CritBadge, LoadingState, Mono, PageHeader, QueryView, Section, Status, StatusChip } from "@/components/brain/primitives";
 import { useApproval, useBranches, useChangeRequest, useChangeRequests, useCommits, useOp } from "@/lib/api/hooks";
 import { useCurrentUser } from "@/lib/auth";
 import { dateTime, relTime } from "@/lib/format";
 
 // React.lazy, not next/dynamic: the chunk loads only when this view renders, never on route prefetch.
 const BranchGraph = lazy(() => import("./branch-graph"));
+
+/** A commit's category: the kind of node it changes most. */
+const commitCategory = (c: Commit) => c.changes[0]?.nodeType ?? "other";
 
 export function Versioning() {
   const crs = useChangeRequests();
@@ -28,13 +32,15 @@ export function Versioning() {
   const params = useSearchParams();
   const lookup = useLookup();
   const { user } = useCurrentUser();
+  const [crKind, setCrKind] = useState("all");
+  const [commitKind, setCommitKind] = useState("all");
   const [rollbackTo, setRollbackTo] = useState<Commit | null>(null);
   const rollback = useOp<{ commitId: string }>("rollback", { success: "Rolled back. A revert commit is on main." });
   const crColumns: Column<ChangeRequest>[] = useMemo(
     () => [
       { id: "crit", header: "Level", width: "56px", value: (c) => c.criticality, cell: (c) => <CritBadge level={c.criticality} /> },
       { id: "title", header: "Change request", width: "minmax(220px,2fr)", value: (c) => c.title, cell: (c) => <span className="truncate font-medium">{c.title}</span> },
-      { id: "kind", header: "Kind", width: "80px", value: (c) => c.kind, hideOnMobile: true, cell: (c) => <span className="text-muted-foreground">{c.kind}</span> },
+      { id: "kind", header: "Category", width: "110px", value: (c) => c.kind, cell: (c) => <StatusChip tone="info" className="capitalize">{c.kind}</StatusChip> },
       { id: "branch", header: "Branch", width: "minmax(160px,1fr)", value: (c) => c.fromBranch, hideOnMobile: true, cell: (c) => <Mono className="truncate">{c.fromBranch}</Mono> },
       { id: "drafter", header: "Drafter", width: "140px", value: (c) => c.drafter.name, hideOnMobile: true, cell: (c) => <span className="truncate">{c.drafter.name}</span> },
       { id: "status", header: "Status", width: "140px", value: (c) => c.status, cell: (c) => <Status value={c.status} /> },
@@ -45,6 +51,7 @@ export function Versioning() {
   const commitColumns: Column<Commit>[] = useMemo(
     () => [
       { id: "id", header: "Commit", width: "90px", value: (c) => c.id, cell: (c) => <Mono>{c.id.slice(0, 8)}</Mono> },
+      { id: "category", header: "Category", width: "110px", value: (c) => commitCategory(c), cell: (c) => <StatusChip tone="info" className="capitalize">{commitCategory(c)}</StatusChip> },
       { id: "message", header: "Message", width: "minmax(240px,2fr)", value: (c) => c.message, cell: (c) => <span className="truncate">{c.message}{c.tag && <span className="ml-2 rounded bg-ok/10 px-1 text-[10px] text-ok">{c.tag}</span>}</span> },
       { id: "author", header: "Author", width: "150px", value: (c) => c.author.name, hideOnMobile: true, cell: (c) => <span className="truncate">{c.author.name}</span> },
       { id: "crit", header: "Level", width: "56px", value: (c) => c.criticality, cell: (c) => <CritBadge level={c.criticality} /> },
@@ -56,7 +63,7 @@ export function Versioning() {
   const later = rollbackTo ? (commits.data ?? []).filter((c) => c.createdAt > rollbackTo.createdAt) : [];
   return (
     <div>
-      <PageHeader title="Versioning" description="Git for the graph. Every change is a commit, main is Production, staging runs in shadow, and each sandbox is a branch tested against recorded runs." />
+      <PageHeader title="Knowledge graph's versioning" description="Git for the graph. Every change is a commit, main is Production, staging runs in shadow, and each sandbox is a branch tested against recorded runs." />
       <Tabs defaultValue={params.get("commit") ? "main" : "crs"}>
         <TabsList>
           <TabsTrigger value="crs">Change requests</TabsTrigger>
@@ -65,7 +72,7 @@ export function Versioning() {
         </TabsList>
         <TabsContent value="crs" className="mt-3">
           <QueryView query={crs}>
-            {(list) => <DataTable label="Change requests" data={list} columns={crColumns} getRowId={(c) => c.id} onRowClick={(c) => router.push(`/l2/versioning/${c.id}`)} initialSort={{ id: "created", desc: true }} height="calc(100dvh - 300px)" />}
+            {(list) => <DataTable label="Change requests" data={crKind === "all" ? list : list.filter((c) => c.kind === crKind)} toolbar={<CategoryFilter label="Filter by category" allLabel="All categories" value={crKind} onChange={setCrKind} options={countBy(list, (c) => c.kind)} />} columns={crColumns} getRowId={(c) => c.id} onRowClick={(c) => router.push(`/l2/versioning/${c.id}`)} initialSort={{ id: "created", desc: true }} height="calc(100dvh - 300px)" />}
           </QueryView>
         </TabsContent>
         <TabsContent value="branches" className="mt-3 space-y-3">
@@ -93,7 +100,7 @@ export function Versioning() {
         </TabsContent>
         <TabsContent value="main" className="mt-3">
           <QueryView query={commits}>
-            {(cs) => <DataTable label="Commits on main" data={cs} columns={commitColumns} getRowId={(c) => c.id} initialSort={{ id: "at", desc: true }} height="calc(100dvh - 300px)" rowClassName={(c) => (c.id === params.get("commit") ? "bg-primary/10" : undefined)} />}
+            {(cs) => <DataTable label="Commits on main" data={commitKind === "all" ? cs : cs.filter((c) => commitCategory(c) === commitKind)} toolbar={<CategoryFilter label="Filter by category" allLabel="All categories" value={commitKind} onChange={setCommitKind} options={countBy(cs, commitCategory)} />} columns={commitColumns} getRowId={(c) => c.id} initialSort={{ id: "at", desc: true }} height="calc(100dvh - 300px)" rowClassName={(c) => (c.id === params.get("commit") ? "bg-primary/10" : undefined)} />}
           </QueryView>
         </TabsContent>
       </Tabs>
@@ -140,7 +147,7 @@ export function ChangeRequestDetail() {
           const conflictWith = c.status === "conflict" ? (crs.data ?? []).find((o) => o.id !== c.id && o.status === "merged" && o.changes.some((x) => c.changes.some((y) => y.nodeId === x.nodeId))) : null;
           return (
             <div>
-              <PageHeader eyebrow={<Link href="/l2/versioning" className="hover:underline">Versioning</Link>} title={c.title} description={<span className="inline-flex flex-wrap items-center gap-1">Drafted by {c.drafter.name} · DRI <PersonChip id={c.dri} /></span>} />
+              <PageHeader eyebrow={<Link href="/l2/versioning" className="hover:underline">Knowledge graph&apos;s versioning</Link>} title={c.title} description={<span className="inline-flex flex-wrap items-center gap-1">Drafted by {c.drafter.name} · DRI <PersonChip id={c.dri} /></span>} />
               <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
                 <ChangeRequestSummary cr={c} />
                 <div className="space-y-4 lg:sticky lg:top-16 lg:self-start">
