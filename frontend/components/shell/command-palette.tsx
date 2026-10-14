@@ -79,7 +79,7 @@ export function CommandPalette() {
           >
             <Sparkles /> {t("shell.ask")}
           </CommandItem>
-          <CommandItem value="toggle theme dark light" onSelect={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}>
+          <CommandItem value="toggle theme dark light" onSelect={() => setTheme(resolvedTheme === "dark" || resolvedTheme === "black" ? "light" : "dark")}>
             <Moon /> Toggle theme
           </CommandItem>
           <CommandItem

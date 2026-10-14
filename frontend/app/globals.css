@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark *, .black *));
 
 @theme inline {
   --color-background: var(--background);
@@ -177,6 +177,60 @@
   --agent: oklch(0.75 0.13 295);
 }
 
+.black {
+  /* Neutral black: the same accent and table contrast on a true dark screen. */
+  color-scheme: dark;
+  --background: oklch(0.16 0 0);
+  --foreground: oklch(0.95 0 0);
+  --surface: oklch(0.185 0 0);
+  --card: oklch(0.2 0 0);
+  --card-foreground: oklch(0.95 0 0);
+  --popover: oklch(0.215 0 0);
+  --popover-foreground: oklch(0.95 0 0);
+  --primary: oklch(0.69 0.13 42);
+  --primary-foreground: oklch(0.2 0.012 50);
+  --secondary: oklch(0.255 0 0);
+  --secondary-foreground: oklch(0.94 0 0);
+  --muted: oklch(0.25 0 0);
+  --muted-foreground: oklch(0.74 0 0);
+  --accent: oklch(0.28 0.012 50);
+  --accent-foreground: oklch(0.96 0.02 70);
+  --destructive: oklch(0.68 0.17 27);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.69 0.13 42);
+  --chart-1: oklch(0.7 0.13 42);
+  --chart-2: oklch(0.72 0.09 190);
+  --chart-3: oklch(0.82 0.12 85);
+  --chart-4: oklch(0.7 0.1 330);
+  --chart-5: oklch(0.72 0.02 80);
+  --sidebar: oklch(0.135 0 0);
+  --sidebar-foreground: oklch(0.9 0 0);
+  --sidebar-primary: oklch(0.69 0.13 42);
+  --sidebar-primary-foreground: oklch(0.2 0.012 50);
+  --sidebar-accent: oklch(0.235 0 0);
+  --sidebar-accent-foreground: oklch(0.97 0 0);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.69 0.13 42);
+  --table-head: oklch(0.135 0 0);
+  --table-stripe: oklch(0.218 0 0);
+  --table-hover: oklch(0.27 0.018 50);
+
+  --crit-0: oklch(0.76 0.015 85);
+  --crit-1: oklch(0.76 0.11 235);
+  --crit-2: oklch(0.8 0.13 140);
+  --crit-3: oklch(0.82 0.13 72);
+  --crit-4: oklch(0.72 0.17 25);
+  --env-production: oklch(0.52 0.17 355);
+  --env-staging: oklch(0.8 0.12 92);
+  --env-sandbox: oklch(0.52 0.16 300);
+  --ok: oklch(0.77 0.12 160);
+  --warn: oklch(0.83 0.13 82);
+  --warn-fg: oklch(0.86 0.12 85);
+  --risk: oklch(0.72 0.17 26);
+  --agent: oklch(0.75 0.13 295);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -269,14 +323,14 @@
 
 /* Brain map: the L1 constellation. Its own surface tokens so it reads as one object in both themes. */
 :root {
-  --map-bg-1: oklch(0.86 0.065 288);
-  --map-bg-2: oklch(0.72 0.1 285);
+  --map-bg-1: oklch(1 0 0);
+  --map-bg-2: oklch(0.975 0.004 95);
   --map-node: oklch(0.24 0.09 285);
   --map-line: oklch(0.24 0.09 285 / 0.42);
   --map-label: oklch(0.2 0.08 285);
   --map-sub: oklch(0.3 0.08 285);
 }
-.dark {
+.dark, .black {
   --map-bg-1: oklch(0.33 0.09 285);
   --map-bg-2: oklch(0.17 0.05 285);
   --map-node: oklch(0.95 0.02 290);

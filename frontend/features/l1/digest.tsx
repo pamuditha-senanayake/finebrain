@@ -107,7 +107,7 @@ export function Digest() {
                     getRowId={(f) => f.name}
                     empty="No failures."
                     columns={[
-                      { id: "name", header: "Class", className: "font-medium capitalize", cell: (f) => f.name },
+                      { id: "name", header: "Class", className: "font-medium", cell: (f) => <span className="capitalize">{f.name}</span> },
                       { id: "count", header: "Count", align: "right", className: "w-24", cell: (f) => f.count },
                       {
                         id: "share",

@@ -213,7 +213,8 @@ export function ShellMenu() {
         <DropdownMenuLabel className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Theme</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
           <DropdownMenuRadioItem value="light"><Sun /> Light</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="dark"><Moon /> Dark</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="dark"><Moon /> Dark, warm</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="black"><Moon className="fill-current" /> Dark, black</DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="system"><Monitor /> System</DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
         {flags.mocks && (
@@ -314,7 +315,7 @@ export function RoleSwitcher() {
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
   return (
-    <Button variant="ghost" size="icon-sm" onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")} aria-label="Toggle light and dark theme">
+    <Button variant="ghost" size="icon-sm" onClick={() => setTheme(resolvedTheme === "dark" || resolvedTheme === "black" ? "light" : "dark")} aria-label="Toggle light and dark theme">
       <Sun className="hidden dark:block" />
       <Moon className="dark:hidden" />
     </Button>

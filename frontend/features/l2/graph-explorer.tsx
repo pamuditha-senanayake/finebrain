@@ -107,9 +107,9 @@ export function GraphExplorer() {
                 <div className="h-full bg-card">
                   <Suspense fallback={<LoadingState rows={4} label="Loading graph" />}>
                     {mode === "3d" ? (
-                      <GraphCanvas3D data={g} visibleTypes={visible} locked={locked} lockedEdges={lockedEdges} selected={selected} onSelect={setSelected} dark={resolvedTheme === "dark"} />
+                      <GraphCanvas3D data={g} visibleTypes={visible} locked={locked} lockedEdges={lockedEdges} selected={selected} onSelect={setSelected} dark={(resolvedTheme === "dark" || resolvedTheme === "black")} />
                     ) : (
-                      <GraphCanvas data={g} visibleTypes={visible} locked={locked} lockedEdges={lockedEdges} selected={selected} onSelect={setSelected} dark={resolvedTheme === "dark"} />
+                      <GraphCanvas data={g} visibleTypes={visible} locked={locked} lockedEdges={lockedEdges} selected={selected} onSelect={setSelected} dark={(resolvedTheme === "dark" || resolvedTheme === "black")} />
                     )}
                   </Suspense>
                 </div>

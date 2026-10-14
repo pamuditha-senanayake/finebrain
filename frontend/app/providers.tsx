@@ -39,7 +39,7 @@ export function Providers({ children }: { children: ReactNode }) {
       }),
   );
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem themes={["light", "dark", "black"]} disableTransitionOnChange>
       <QueryClientProvider client={client}>
         <TooltipProvider delayDuration={250}>
           <MockStarter />
