@@ -151,7 +151,7 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
           </aside>
           {hover.peek && (
             <aside
-              className="fixed inset-y-0 left-0 z-50 hidden w-60 border-r bg-sidebar shadow-xl animate-in slide-in-from-left-4 fade-in-0 duration-150 lg:block"
+              className="fixed bottom-0 left-0 top-12 z-40 hidden w-60 border-r bg-sidebar shadow-xl animate-in slide-in-from-left-4 fade-in-0 duration-150 lg:block"
               aria-label="Sidebar preview"
               onMouseEnter={hover.enter}
               onMouseLeave={hover.leave}

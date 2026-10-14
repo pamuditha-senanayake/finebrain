@@ -2,7 +2,7 @@
 
 import { Eraser, Send, Sparkles, Wrench } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import type { ApplyResult, ChatReply, StudioCard, Suggestion, WorkflowDetail } from "@/contracts";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,6 +40,7 @@ export function StudioChat({
   onFocus,
   onSwitch,
   onShowDiagram,
+  toolbar,
 }: {
   workflowId: string;
   detail: WorkflowDetail | undefined;
@@ -48,6 +49,7 @@ export function StudioChat({
   onFocus: (f: Focus) => void;
   onSwitch: (workflowId: string) => void;
   onShowDiagram: (h: Highlight) => void;
+  toolbar?: ReactNode;
 }) {
   const thread = useStudio((s) => s.threads[workflowId] ?? EMPTY);
   const push = useStudio((s) => s.push);
@@ -113,13 +115,14 @@ export function StudioChat({
   const openCard = (c: StudioCard) => onFocus({ kind: c.kind, id: c.targetId });
 
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-xl border bg-card shadow-xs">
-      <div className="flex items-center gap-2 border-b px-3 py-2">
+    <div className="flex h-full min-h-0 flex-col bg-card">
+      <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
         <Sparkles className="size-4 text-primary" aria-hidden />
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-semibold">Studio assistant</h2>
           <p className="truncate text-[11px] text-muted-foreground">Say what you want changed. Every edit is checked by the Edit Review Agent before anyone confirms it.</p>
         </div>
+        {toolbar}
         {thread.length > 0 && (
           <Button size="xs" variant="ghost" onClick={() => clear(workflowId)} aria-label="Clear conversation">
             <Eraser /> Clear

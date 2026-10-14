@@ -39,7 +39,7 @@ export function DetailsPanel(props: Props) {
   const item = focus && focus.kind !== "workflow" ? detail.items.find((i) => i.id === focus.id) ?? null : null;
   const [tab, setTab] = useState("details");
   return (
-    <aside className="flex h-full min-h-0 flex-col rounded-xl border bg-card shadow-xs" aria-label="Details">
+    <aside className="flex h-full min-h-0 flex-col border-l bg-card" aria-label="Details">
       <div className="border-b px-3 py-2.5">
         {item ? (
           <>
