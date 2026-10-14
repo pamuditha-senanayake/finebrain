@@ -119,8 +119,8 @@ export function StudioChat({
       <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
         <Sparkles className="size-4 text-primary" aria-hidden />
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-semibold">Studio assistant</h2>
-          <p className="truncate text-[11px] text-muted-foreground">Say what you want changed. Every edit is checked by the Edit Review Agent before anyone confirms it.</p>
+          <h2 className="text-sm font-semibold">{user?.tier === "L2" ? "L2 workflow studio" : "Studio assistant"}</h2>
+          <p className="truncate text-[11px] text-muted-foreground">{user?.tier === "L2" ? "Draft changes here and send them for approval. L2 cannot apply a change itself." : "Say what you want changed. Every edit is checked by the Edit Review Agent before anyone confirms it."}</p>
         </div>
         {toolbar}
         {thread.length > 0 && (

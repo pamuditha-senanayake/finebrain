@@ -10,6 +10,7 @@ export const en = {
   "demo.badge": "Demo data",
   "demo.reset": "Reset demo data",
   "nav.studio": "Workflow Studio",
+  "nav.studioL2": "L2 workflow studio",
   "nav.overview": "Brain overview",
   "nav.digest": "Morning digest",
   "nav.approvals": "All approvals",

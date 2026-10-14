@@ -326,6 +326,8 @@ function baseLevel(input: ProposalInput, changes: FieldChange[], before: Target 
 function authorityFor(h: Human, wf: Workflow | null, level: Criticality, verdict: Review["verdict"]): Review["authority"] {
   if (h.tier === "L3") return { canApply: false, route: "view_only", approver: wf ? `the workflow DRI` : "an L2 steward", reason: "L3 can view workflows and suggest edits, but cannot change them." };
   const req = approverFor(level);
+  // L2 stewards draft changes and send them for approval. They never apply a change themselves.
+  if (h.tier === "L2") return { canApply: false, route: "approval", approver: approverFor(Math.max(level, 2) as Criticality).label, reason: "L2 drafts changes and sends them for approval. It cannot apply a change itself." };
   const owns = !!wf && (wf.dri === h.id || wf.editors.includes(h.id));
   const okLevel = level <= h.maxApprovalCriticality;
   if (verdict !== "breaking" && level <= 1) return { canApply: true, route: "apply", approver: "you", reason: `C${level} is logged and applied right away.` };

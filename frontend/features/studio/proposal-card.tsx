@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CommitButton } from "@/components/brain/motion";
 import { CritBadge, StatusChip } from "@/components/brain/primitives";
 import { useOp } from "@/lib/api/hooks";
+import { useCurrentUser } from "@/lib/auth";
 import { NO_HIGHLIGHT, type Highlight } from "@/lib/studio/graph";
 import { cn } from "@/lib/utils";
 import { KindIcon } from "./cards";
@@ -48,6 +49,8 @@ export function ProposalCard({
   onShowDiagram: (h: Highlight) => void;
 }) {
   const rv = proposal.review;
+  const { user } = useCurrentUser();
+  const drafting = user?.tier === "L2";
   const v = VERDICT[rv.verdict];
   const [ack, setAck] = useState(false);
   const [note, setNote] = useState("");
@@ -163,7 +166,7 @@ export function ProposalCard({
         ) : (
           <>
             <p className="text-xs">
-              <span className="font-medium">{rv.authority.route === "apply" ? "You can confirm this." : rv.authority.route === "approval" ? `Needs ${rv.authority.approver}.` : "View only."}</span>{" "}
+              <span className="font-medium">{rv.authority.route === "apply" ? "You can confirm this." : rv.authority.route === "approval" ? (drafting ? `Draft only. Goes to ${rv.authority.approver}.` : `Needs ${rv.authority.approver}.`) : "View only."}</span>{" "}
               <span className="text-muted-foreground">{rv.authority.reason}</span>
             </p>
             {rv.verdict === "breaking" && !viewOnly && (
@@ -180,7 +183,7 @@ export function ProposalCard({
                 </Button>
               ) : (
                 <CommitButton size="sm" criticality={rv.criticality} disabled={blocked || apply.isPending} onClick={() => apply.mutate({ input: proposal.input, acknowledgeBreaking: ack, note }, { onSuccess: (r) => onApplied(r as ApplyResult) })}>
-                  {rv.authority.route === "apply" ? <><CheckCircle2 /> Confirm and apply</> : <><Send /> Send to {rv.authority.approver}</>}
+                  {rv.authority.route === "apply" ? <><CheckCircle2 /> Confirm and apply</> : <><Send /> {drafting ? "Draft and send for approval" : `Send to ${rv.authority.approver}`}</>}
                 </CommitButton>
               )}
               {!showNote && (

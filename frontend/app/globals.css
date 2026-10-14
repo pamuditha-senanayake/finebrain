@@ -257,12 +257,12 @@
 
 /* Brain map: the L1 constellation. Its own surface tokens so it reads as one object in both themes. */
 :root {
-  --map-bg-1: oklch(0.97 0.018 290);
-  --map-bg-2: oklch(0.91 0.04 290);
-  --map-node: oklch(0.36 0.09 285);
-  --map-line: oklch(0.36 0.09 285 / 0.26);
-  --map-label: oklch(0.27 0.07 285);
-  --map-sub: oklch(0.44 0.06 285);
+  --map-bg-1: oklch(0.86 0.065 288);
+  --map-bg-2: oklch(0.72 0.1 285);
+  --map-node: oklch(0.24 0.09 285);
+  --map-line: oklch(0.24 0.09 285 / 0.42);
+  --map-label: oklch(0.2 0.08 285);
+  --map-sub: oklch(0.3 0.08 285);
 }
 .dark {
   --map-bg-1: oklch(0.33 0.09 285);

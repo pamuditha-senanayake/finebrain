@@ -3,7 +3,10 @@
 import { Eye, Hand, Lock, MessageSquareReply, Send, Undo2, Wand2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { Conversation } from "@/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,39 +20,68 @@ import { canView, useCurrentUser } from "@/lib/auth";
 import { date, dateTime, relTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+type Tab = "all" | "needs" | "human" | "agent";
+/** The agent asked for a person (an escalation) and nobody has taken over yet. */
+const needsHuman = (c: Conversation) => c.status === "agent" && c.messages.some((m) => m.from === "system" && m.text.startsWith("Escalated"));
+
 function ConversationList({ activeId }: { activeId?: string }) {
   const conversations = useConversations();
+  const [q, setQ] = useState("");
+  const [tab, setTab] = useState<Tab>("all");
+  const all = conversations.data;
+  const shown = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    return [...(all ?? [])]
+      .filter((c) => (tab === "all" ? true : tab === "needs" ? needsHuman(c) : tab === "human" ? c.status === "human" : c.status === "agent" && !needsHuman(c)))
+      .filter((c) => !term || `${c.customer} ${c.topic} ${c.channel} ${c.id} ${c.messages.map((m) => m.text).join(" ")}`.toLowerCase().includes(term))
+      .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  }, [all, q, tab]);
+  const count = (t: Tab) => (all ?? []).filter((c) => (t === "all" ? true : t === "needs" ? needsHuman(c) : t === "human" ? c.status === "human" : c.status === "agent" && !needsHuman(c))).length;
   return (
-    <QueryView query={conversations} rows={5}>
-      {(list) => (
-        <ul className="space-y-1.5" aria-label="Conversations">
-          {[...list]
-            .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
-            .map((c) => {
-              const blocked = c.proposedActions.some((p) => p.status === "blocked");
-              const escalated = c.messages.some((m) => m.from === "system" && m.text.startsWith("Escalated"));
-              return (
-                <li key={c.id}>
-                  <Link href={`/l3/conversations/${c.id}`} aria-current={c.id === activeId ? "page" : undefined} className={cn("block rounded-lg border bg-card p-2.5 text-sm hover:border-primary/40", c.id === activeId && "border-primary/50 bg-accent/50")}>
-                    <div className="flex items-center gap-2">
-                      <span className="truncate font-medium">{c.customer.split(" · ")[0]}</span>
-                      <span className="text-[10px] uppercase text-muted-foreground">{c.channel}</span>
-                      <span className="ml-auto text-[11px] text-muted-foreground">{relTime(c.updatedAt)}</span>
-                    </div>
-                    <div className="mt-0.5 truncate text-xs text-muted-foreground">{c.topic}</div>
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      <Status value={c.status} />
-                      {escalated && c.status === "agent" && <StatusChip tone="warn">escalated</StatusChip>}
-                      {blocked && <StatusChip tone="risk">action blocked</StatusChip>}
-                      {c.skillifiedTo && <StatusChip tone="info">skillified</StatusChip>}
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
-        </ul>
-      )}
-    </QueryView>
+    <div className="space-y-2.5">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a customer or message" aria-label="Search conversations" className="h-8 pl-8 text-[13px]" />
+      </div>
+      <ToggleGroup type="single" value={tab} onValueChange={(v) => v && setTab(v as Tab)} variant="outline" size="sm" className="flex-wrap justify-start" aria-label="Conversation category">
+        <ToggleGroupItem value="all" className="px-2.5 text-xs">All {count("all")}</ToggleGroupItem>
+        <ToggleGroupItem value="needs" className="px-2.5 text-xs">Needs a human {count("needs")}</ToggleGroupItem>
+        <ToggleGroupItem value="human" className="px-2.5 text-xs">With a human {count("human")}</ToggleGroupItem>
+        <ToggleGroupItem value="agent" className="px-2.5 text-xs">Agent {count("agent")}</ToggleGroupItem>
+      </ToggleGroup>
+      <QueryView query={conversations} rows={5}>
+        {() =>
+          shown.length === 0 ? (
+            <EmptyState title="No conversations match" description={q ? "Try a different name or word." : "Nothing in this category."} />
+          ) : (
+            <ul className="space-y-1.5" aria-label="Conversations">
+              {shown.map((c) => {
+                const blocked = c.proposedActions.some((p) => p.status === "blocked");
+                const escalated = needsHuman(c);
+                return (
+                  <li key={c.id}>
+                    <Link href={`/l3/conversations/${c.id}`} aria-current={c.id === activeId ? "page" : undefined} className={cn("block rounded-lg border bg-card p-2.5 text-sm hover:border-primary/40", c.id === activeId && "border-primary/50 bg-primary/5", escalated && c.id !== activeId && "border-warn/40")}>
+                      <div className="flex items-center gap-2">
+                        <span className="truncate font-medium">{c.customer.split(" · ")[0]}</span>
+                        <span className="text-[10px] uppercase text-muted-foreground">{c.channel}</span>
+                        <span className="ml-auto text-[11px] text-muted-foreground">{relTime(c.updatedAt)}</span>
+                      </div>
+                      <div className="mt-0.5 truncate text-xs text-muted-foreground">{c.topic}</div>
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        <Status value={c.status} />
+                        {escalated && <StatusChip tone="warn">needs a human</StatusChip>}
+                        {blocked && <StatusChip tone="risk">action blocked</StatusChip>}
+                        {c.skillifiedTo && <StatusChip tone="info">skillified</StatusChip>}
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )
+        }
+      </QueryView>
+    </div>
   );
 }
 

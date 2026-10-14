@@ -66,6 +66,7 @@ export const NAV: NavArea[] = [
       { href: "/l2/loops", label: "nav.loops", icon: Repeat, group: 3 },
       { href: "/l2/readiness", label: "nav.readiness", icon: AlarmClock, group: 3 },
       { href: "/l2/security", label: "nav.security", icon: ShieldCheck, group: 3 },
+      { href: "/studio", label: "nav.studioL2", icon: Workflow, group: 4 },
     ],
   },
   {
@@ -73,12 +74,11 @@ export const NAV: NavArea[] = [
     label: "tier.L3",
     home: "/l3",
     items: [
-      { href: "/l3", label: "nav.fleet", icon: Boxes, exact: true },
-      { href: "/l3/runs", label: "nav.runs", icon: Activity },
-      { href: "/l3/conversations", label: "nav.conversations", icon: MessagesSquare },
-      { href: "/l3/escalations", label: "nav.escalations", icon: Siren },
-      { href: "/l3/templates", label: "nav.templateBoard", icon: Table2 },
-      { href: "/studio", label: "nav.studio", icon: Workflow },
+      { href: "/l3", label: "nav.fleet", icon: Boxes, exact: true, group: 0 },
+      { href: "/l3/runs", label: "nav.runs", icon: Activity, group: 0 },
+      { href: "/l3/conversations", label: "nav.conversations", icon: MessagesSquare, group: 1 },
+      { href: "/l3/escalations", label: "nav.escalations", icon: Siren, group: 1 },
+      { href: "/l3/templates", label: "nav.templateBoard", icon: Table2, group: 2 },
     ],
   },
 ];
