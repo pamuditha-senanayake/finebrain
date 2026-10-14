@@ -1,0 +1,88 @@
+{
+  "_about": "Walking skeleton samples. Each item is a raw signal as S1 capture receives it, plus the outcome e2e.py expects.",
+  "frozen_now": "2026-10-10T10:00:00+05:30",
+  "tenant": {
+    "tenant_id": "finebase_labs",
+    "cluster_id": "customer_care",
+    "currency": "LKR",
+    "timezone": "Asia/Colombo"
+  },
+  "items": [
+    {
+      "sample_id": "s1_refund_policy_doc",
+      "source_type": "upload",
+      "connector_id": "conn_upload_console",
+      "grant_id": "grant_upload_all",
+      "external_id": "upload_7f3a91",
+      "content_type": "text/plain",
+      "headers_subset": {"filename": "Finebase_Refund_Policy_v3.txt", "uploaded_by": "head_of_cs"},
+      "raw_body": "Finebase Labs Refund Policy, version 3\nEffective from 1 January 2026.\n\n1. Refund window. Customers may request a refund within 30 days of the purchase date. This applies to monthly and annual plans.\n\n2. Automatic approval. Refunds up to LKR 50,000 inside the refund window are approved automatically by the support team.\n\n3. Larger or late refunds. Refunds above LKR 50,000, or requests made after the 30 day window, need approval from the Head of Customer Success.\n\n4. Payment. Approved refunds are paid to the original payment method within 7 working days.",
+      "expected": {
+        "end": "ingested",
+        "min_chunks": 1,
+        "min_fact_candidates": 2
+      }
+    },
+    {
+      "sample_id": "s2_refund_monthly_in_policy",
+      "source_type": "email",
+      "connector_id": "conn_gmail_support",
+      "grant_id": "grant_gmail_support_read",
+      "external_id": "gmail_18c2f0a1b9",
+      "content_type": "message/rfc822",
+      "headers_subset": {"from": "Nimal Perera <nimal.perera@example.lk>", "to": "support@finebase.lk", "subject": "Refund for my Pro monthly plan"},
+      "raw_body": "From: Nimal Perera <nimal.perera@example.lk>\nTo: support@finebase.lk\nSubject: Refund for my Pro monthly plan\nDate: Sat, 10 Oct 2026 09:12:00 +0530\n\nHi Finebase team,\n\nI bought the Finebase Pro monthly plan on 4 October 2026 for LKR 12,000 (payment ref pay_FB_20261004_0192). It does not fit our workflow, so I would like a full refund please.\n\nThanks,\nNimal Perera\n+94 77 123 4567",
+      "expected": {
+        "end": "run_closed",
+        "route": "execute",
+        "outcome": "resolved",
+        "refunds": 1,
+        "refund_amount_minor": 1200000
+      }
+    },
+    {
+      "sample_id": "s3_refund_annual_late_large",
+      "source_type": "email",
+      "connector_id": "conn_gmail_support",
+      "grant_id": "grant_gmail_support_read",
+      "external_id": "gmail_18c2f3d77e",
+      "content_type": "message/rfc822",
+      "headers_subset": {"from": "Dilani Fernando <dilani.f@example.lk>", "to": "support@finebase.lk", "subject": "Full refund for annual Business plan"},
+      "raw_body": "From: Dilani Fernando <dilani.f@example.lk>\nTo: support@finebase.lk\nSubject: Full refund for annual Business plan\nDate: Sat, 10 Oct 2026 09:40:00 +0530\n\nHello,\n\nWe paid LKR 85,000 for the Finebase Business annual plan on 30 August 2026 (payment ref pay_FB_20260830_0047). Our company is closing the project, so please refund the full amount.\n\nThe account is under my NIC 199012345678.\n\nRegards,\nDilani Fernando\n+94 71 987 6543",
+      "expected": {
+        "end": "run_closed",
+        "route": "approval_required",
+        "outcome": "awaiting_approval",
+        "criticality": 3,
+        "criticality_reasons": ["outside_refund_window", "above_auto_threshold"],
+        "refunds": 0
+      }
+    },
+    {
+      "sample_id": "s4_chat_invoice_address",
+      "source_type": "chat",
+      "connector_id": "conn_web_chat",
+      "grant_id": "grant_web_chat_read",
+      "external_id": "chat_msg_55120",
+      "content_type": "application/json",
+      "headers_subset": {"session": "chat_sess_9921"},
+      "raw_body": "{\"visitor_name\": \"Kasun Silva\", \"visitor_email\": \"kasun.silva@example.lk\", \"text\": \"Hi, can you change the address printed on our invoices to No. 12 Flower Road, Colombo 07?\", \"sent_at\": \"2026-10-10T09:55:00+05:30\"}",
+      "expected": {
+        "end": "unrouted"
+      }
+    },
+    {
+      "sample_id": "s5_redelivered_monthly_refund",
+      "source_type": "email",
+      "connector_id": "conn_gmail_support",
+      "grant_id": "grant_gmail_support_read",
+      "external_id": "gmail_18c2f0a1b9",
+      "content_type": "message/rfc822",
+      "headers_subset": {"from": "Nimal Perera <nimal.perera@example.lk>", "to": "support@finebase.lk", "subject": "Refund for my Pro monthly plan"},
+      "raw_body": "From: Nimal Perera <nimal.perera@example.lk>\nTo: support@finebase.lk\nSubject: Refund for my Pro monthly plan\nDate: Sat, 10 Oct 2026 09:12:00 +0530\n\nHi Finebase team,\n\nI bought the Finebase Pro monthly plan on 4 October 2026 for LKR 12,000 (payment ref pay_FB_20261004_0192). It does not fit our workflow, so I would like a full refund please.\n\nThanks,\nNimal Perera\n+94 77 123 4567",
+      "expected": {
+        "end": "duplicate_dropped"
+      }
+    }
+  ]
+}
