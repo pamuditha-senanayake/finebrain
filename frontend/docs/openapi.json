@@ -7632,13 +7632,99 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "runSeries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "at": {
+                            "type": "string"
+                          },
+                          "runs": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "at",
+                          "runs"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "runningNow": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "costs": {
+                      "type": "object",
+                      "properties": {
+                        "weekUsd": {
+                          "type": "number"
+                        },
+                        "prevWeekUsd": {
+                          "type": "number"
+                        },
+                        "monthUsd": {
+                          "type": "number"
+                        },
+                        "prevMonthUsd": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "weekUsd",
+                        "prevWeekUsd",
+                        "monthUsd",
+                        "prevMonthUsd"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "entity": {
+                      "type": "object",
+                      "properties": {
+                        "red": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "amber": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "risks": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "evidenceOpen": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "red",
+                        "amber",
+                        "risks",
+                        "evidenceOpen"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
                     "kpis",
                     "totals",
                     "legibility",
-                    "trend"
+                    "trend",
+                    "runSeries",
+                    "runningNow",
+                    "costs",
+                    "entity"
                   ],
                   "additionalProperties": false
                 }
@@ -7992,6 +8078,1624 @@
                       "source",
                       "takenAt",
                       "metrics"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/t/{tenant}/activities": {
+      "get": {
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "cluster": {
+                        "type": "string"
+                      },
+                      "activity": {
+                        "type": "string"
+                      },
+                      "agent": {
+                        "type": "string"
+                      },
+                      "sensors": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "cluster",
+                      "activity",
+                      "agent",
+                      "sensors"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/t/{tenant}/clock": {
+      "get": {
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "now": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "now"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/t/{tenant}/studio/map": {
+      "get": {
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "clusters": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "active",
+                              "planned"
+                            ]
+                          },
+                          "dri": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "health": {
+                            "type": "number"
+                          },
+                          "kpi": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "runs24h": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "autonomyRate": {
+                                    "type": "number"
+                                  },
+                                  "escalationRate": {
+                                    "type": "number"
+                                  },
+                                  "costPerResolvedUsd": {
+                                    "type": "number"
+                                  },
+                                  "moneyAtStakeMinor": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "openRisks": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
+                                "required": [
+                                  "runs24h",
+                                  "autonomyRate",
+                                  "escalationRate",
+                                  "costPerResolvedUsd",
+                                  "moneyAtStakeMinor",
+                                  "openRisks"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "description",
+                          "status",
+                          "dri",
+                          "health",
+                          "kpi"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "workflows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "clusterId": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "active",
+                              "draft",
+                              "paused",
+                              "retired"
+                            ]
+                          },
+                          "criticality": {
+                            "anyOf": [
+                              {
+                                "type": "number",
+                                "const": 0
+                              },
+                              {
+                                "type": "number",
+                                "const": 1
+                              },
+                              {
+                                "type": "number",
+                                "const": 2
+                              },
+                              {
+                                "type": "number",
+                                "const": 3
+                              },
+                              {
+                                "type": "number",
+                                "const": 4
+                              }
+                            ]
+                          },
+                          "dri": {
+                            "type": "string"
+                          },
+                          "health": {
+                            "type": "object",
+                            "properties": {
+                              "breaks": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "warnings": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "breaks",
+                              "warnings"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "skill",
+                                    "agent",
+                                    "policy",
+                                    "template",
+                                    "sensor",
+                                    "scheduler",
+                                    "loop",
+                                    "tool"
+                                  ]
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "description": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "active",
+                                    "draft",
+                                    "paused",
+                                    "retired"
+                                  ]
+                                },
+                                "shared": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "kind",
+                                "name",
+                                "description",
+                                "status",
+                                "shared"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "description",
+                          "clusterId",
+                          "status",
+                          "criticality",
+                          "dri",
+                          "health",
+                          "items"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "clusters",
+                    "workflows"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/t/{tenant}/studio/workflows": {
+      "get": {
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "tenantId": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "topics": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "active",
+                          "draft",
+                          "paused",
+                          "retired"
+                        ]
+                      },
+                      "version": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "clusterId": {
+                        "type": "string"
+                      },
+                      "dri": {
+                        "type": "string"
+                      },
+                      "editors": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "People besides the DRI who may confirm low criticality edits"
+                      },
+                      "criticality": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "const": 0
+                          },
+                          {
+                            "type": "number",
+                            "const": 1
+                          },
+                          {
+                            "type": "number",
+                            "const": 2
+                          },
+                          {
+                            "type": "number",
+                            "const": 3
+                          },
+                          {
+                            "type": "number",
+                            "const": 4
+                          }
+                        ]
+                      },
+                      "members": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "updatedAt": {
+                        "type": "string",
+                        "description": "ISO 8601 timestamp, UTC"
+                      },
+                      "updatedBy": {
+                        "type": "string"
+                      },
+                      "counts": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "enum": [
+                            "skill",
+                            "agent",
+                            "policy",
+                            "template",
+                            "sensor",
+                            "scheduler",
+                            "loop",
+                            "tool"
+                          ]
+                        },
+                        "additionalProperties": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "required": [
+                          "skill",
+                          "agent",
+                          "policy",
+                          "template",
+                          "sensor",
+                          "scheduler",
+                          "loop",
+                          "tool"
+                        ]
+                      },
+                      "health": {
+                        "type": "object",
+                        "properties": {
+                          "breaks": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "warnings": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "breaks",
+                          "warnings"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "pending": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "tenantId",
+                      "name",
+                      "description",
+                      "topics",
+                      "status",
+                      "version",
+                      "clusterId",
+                      "dri",
+                      "editors",
+                      "criticality",
+                      "members",
+                      "updatedAt",
+                      "updatedBy",
+                      "counts",
+                      "health",
+                      "pending"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/t/{tenant}/studio/workflows/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "workflow": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "tenantId": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "topics": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "active",
+                            "draft",
+                            "paused",
+                            "retired"
+                          ]
+                        },
+                        "version": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "clusterId": {
+                          "type": "string"
+                        },
+                        "dri": {
+                          "type": "string"
+                        },
+                        "editors": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "People besides the DRI who may confirm low criticality edits"
+                        },
+                        "criticality": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "const": 0
+                            },
+                            {
+                              "type": "number",
+                              "const": 1
+                            },
+                            {
+                              "type": "number",
+                              "const": 2
+                            },
+                            {
+                              "type": "number",
+                              "const": 3
+                            },
+                            {
+                              "type": "number",
+                              "const": 4
+                            }
+                          ]
+                        },
+                        "members": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "description": "ISO 8601 timestamp, UTC"
+                        },
+                        "updatedBy": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "tenantId",
+                        "name",
+                        "description",
+                        "topics",
+                        "status",
+                        "version",
+                        "clusterId",
+                        "dri",
+                        "editors",
+                        "criticality",
+                        "members",
+                        "updatedAt",
+                        "updatedBy"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "skill",
+                              "agent",
+                              "policy",
+                              "template",
+                              "sensor",
+                              "scheduler",
+                              "loop",
+                              "tool"
+                            ]
+                          },
+                          "workflowId": {
+                            "description": "null for tools, which are shared",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "topics": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "active",
+                              "draft",
+                              "paused",
+                              "retired"
+                            ]
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "dri": {
+                            "type": "string"
+                          },
+                          "fields": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              ]
+                            }
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "description": "ISO 8601 timestamp, UTC"
+                          },
+                          "updatedBy": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "kind",
+                          "workflowId",
+                          "name",
+                          "description",
+                          "topics",
+                          "status",
+                          "version",
+                          "dri",
+                          "fields",
+                          "updatedAt",
+                          "updatedBy"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "The workflow's own members plus every shared tool it uses"
+                    },
+                    "sharedToolUse": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "toolId": {
+                            "type": "string"
+                          },
+                          "workflows": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "toolId",
+                          "workflows"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "workflow",
+                    "items",
+                    "sharedToolUse"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/t/{tenant}/studio/workflows/{id}/health": {
+      "get": {
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "findings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "info",
+                              "warn",
+                              "break"
+                            ]
+                          },
+                          "text": {
+                            "type": "string"
+                          },
+                          "ref": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "workflow",
+                                      "skill",
+                                      "agent",
+                                      "policy",
+                                      "template",
+                                      "sensor",
+                                      "scheduler",
+                                      "loop",
+                                      "tool"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "id"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "severity",
+                          "text",
+                          "ref"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "fixes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "prompt": {
+                            "type": "string",
+                            "description": "Sent as the next chat message when picked"
+                          },
+                          "tone": {
+                            "default": "neutral",
+                            "type": "string",
+                            "enum": [
+                              "primary",
+                              "neutral",
+                              "fix"
+                            ]
+                          },
+                          "input": {
+                            "description": "When set, picking the suggestion reviews exactly this change instead of parsing the prompt",
+                            "type": "object",
+                            "properties": {
+                              "intent": {
+                                "type": "string",
+                                "enum": [
+                                  "create",
+                                  "update",
+                                  "delete"
+                                ]
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "workflow",
+                                  "skill",
+                                  "agent",
+                                  "policy",
+                                  "template",
+                                  "sensor",
+                                  "scheduler",
+                                  "loop",
+                                  "tool"
+                                ]
+                              },
+                              "targetId": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "workflowId": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "patch": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": "string"
+                                  },
+                                  "topics": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "active",
+                                      "draft",
+                                      "paused",
+                                      "retired"
+                                    ]
+                                  },
+                                  "dri": {
+                                    "type": "string"
+                                  },
+                                  "fields": {
+                                    "type": "object",
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "additionalProperties": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "boolean"
+                                        },
+                                        {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                },
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "intent",
+                              "kind",
+                              "targetId",
+                              "workflowId",
+                              "patch"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "label",
+                          "prompt",
+                          "tone"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "findings",
+                    "fixes"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/t/{tenant}/studio/tools": {
+      "get": {
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "tool": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "skill",
+                              "agent",
+                              "policy",
+                              "template",
+                              "sensor",
+                              "scheduler",
+                              "loop",
+                              "tool"
+                            ]
+                          },
+                          "workflowId": {
+                            "description": "null for tools, which are shared",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "topics": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "active",
+                              "draft",
+                              "paused",
+                              "retired"
+                            ]
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "dri": {
+                            "type": "string"
+                          },
+                          "fields": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              ]
+                            }
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "description": "ISO 8601 timestamp, UTC"
+                          },
+                          "updatedBy": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "kind",
+                          "workflowId",
+                          "name",
+                          "description",
+                          "topics",
+                          "status",
+                          "version",
+                          "dri",
+                          "fields",
+                          "updatedAt",
+                          "updatedBy"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "workflows": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "tool",
+                      "workflows"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/t/{tenant}/studio/revisions": {
+      "get": {
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "targetKind": {
+                        "type": "string",
+                        "enum": [
+                          "workflow",
+                          "skill",
+                          "agent",
+                          "policy",
+                          "template",
+                          "sensor",
+                          "scheduler",
+                          "loop",
+                          "tool"
+                        ]
+                      },
+                      "targetId": {
+                        "type": "string"
+                      },
+                      "workflowId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "version": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "create",
+                          "update",
+                          "delete"
+                        ]
+                      },
+                      "at": {
+                        "type": "string",
+                        "description": "ISO 8601 timestamp, UTC"
+                      },
+                      "by": {
+                        "type": "string"
+                      },
+                      "summary": {
+                        "type": "string"
+                      },
+                      "snapshot": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "topics": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "active",
+                                  "draft",
+                                  "paused",
+                                  "retired"
+                                ]
+                              },
+                              "fields": {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "boolean"
+                                    },
+                                    {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "description",
+                              "topics",
+                              "status",
+                              "fields"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "State after this revision; null after a delete"
+                      },
+                      "verdict": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "minimal",
+                              "moderate",
+                              "breaking"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "changeRequestId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "targetKind",
+                      "targetId",
+                      "workflowId",
+                      "version",
+                      "op",
+                      "at",
+                      "by",
+                      "summary",
+                      "snapshot",
+                      "verdict",
+                      "changeRequestId"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/t/{tenant}/studio/pending": {
+      "get": {
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "changeRequestId": {
+                        "type": "string"
+                      },
+                      "workflowId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "input": {
+                        "type": "object",
+                        "properties": {
+                          "intent": {
+                            "type": "string",
+                            "enum": [
+                              "create",
+                              "update",
+                              "delete"
+                            ]
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "workflow",
+                              "skill",
+                              "agent",
+                              "policy",
+                              "template",
+                              "sensor",
+                              "scheduler",
+                              "loop",
+                              "tool"
+                            ]
+                          },
+                          "targetId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "workflowId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "patch": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "topics": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "active",
+                                  "draft",
+                                  "paused",
+                                  "retired"
+                                ]
+                              },
+                              "dri": {
+                                "type": "string"
+                              },
+                              "fields": {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "boolean"
+                                    },
+                                    {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "intent",
+                          "kind",
+                          "targetId",
+                          "workflowId",
+                          "patch"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "verdict": {
+                        "type": "string",
+                        "enum": [
+                          "minimal",
+                          "moderate",
+                          "breaking"
+                        ]
+                      },
+                      "criticality": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "const": 0
+                          },
+                          {
+                            "type": "number",
+                            "const": 1
+                          },
+                          {
+                            "type": "number",
+                            "const": 2
+                          },
+                          {
+                            "type": "number",
+                            "const": 3
+                          },
+                          {
+                            "type": "number",
+                            "const": 4
+                          }
+                        ]
+                      },
+                      "by": {
+                        "type": "string"
+                      },
+                      "at": {
+                        "type": "string",
+                        "description": "ISO 8601 timestamp, UTC"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "awaiting_approval",
+                          "applied",
+                          "rejected"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "changeRequestId",
+                      "workflowId",
+                      "input",
+                      "title",
+                      "verdict",
+                      "criticality",
+                      "by",
+                      "at",
+                      "status"
                     ],
                     "additionalProperties": false
                   }
@@ -9010,18 +10714,127 @@
         }
       }
     },
+    "/api/t/{tenant}/ops/studioApply": {
+      "post": {
+        "summary": "Domain operation studioApply. Reference behaviour: lib/mock/ops.ts",
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-persona",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "Not allowed, with { error }"
+          },
+          "409": {
+            "description": "Conflict, with { error }"
+          }
+        }
+      }
+    },
+    "/api/t/{tenant}/ops/studioSuggest": {
+      "post": {
+        "summary": "Domain operation studioSuggest. Reference behaviour: lib/mock/ops.ts",
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-persona",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "Not allowed, with { error }"
+          },
+          "409": {
+            "description": "Conflict, with { error }"
+          }
+        }
+      }
+    },
     "/api/t/{tenant}/ask": {
       "post": {
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "type": "object",
                 "properties": {
                   "question": {
                     "type": "string"
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "scope": {
+                        "type": "string",
+                        "enum": [
+                          "page",
+                          "system"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "scope"
+                    ],
+                    "additionalProperties": false
                   }
-                }
+                },
+                "required": [
+                  "question"
+                ],
+                "additionalProperties": false
               }
             }
           }
@@ -9089,6 +10902,38 @@
                       "type": "integer",
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "page",
+                        "system"
+                      ]
+                    },
+                    "guide": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "actions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "href": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "label",
+                          "href"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [
@@ -9096,6 +10941,1844 @@
                     "answer",
                     "citations",
                     "withheld"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/t/{tenant}/studio/chat": {
+      "post": {
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-persona",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "workflowId": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "focus": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "workflow",
+                              "skill",
+                              "agent",
+                              "policy",
+                              "template",
+                              "sensor",
+                              "scheduler",
+                              "loop",
+                              "tool"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "id"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "history": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "user",
+                            "assistant"
+                          ]
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "role",
+                        "text"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "workflowId",
+                  "message",
+                  "focus",
+                  "history"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "answer": {
+                      "type": "string"
+                    },
+                    "bullets": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "cards": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "workflow",
+                              "skill",
+                              "agent",
+                              "policy",
+                              "template",
+                              "sensor",
+                              "scheduler",
+                              "loop",
+                              "tool"
+                            ]
+                          },
+                          "targetId": {
+                            "type": "string"
+                          },
+                          "workflowId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "subtitle": {
+                            "type": "string"
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "badges": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "current": {
+                            "type": "boolean"
+                          },
+                          "at": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "description": "ISO 8601 timestamp, UTC"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "kind",
+                          "targetId",
+                          "workflowId",
+                          "title",
+                          "subtitle",
+                          "body",
+                          "badges",
+                          "current",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "suggestions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "prompt": {
+                            "type": "string",
+                            "description": "Sent as the next chat message when picked"
+                          },
+                          "tone": {
+                            "default": "neutral",
+                            "type": "string",
+                            "enum": [
+                              "primary",
+                              "neutral",
+                              "fix"
+                            ]
+                          },
+                          "input": {
+                            "description": "When set, picking the suggestion reviews exactly this change instead of parsing the prompt",
+                            "type": "object",
+                            "properties": {
+                              "intent": {
+                                "type": "string",
+                                "enum": [
+                                  "create",
+                                  "update",
+                                  "delete"
+                                ]
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "workflow",
+                                  "skill",
+                                  "agent",
+                                  "policy",
+                                  "template",
+                                  "sensor",
+                                  "scheduler",
+                                  "loop",
+                                  "tool"
+                                ]
+                              },
+                              "targetId": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "workflowId": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "patch": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": "string"
+                                  },
+                                  "topics": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "active",
+                                      "draft",
+                                      "paused",
+                                      "retired"
+                                    ]
+                                  },
+                                  "dri": {
+                                    "type": "string"
+                                  },
+                                  "fields": {
+                                    "type": "object",
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "additionalProperties": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "boolean"
+                                        },
+                                        {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                },
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "intent",
+                              "kind",
+                              "targetId",
+                              "workflowId",
+                              "patch"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "label",
+                          "prompt",
+                          "tone"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "proposal": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "input": {
+                              "type": "object",
+                              "properties": {
+                                "intent": {
+                                  "type": "string",
+                                  "enum": [
+                                    "create",
+                                    "update",
+                                    "delete"
+                                  ]
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "workflow",
+                                    "skill",
+                                    "agent",
+                                    "policy",
+                                    "template",
+                                    "sensor",
+                                    "scheduler",
+                                    "loop",
+                                    "tool"
+                                  ]
+                                },
+                                "targetId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "workflowId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "patch": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "description": {
+                                      "type": "string"
+                                    },
+                                    "topics": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "status": {
+                                      "type": "string",
+                                      "enum": [
+                                        "active",
+                                        "draft",
+                                        "paused",
+                                        "retired"
+                                      ]
+                                    },
+                                    "dri": {
+                                      "type": "string"
+                                    },
+                                    "fields": {
+                                      "type": "object",
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "additionalProperties": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "boolean"
+                                          },
+                                          {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                }
+                              },
+                              "required": [
+                                "intent",
+                                "kind",
+                                "targetId",
+                                "workflowId",
+                                "patch"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "title": {
+                              "type": "string"
+                            },
+                            "targetName": {
+                              "type": "string"
+                            },
+                            "changes": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "field": {
+                                    "type": "string"
+                                  },
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "before": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "after": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "field",
+                                  "label",
+                                  "before",
+                                  "after"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "review": {
+                              "type": "object",
+                              "properties": {
+                                "reviewer": {
+                                  "type": "string"
+                                },
+                                "verdict": {
+                                  "type": "string",
+                                  "enum": [
+                                    "minimal",
+                                    "moderate",
+                                    "breaking"
+                                  ]
+                                },
+                                "criticality": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number",
+                                      "const": 0
+                                    },
+                                    {
+                                      "type": "number",
+                                      "const": 1
+                                    },
+                                    {
+                                      "type": "number",
+                                      "const": 2
+                                    },
+                                    {
+                                      "type": "number",
+                                      "const": 3
+                                    },
+                                    {
+                                      "type": "number",
+                                      "const": 4
+                                    }
+                                  ]
+                                },
+                                "criticalityReasons": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "summary": {
+                                  "type": "string"
+                                },
+                                "findings": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "severity": {
+                                        "type": "string",
+                                        "enum": [
+                                          "info",
+                                          "warn",
+                                          "break"
+                                        ]
+                                      },
+                                      "text": {
+                                        "type": "string"
+                                      },
+                                      "ref": {
+                                        "anyOf": [
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "workflow",
+                                                  "skill",
+                                                  "agent",
+                                                  "policy",
+                                                  "template",
+                                                  "sensor",
+                                                  "scheduler",
+                                                  "loop",
+                                                  "tool"
+                                                ]
+                                              },
+                                              "id": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "kind",
+                                              "id"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "severity",
+                                      "text",
+                                      "ref"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "affected": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "workflow",
+                                          "skill",
+                                          "agent",
+                                          "policy",
+                                          "template",
+                                          "sensor",
+                                          "scheduler",
+                                          "loop",
+                                          "tool"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "workflowId": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "how": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "id",
+                                      "name",
+                                      "workflowId",
+                                      "how"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "otherWorkflows": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "via": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "name",
+                                      "via"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "fixes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "prompt": {
+                                        "type": "string",
+                                        "description": "Sent as the next chat message when picked"
+                                      },
+                                      "tone": {
+                                        "default": "neutral",
+                                        "type": "string",
+                                        "enum": [
+                                          "primary",
+                                          "neutral",
+                                          "fix"
+                                        ]
+                                      },
+                                      "input": {
+                                        "description": "When set, picking the suggestion reviews exactly this change instead of parsing the prompt",
+                                        "type": "object",
+                                        "properties": {
+                                          "intent": {
+                                            "type": "string",
+                                            "enum": [
+                                              "create",
+                                              "update",
+                                              "delete"
+                                            ]
+                                          },
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "workflow",
+                                              "skill",
+                                              "agent",
+                                              "policy",
+                                              "template",
+                                              "sensor",
+                                              "scheduler",
+                                              "loop",
+                                              "tool"
+                                            ]
+                                          },
+                                          "targetId": {
+                                            "type": [
+                                              "string",
+                                              "null"
+                                            ]
+                                          },
+                                          "workflowId": {
+                                            "type": [
+                                              "string",
+                                              "null"
+                                            ]
+                                          },
+                                          "patch": {
+                                            "type": "object",
+                                            "properties": {
+                                              "name": {
+                                                "type": "string"
+                                              },
+                                              "description": {
+                                                "type": "string"
+                                              },
+                                              "topics": {
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "status": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "active",
+                                                  "draft",
+                                                  "paused",
+                                                  "retired"
+                                                ]
+                                              },
+                                              "dri": {
+                                                "type": "string"
+                                              },
+                                              "fields": {
+                                                "type": "object",
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "additionalProperties": {
+                                                  "anyOf": [
+                                                    {
+                                                      "type": "string"
+                                                    },
+                                                    {
+                                                      "type": "number"
+                                                    },
+                                                    {
+                                                      "type": "boolean"
+                                                    },
+                                                    {
+                                                      "type": "array",
+                                                      "items": {
+                                                        "type": "string"
+                                                      }
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            },
+                                            "additionalProperties": false
+                                          }
+                                        },
+                                        "required": [
+                                          "intent",
+                                          "kind",
+                                          "targetId",
+                                          "workflowId",
+                                          "patch"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    },
+                                    "required": [
+                                      "label",
+                                      "prompt",
+                                      "tone"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "authority": {
+                                  "type": "object",
+                                  "properties": {
+                                    "canApply": {
+                                      "type": "boolean"
+                                    },
+                                    "route": {
+                                      "type": "string",
+                                      "enum": [
+                                        "apply",
+                                        "approval",
+                                        "view_only"
+                                      ]
+                                    },
+                                    "approver": {
+                                      "type": "string"
+                                    },
+                                    "reason": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "canApply",
+                                    "route",
+                                    "approver",
+                                    "reason"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "required": [
+                                "reviewer",
+                                "verdict",
+                                "criticality",
+                                "criticalityReasons",
+                                "summary",
+                                "findings",
+                                "affected",
+                                "otherWorkflows",
+                                "fixes",
+                                "authority"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "input",
+                            "title",
+                            "targetName",
+                            "changes",
+                            "review"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "focus": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "workflow",
+                                "skill",
+                                "agent",
+                                "policy",
+                                "template",
+                                "sensor",
+                                "scheduler",
+                                "loop",
+                                "tool"
+                              ]
+                            },
+                            "id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "id"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "workflowId": {
+                      "description": "Set when the reply moves the conversation to another workflow",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "answer",
+                    "bullets",
+                    "cards",
+                    "suggestions",
+                    "proposal",
+                    "focus",
+                    "workflowId"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/t/{tenant}/studio/review": {
+      "post": {
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-persona",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "input": {
+                    "type": "object",
+                    "properties": {
+                      "intent": {
+                        "type": "string",
+                        "enum": [
+                          "create",
+                          "update",
+                          "delete"
+                        ]
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "workflow",
+                          "skill",
+                          "agent",
+                          "policy",
+                          "template",
+                          "sensor",
+                          "scheduler",
+                          "loop",
+                          "tool"
+                        ]
+                      },
+                      "targetId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "workflowId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "patch": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "topics": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "active",
+                              "draft",
+                              "paused",
+                              "retired"
+                            ]
+                          },
+                          "dri": {
+                            "type": "string"
+                          },
+                          "fields": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "intent",
+                      "kind",
+                      "targetId",
+                      "workflowId",
+                      "patch"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "workflowId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "input",
+                  "workflowId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "answer": {
+                      "type": "string"
+                    },
+                    "bullets": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "cards": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "workflow",
+                              "skill",
+                              "agent",
+                              "policy",
+                              "template",
+                              "sensor",
+                              "scheduler",
+                              "loop",
+                              "tool"
+                            ]
+                          },
+                          "targetId": {
+                            "type": "string"
+                          },
+                          "workflowId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "subtitle": {
+                            "type": "string"
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "badges": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "current": {
+                            "type": "boolean"
+                          },
+                          "at": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "description": "ISO 8601 timestamp, UTC"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "kind",
+                          "targetId",
+                          "workflowId",
+                          "title",
+                          "subtitle",
+                          "body",
+                          "badges",
+                          "current",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "suggestions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "prompt": {
+                            "type": "string",
+                            "description": "Sent as the next chat message when picked"
+                          },
+                          "tone": {
+                            "default": "neutral",
+                            "type": "string",
+                            "enum": [
+                              "primary",
+                              "neutral",
+                              "fix"
+                            ]
+                          },
+                          "input": {
+                            "description": "When set, picking the suggestion reviews exactly this change instead of parsing the prompt",
+                            "type": "object",
+                            "properties": {
+                              "intent": {
+                                "type": "string",
+                                "enum": [
+                                  "create",
+                                  "update",
+                                  "delete"
+                                ]
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "workflow",
+                                  "skill",
+                                  "agent",
+                                  "policy",
+                                  "template",
+                                  "sensor",
+                                  "scheduler",
+                                  "loop",
+                                  "tool"
+                                ]
+                              },
+                              "targetId": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "workflowId": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "patch": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": "string"
+                                  },
+                                  "topics": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "active",
+                                      "draft",
+                                      "paused",
+                                      "retired"
+                                    ]
+                                  },
+                                  "dri": {
+                                    "type": "string"
+                                  },
+                                  "fields": {
+                                    "type": "object",
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "additionalProperties": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "boolean"
+                                        },
+                                        {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                },
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "intent",
+                              "kind",
+                              "targetId",
+                              "workflowId",
+                              "patch"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "label",
+                          "prompt",
+                          "tone"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "proposal": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "input": {
+                              "type": "object",
+                              "properties": {
+                                "intent": {
+                                  "type": "string",
+                                  "enum": [
+                                    "create",
+                                    "update",
+                                    "delete"
+                                  ]
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "workflow",
+                                    "skill",
+                                    "agent",
+                                    "policy",
+                                    "template",
+                                    "sensor",
+                                    "scheduler",
+                                    "loop",
+                                    "tool"
+                                  ]
+                                },
+                                "targetId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "workflowId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "patch": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "description": {
+                                      "type": "string"
+                                    },
+                                    "topics": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "status": {
+                                      "type": "string",
+                                      "enum": [
+                                        "active",
+                                        "draft",
+                                        "paused",
+                                        "retired"
+                                      ]
+                                    },
+                                    "dri": {
+                                      "type": "string"
+                                    },
+                                    "fields": {
+                                      "type": "object",
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "additionalProperties": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "boolean"
+                                          },
+                                          {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                }
+                              },
+                              "required": [
+                                "intent",
+                                "kind",
+                                "targetId",
+                                "workflowId",
+                                "patch"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "title": {
+                              "type": "string"
+                            },
+                            "targetName": {
+                              "type": "string"
+                            },
+                            "changes": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "field": {
+                                    "type": "string"
+                                  },
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "before": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "after": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "field",
+                                  "label",
+                                  "before",
+                                  "after"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "review": {
+                              "type": "object",
+                              "properties": {
+                                "reviewer": {
+                                  "type": "string"
+                                },
+                                "verdict": {
+                                  "type": "string",
+                                  "enum": [
+                                    "minimal",
+                                    "moderate",
+                                    "breaking"
+                                  ]
+                                },
+                                "criticality": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number",
+                                      "const": 0
+                                    },
+                                    {
+                                      "type": "number",
+                                      "const": 1
+                                    },
+                                    {
+                                      "type": "number",
+                                      "const": 2
+                                    },
+                                    {
+                                      "type": "number",
+                                      "const": 3
+                                    },
+                                    {
+                                      "type": "number",
+                                      "const": 4
+                                    }
+                                  ]
+                                },
+                                "criticalityReasons": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "summary": {
+                                  "type": "string"
+                                },
+                                "findings": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "severity": {
+                                        "type": "string",
+                                        "enum": [
+                                          "info",
+                                          "warn",
+                                          "break"
+                                        ]
+                                      },
+                                      "text": {
+                                        "type": "string"
+                                      },
+                                      "ref": {
+                                        "anyOf": [
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "workflow",
+                                                  "skill",
+                                                  "agent",
+                                                  "policy",
+                                                  "template",
+                                                  "sensor",
+                                                  "scheduler",
+                                                  "loop",
+                                                  "tool"
+                                                ]
+                                              },
+                                              "id": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "kind",
+                                              "id"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "severity",
+                                      "text",
+                                      "ref"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "affected": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "workflow",
+                                          "skill",
+                                          "agent",
+                                          "policy",
+                                          "template",
+                                          "sensor",
+                                          "scheduler",
+                                          "loop",
+                                          "tool"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "workflowId": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "how": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "id",
+                                      "name",
+                                      "workflowId",
+                                      "how"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "otherWorkflows": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "via": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "name",
+                                      "via"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "fixes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "prompt": {
+                                        "type": "string",
+                                        "description": "Sent as the next chat message when picked"
+                                      },
+                                      "tone": {
+                                        "default": "neutral",
+                                        "type": "string",
+                                        "enum": [
+                                          "primary",
+                                          "neutral",
+                                          "fix"
+                                        ]
+                                      },
+                                      "input": {
+                                        "description": "When set, picking the suggestion reviews exactly this change instead of parsing the prompt",
+                                        "type": "object",
+                                        "properties": {
+                                          "intent": {
+                                            "type": "string",
+                                            "enum": [
+                                              "create",
+                                              "update",
+                                              "delete"
+                                            ]
+                                          },
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "workflow",
+                                              "skill",
+                                              "agent",
+                                              "policy",
+                                              "template",
+                                              "sensor",
+                                              "scheduler",
+                                              "loop",
+                                              "tool"
+                                            ]
+                                          },
+                                          "targetId": {
+                                            "type": [
+                                              "string",
+                                              "null"
+                                            ]
+                                          },
+                                          "workflowId": {
+                                            "type": [
+                                              "string",
+                                              "null"
+                                            ]
+                                          },
+                                          "patch": {
+                                            "type": "object",
+                                            "properties": {
+                                              "name": {
+                                                "type": "string"
+                                              },
+                                              "description": {
+                                                "type": "string"
+                                              },
+                                              "topics": {
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "status": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "active",
+                                                  "draft",
+                                                  "paused",
+                                                  "retired"
+                                                ]
+                                              },
+                                              "dri": {
+                                                "type": "string"
+                                              },
+                                              "fields": {
+                                                "type": "object",
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "additionalProperties": {
+                                                  "anyOf": [
+                                                    {
+                                                      "type": "string"
+                                                    },
+                                                    {
+                                                      "type": "number"
+                                                    },
+                                                    {
+                                                      "type": "boolean"
+                                                    },
+                                                    {
+                                                      "type": "array",
+                                                      "items": {
+                                                        "type": "string"
+                                                      }
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            },
+                                            "additionalProperties": false
+                                          }
+                                        },
+                                        "required": [
+                                          "intent",
+                                          "kind",
+                                          "targetId",
+                                          "workflowId",
+                                          "patch"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    },
+                                    "required": [
+                                      "label",
+                                      "prompt",
+                                      "tone"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "authority": {
+                                  "type": "object",
+                                  "properties": {
+                                    "canApply": {
+                                      "type": "boolean"
+                                    },
+                                    "route": {
+                                      "type": "string",
+                                      "enum": [
+                                        "apply",
+                                        "approval",
+                                        "view_only"
+                                      ]
+                                    },
+                                    "approver": {
+                                      "type": "string"
+                                    },
+                                    "reason": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "canApply",
+                                    "route",
+                                    "approver",
+                                    "reason"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "required": [
+                                "reviewer",
+                                "verdict",
+                                "criticality",
+                                "criticalityReasons",
+                                "summary",
+                                "findings",
+                                "affected",
+                                "otherWorkflows",
+                                "fixes",
+                                "authority"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "input",
+                            "title",
+                            "targetName",
+                            "changes",
+                            "review"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "focus": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "workflow",
+                                "skill",
+                                "agent",
+                                "policy",
+                                "template",
+                                "sensor",
+                                "scheduler",
+                                "loop",
+                                "tool"
+                              ]
+                            },
+                            "id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "id"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "workflowId": {
+                      "description": "Set when the reply moves the conversation to another workflow",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "answer",
+                    "bullets",
+                    "cards",
+                    "suggestions",
+                    "proposal",
+                    "focus",
+                    "workflowId"
                   ],
                   "additionalProperties": false
                 }

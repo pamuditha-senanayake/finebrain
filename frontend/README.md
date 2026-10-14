@@ -43,7 +43,9 @@ The backend must serve:
 | `GET /api/tenants` | Tenants the user may open |
 | `GET /api/t/{tenant}/{resource}` | One per hook in `lib/api/hooks.ts`, for example `agents`, `runs?agentId=`, `approvals/{id}`, `overview` |
 | `POST /api/t/{tenant}/ops/{operation}` | Domain operations, for example `takeover`, `skillify`, `runChecks`, `decide`, `uploadEvidence`. The reference behaviour is `lib/mock/ops.ts`, and the unit tests in `tests/unit/flows.test.ts` describe it. |
-| `POST /api/t/{tenant}/ask` | Ask the Brain, answers only from facts the asker may see |
+| `POST /api/t/{tenant}/ask` | Ask the Brain, answers only from facts the asker may see. Optional `page: { path, scope }` where `scope` is `page` (about the screen the asker is on) or `system` (everything they can access) |
+| `GET /api/t/{tenant}/studio/{resource}` | Workflow Studio reads: `map`, `workflows`, `workflows/{id}`, `workflows/{id}/health`, `tools`, `revisions?target=` or `?workflow=`, `pending` |
+| `POST /api/t/{tenant}/studio/chat`, `POST /api/t/{tenant}/studio/review` | Studio assistant. Replies are reads only. Changes happen through `ops/studioApply` (the DRI confirms) or `ops/studioSuggest` (anyone passes a reviewed proposal to the DRI). Reference behaviour: `lib/mock/studio/` |
 | `GET /api/t/{tenant}/stream` | Server Sent Events, each message a `LiveEvent` JSON object |
 
 Shapes are in `docs/openapi.json` (`npm run openapi`). Today the mock auth adapter sends the persona as `x-persona`. An SSO provider replaces that with a bearer token (`lib/auth.ts`, `lib/api/client.ts`).

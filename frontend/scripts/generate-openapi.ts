@@ -17,8 +17,14 @@ const resources: Record<string, z.ZodType> = {
   risks: list(C.Risk), "readiness-rules": list(C.ReadinessRule), gaps: list(C.ReadinessGap), loops: list(C.Loop), "loops/{id}": C.Loop,
   experiments: list(C.Experiment), audit: list(C.AuditEvent), notifications: list(C.Notification), digest: C.Digest.nullable(),
   overview: C.Overview, analytics: C.Analytics, search: list(C.SearchHit), research: list(ResearchSnapshot),
+  activities: list(z.object({ cluster: z.string(), activity: z.string(), agent: z.string(), sensors: z.array(z.string()) })), clock: z.object({ now: z.string() }),
+  // Workflow Studio
+  "studio/map": C.BrainMap, "studio/workflows": list(C.WorkflowSummary), "studio/workflows/{id}": C.WorkflowDetail,
+  "studio/workflows/{id}/health": z.object({ findings: z.array(C.Finding), fixes: z.array(C.Suggestion) }),
+  "studio/tools": list(z.object({ tool: C.StudioItem, workflows: z.array(z.object({ id: z.string(), name: z.string() })) })),
+  "studio/revisions": list(C.Revision), "studio/pending": list(C.PendingChange),
 };
-const ops = ["takeover", "handback", "sendMessage", "closeConversation", "skillify", "runChecks", "decide", "rollback", "runReadinessScheduler", "uploadEvidence", "requestGrant", "revokeGrant", "librarianPropose", "experimentPreview", "experimentStart", "experimentConclude", "experimentKeep", "experimentDiscard", "runOvernightReview", "saveSkillDraft", "promoteAgent", "revealPersonal", "addTrackingItem", "markRead"];
+const ops = ["takeover", "handback", "sendMessage", "closeConversation", "skillify", "runChecks", "decide", "rollback", "runReadinessScheduler", "uploadEvidence", "requestGrant", "revokeGrant", "librarianPropose", "experimentPreview", "experimentStart", "experimentConclude", "experimentKeep", "experimentDiscard", "runOvernightReview", "saveSkillDraft", "promoteAgent", "revealPersonal", "addTrackingItem", "markRead", "studioApply", "studioSuggest"];
 
 const json = (s: z.ZodType) => z.toJSONSchema(s, { unrepresentable: "any" });
 const paths: Record<string, unknown> = {
@@ -29,7 +35,14 @@ for (const [path, schema] of Object.entries(resources)) {
   paths[`/api/t/{tenant}/${path}`] = { get: { parameters: [{ name: "tenant", in: "path", required: true, schema: { type: "string" } }, ...params], responses: { 200: { description: "OK", content: { "application/json": { schema: json(schema) } } } } } };
 }
 for (const op of ops) paths[`/api/t/{tenant}/ops/${op}`] = { post: { summary: `Domain operation ${op}. Reference behaviour: lib/mock/ops.ts`, parameters: [{ name: "tenant", in: "path", required: true, schema: { type: "string" } }, { name: "x-persona", in: "header", schema: { type: "string" } }], requestBody: { content: { "application/json": { schema: { type: "object" } } } }, responses: { 200: { description: "OK" }, 403: { description: "Not allowed, with { error }" }, 409: { description: "Conflict, with { error }" } } } };
-paths["/api/t/{tenant}/ask"] = { post: { requestBody: { content: { "application/json": { schema: { type: "object", properties: { question: { type: "string" } } } } } }, responses: { 200: { description: "OK", content: { "application/json": { schema: json(C.AskAnswer) } } } } } };
+const askBody = z.object({ question: z.string(), page: z.object({ path: z.string(), scope: z.enum(["page", "system"]) }).optional() });
+paths["/api/t/{tenant}/ask"] = { post: { requestBody: { content: { "application/json": { schema: json(askBody) } } }, responses: { 200: { description: "OK", content: { "application/json": { schema: json(C.AskAnswer) } } } } } };
+// Studio assistant: replies are reads. Nothing changes until a proposal is confirmed through ops/studioApply.
+const studioPosts: Record<string, [z.ZodType, z.ZodType]> = {
+  "studio/chat": [C.ChatRequest, C.ChatReply],
+  "studio/review": [z.object({ input: C.ProposalInput, workflowId: z.string() }), C.ChatReply],
+};
+for (const [path, [req, res]] of Object.entries(studioPosts)) paths[`/api/t/{tenant}/${path}`] = { post: { parameters: [{ name: "tenant", in: "path", required: true, schema: { type: "string" } }, { name: "x-persona", in: "header", schema: { type: "string" } }], requestBody: { content: { "application/json": { schema: json(req) } } }, responses: { 200: { description: "OK", content: { "application/json": { schema: json(res) } } } } } };
 paths["/api/t/{tenant}/stream"] = { get: { summary: "Server Sent Events. Each message is a LiveEvent: { type, tenantId, at, resources[], summary }", responses: { 200: { description: "text/event-stream" } } } };
 
 writeFileSync("docs/openapi.json", JSON.stringify({ openapi: "3.1.0", info: { title: "Company Brain API", version: "0.1.0", description: "Generated from contracts/ by npm run openapi." }, paths }, null, 2));
