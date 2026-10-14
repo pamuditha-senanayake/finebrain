@@ -58,21 +58,34 @@ export function MapDetail({ map, selection, currency, onSelect, onClose }: { map
                 <Metric label="Cost per task" value={usd(cluster.kpi.costPerResolvedUsd)} />
               </div>
             )}
-            <div>
-              <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Workflows</div>
-              <ul className="space-y-0.5">
-                {map.workflows.filter((w) => w.clusterId === cluster.id).map((w) => (
-                  <li key={w.id}>
-                    <button type="button" className="flex min-h-7 w-full items-center gap-2 rounded-md px-1.5 text-left hover:bg-accent" onClick={() => onSelect({ kind: "workflow", id: w.id })}>
-                      <span className="min-w-0 flex-1 truncate">{w.name}</span>
-                      {w.health.breaks > 0 && <StatusChip tone="risk" className="h-4 px-1.5 text-[10px]">{w.health.breaks} break{w.health.breaks === 1 ? "" : "s"}</StatusChip>}
-                      <span className="text-[10px] text-muted-foreground">{w.items.length}</span>
-                    </button>
-                  </li>
-                ))}
-                {!map.workflows.some((w) => w.clusterId === cluster.id) && <li className="text-muted-foreground">None yet.</li>}
-              </ul>
-            </div>
+            {(() => {
+              const list = map.workflows.filter((w) => w.clusterId === cluster.id);
+              if (!list.length) return <p className="text-muted-foreground">No workflows yet.</p>;
+              return (
+                <div className="overflow-hidden rounded-lg border">
+                  <table className="w-full table-fixed text-xs" aria-label="Workflows">
+                    <thead className="bg-table-head text-[10px] uppercase tracking-[0.07em] text-foreground/65">
+                      <tr>
+                        <th scope="col" className="px-2.5 py-2 text-left font-semibold">Workflow</th>
+                        <th scope="col" className="w-12 px-1 py-2 text-right font-semibold">Parts</th>
+                        <th scope="col" className="w-[78px] px-2.5 py-2 text-left font-semibold">Health</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {list.map((w) => (
+                        <tr key={w.id} className="cursor-pointer border-t border-border/70 transition-colors even:bg-table-stripe hover:bg-table-hover" onClick={() => onSelect({ kind: "workflow", id: w.id })}>
+                          <td className="px-2.5 py-1.5">
+                            <button type="button" className="min-h-6 w-full truncate text-left font-medium hover:underline" title={w.name} onClick={(e) => { e.stopPropagation(); onSelect({ kind: "workflow", id: w.id }); }}>{w.name}</button>
+                          </td>
+                          <td className="px-1 py-1.5 text-right tabular text-muted-foreground">{w.items.length}</td>
+                          <td className="px-2.5 py-1.5">{w.health.breaks > 0 ? <StatusChip tone="risk">{w.health.breaks} break{w.health.breaks === 1 ? "" : "s"}</StatusChip> : <StatusChip tone="ok">healthy</StatusChip>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </>
         )}
         {wf && !item && (
@@ -85,28 +98,42 @@ export function MapDetail({ map, selection, currency, onSelect, onClose }: { map
               {wf.health.warnings > 0 && <StatusChip tone="warn">{wf.health.warnings} warning{wf.health.warnings === 1 ? "" : "s"}</StatusChip>}
             </div>
             <div className="flex items-center gap-1.5"><span className="text-muted-foreground">DRI</span> <PersonChip id={wf.dri} /></div>
-            {MEMBER_ORDER.map((k) => {
-              const list = wf.items.filter((i) => i.kind === k);
-              if (!list.length) return null;
-              return (
-                <div key={k}>
-                  <div className="mb-0.5 flex items-center gap-1.5 text-[11px] font-medium">
-                    <span className="size-2 rounded-full" style={{ background: KIND_COLOR[k] }} aria-hidden /> {KIND_PLURAL[k]}
-                  </div>
-                  <ul className="space-y-0.5">
-                    {list.map((i) => (
-                      <li key={i.id}>
-                        <button type="button" className="flex min-h-6 w-full items-center gap-1.5 rounded-md px-1.5 text-left hover:bg-accent" onClick={() => onSelect({ kind: "item", id: i.id, workflowId: wf.id })}>
-                          <span className="min-w-0 flex-1 truncate">{i.name}</span>
-                          {i.shared && <span className="text-[10px] text-muted-foreground">shared</span>}
-                          {i.status !== "active" && <span className="text-[10px] text-muted-foreground">{i.status}</span>}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
+            <div className="overflow-hidden rounded-lg border">
+              <table className="w-full table-fixed text-xs" aria-label="Parts">
+                <thead className="bg-table-head text-[10px] uppercase tracking-[0.07em] text-foreground/65">
+                  <tr>
+                    <th scope="col" className="px-2.5 py-2 text-left font-semibold">Part</th>
+                    <th scope="col" className="w-[84px] px-2.5 py-2 text-left font-semibold">Status</th>
+                  </tr>
+                </thead>
+                {MEMBER_ORDER.map((k) => {
+                  const list = wf.items.filter((i) => i.kind === k);
+                  if (!list.length) return null;
+                  return (
+                    <tbody key={k} className="border-t">
+                      <tr className="bg-muted/40">
+                        <th scope="rowgroup" colSpan={2} className="px-2.5 py-1.5 text-left text-[11px] font-semibold">
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="size-2 rounded-full" style={{ background: KIND_COLOR[k] }} aria-hidden /> {KIND_PLURAL[k]} <span className="font-normal text-muted-foreground">{list.length}</span>
+                          </span>
+                        </th>
+                      </tr>
+                      {list.map((i) => (
+                        <tr key={i.id} className="cursor-pointer border-t border-border/60 transition-colors hover:bg-table-hover" onClick={() => onSelect({ kind: "item", id: i.id, workflowId: wf.id })}>
+                          <td className="px-2.5 py-1.5">
+                            <button type="button" className="flex min-h-6 w-full min-w-0 items-center gap-1.5 text-left hover:underline" title={i.name} onClick={(e) => { e.stopPropagation(); onSelect({ kind: "item", id: i.id, workflowId: wf.id }); }}>
+                              <span className="min-w-0 flex-1 truncate">{i.name}</span>
+                              {i.shared && <span className="shrink-0 rounded border px-1 text-[10px] text-muted-foreground">shared</span>}
+                            </button>
+                          </td>
+                          <td className="px-2.5 py-1.5"><Status value={i.status} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  );
+                })}
+              </table>
+            </div>
           </>
         )}
         {wf && item && (
