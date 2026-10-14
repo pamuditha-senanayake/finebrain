@@ -4,8 +4,23 @@
     {
       "name": "frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev"
+      ],
       "port": 3000
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "-e",
+        "require('child_process').spawn(process.env.HOME + '/.local/bin/uv', ['run', 'fastapi', 'dev', 'app/main.py', '--port', '8000'], { cwd: 'backend', stdio: 'inherit' }).on('exit', (c) => process.exit(c ?? 1))"
+      ],
+      "port": 8000,
+      "url": "http://localhost:8000"
     }
   ]
 }
