@@ -5,3 +5,9 @@ __pycache__/
 .next/
 .vercel
 .claude/settings.local.json
+
+# Generated user-guide video output (rebuilt by the guide scripts)
+video/guide/.chrome/
+video/guide/*.mp4
+video/guide/shots/
+video/guide/stills/
