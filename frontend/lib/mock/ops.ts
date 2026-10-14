@@ -22,6 +22,7 @@ import type {
 import { approverFor, assessCriticality, canApprove, type ChangeKind } from "@/lib/governance/criticality";
 import { readinessOf, statusOf } from "@/lib/governance/readiness";
 import { DAY, HOUR, hashString, iso } from "./prng";
+import { applyStudioPending, studioApply, studioSuggest } from "./studio/ops";
 import type { TenantData } from "./types";
 
 export type Ctx = { now: number; actor: Actor };
@@ -46,7 +47,7 @@ function must<T>(v: T | undefined | null, what: string): T {
   return v;
 }
 
-function humanOf(d: TenantData, ctx: Ctx): Human {
+export function humanOf(d: TenantData, ctx: Ctx): Human {
   if (ctx.actor.kind !== "human") throw new OpError("Only a person can do this", 403);
   return must(d.humans.find((h) => h.id === ctx.actor.id), "Person");
 }
@@ -63,7 +64,7 @@ function head(d: TenantData, branch: string) {
   return d.branches.find((b) => b.name === branch)?.head ?? null;
 }
 
-function commit(d: TenantData, ctx: Ctx, branch: string, message: string, changes: Change[], criticality: Criticality, evidence: string[] = [], tag: string | null = null): Commit {
+export function commit(d: TenantData, ctx: Ctx, branch: string, message: string, changes: Change[], criticality: Criticality, evidence: string[] = [], tag: string | null = null): Commit {
   const c: Commit = {
     id: `c${(hashString(`${message}${ctx.now}${d.counter}`) % 0xfffffff).toString(16).padStart(7, "0")}`,
     tenantId: d.tenant.id, branch, parentId: head(d, branch), author: ctx.actor, message, changes, criticality, evidence, createdAt: iso(ctx.now), tag,
@@ -75,7 +76,7 @@ function commit(d: TenantData, ctx: Ctx, branch: string, message: string, change
   return c;
 }
 
-function ensureBranch(d: TenantData, ctx: Ctx, name: string, description: string) {
+export function ensureBranch(d: TenantData, ctx: Ctx, name: string, description: string) {
   let b = d.branches.find((x) => x.name === name);
   if (!b) {
     b = { id: nextId(d, "br"), tenantId: d.tenant.id, name, env: "sandbox", base: "main", head: head(d, "main"), status: "open", description, createdBy: ctx.actor, createdAt: iso(ctx.now) };
@@ -88,7 +89,7 @@ function slug(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
 }
 
-function createChangeRequest(
+export function createChangeRequest(
   d: TenantData,
   ctx: Ctx,
   args: { title: string; kind: ChangeRequest["kind"]; branch: string; commits: Commit[]; plainDiff: string[]; changeKind: ChangeKind; touches: Touches; dri: string; correlationId: string },
@@ -339,6 +340,7 @@ export function mergeChangeRequest(d: TenantData, ctx: Ctx, cr: ChangeRequest) {
   const b = d.branches.find((x) => x.name === cr.fromBranch);
   if (b && b.status === "open") b.status = "merged";
   audit(d, ctx, "change_request.merged", { type: "change_request", id: cr.id, label: cr.title }, cr.criticality, `Merged to main as ${c.id} (${c.tag}). Now live in Production.`, cr.correlationId);
+  if (cr.correlationId.startsWith("studio:")) applyStudioPending(d, ctx, cr.correlationId.slice("studio:".length));
   for (const exp of d.experiments) if (exp.changeRequestId === cr.id) exp.status = "kept";
   for (const item of d.librarian) if (item.changeRequestId === cr.id) item.status = "resolved";
   return cr;
@@ -795,6 +797,6 @@ export function markRead(d: TenantData, _ctx: Ctx, { id }: { id: string | "all" 
 export const OPS = {
   takeover, handback, sendMessage, closeConversation, skillify, runChecks, decide, rollback, runReadinessScheduler, uploadEvidence, requestGrant, revokeGrant,
   librarianPropose, experimentPreview, experimentStart, experimentConclude, experimentKeep, experimentDiscard, runOvernightReview, saveSkillDraft, promoteAgent,
-  revealPersonal, addTrackingItem, markRead,
+  revealPersonal, addTrackingItem, markRead, studioApply, studioSuggest,
 } as const;
 export type OpName = keyof typeof OPS;

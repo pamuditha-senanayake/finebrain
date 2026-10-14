@@ -34,6 +34,9 @@ export const ROUTES: { path: string; persona: string; label: string }[] = [
   { path: "/l3/conversations/conv-1042", persona: "h-op", label: "l3-conversation" },
   { path: "/l3/escalations", persona: "h-op", label: "l3-escalations" },
   { path: "/l3/templates", persona: "h-op", label: "l3-template-board" },
+  { path: "/studio?wf=wf-refunds", persona: "h-founder", label: "studio-chat" },
+  { path: "/studio?wf=wf-billing&view=diagram", persona: "h-aiops", label: "studio-diagram" },
+  { path: "/studio?wf=wf-care&view=parts", persona: "h-op", label: "studio-parts-l3" },
   { path: "/research/skills", persona: "h-research", label: "research" },
 ];
 
@@ -55,10 +58,13 @@ export async function setPersona(page: Page, persona: string, tenant = "finebase
   );
 }
 
-/** Switches persona through the role switcher, the way a person would. */
+/** Switches persona through the role switcher on the home page, the way a person would, then returns to the same page. */
 export async function switchPersona(page: Page, persona: string) {
+  const back = page.url();
+  await page.goto("/");
   await page.getByTestId("role-switcher").click();
   await page.getByTestId(`persona-${persona}`).click();
+  await page.goto(back);
 }
 
 export async function resetDemo(page: Page) {

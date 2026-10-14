@@ -9,6 +9,7 @@ export const en = {
   "env.sandbox": "SANDBOX · {branch}",
   "demo.badge": "Demo data",
   "demo.reset": "Reset demo data",
+  "nav.studio": "Workflow Studio",
   "nav.overview": "Brain overview",
   "nav.digest": "Morning digest",
   "nav.approvals": "Approvals",

@@ -13,12 +13,16 @@ type UiState = {
   env: { kind: Env; branch: string };
   askOpen: boolean;
   paletteOpen: boolean;
+  notificationsOpen: boolean;
+  sidebarCollapsed: boolean;
   setTenant: (id: string) => void;
   setPersona: (id: string) => void;
   setCluster: (id: string) => void;
   setEnv: (kind: Env, branch?: string) => void;
   setAskOpen: (open: boolean) => void;
   setPaletteOpen: (open: boolean) => void;
+  setNotificationsOpen: (open: boolean) => void;
+  toggleSidebar: () => void;
 };
 
 export const useUi = create<UiState>()(
@@ -30,17 +34,21 @@ export const useUi = create<UiState>()(
       env: { kind: "production", branch: "main" },
       askOpen: false,
       paletteOpen: false,
+      notificationsOpen: false,
+      sidebarCollapsed: false,
       setTenant: (tenantId) => set({ tenantId, clusterId: "all" }),
       setPersona: (id) => set((s) => ({ personaByTenant: { ...s.personaByTenant, [s.tenantId]: id } })),
       setCluster: (clusterId) => set({ clusterId }),
       setEnv: (kind, branch) => set({ env: { kind, branch: branch ?? (kind === "production" ? "main" : kind === "staging" ? "staging" : "sandbox") } }),
       setAskOpen: (askOpen) => set({ askOpen }),
       setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
+      setNotificationsOpen: (notificationsOpen) => set({ notificationsOpen }),
+      toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
     }),
     {
       name: "cb.ui.v1",
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ tenantId: s.tenantId, personaByTenant: s.personaByTenant, clusterId: s.clusterId, env: s.env }),
+      partialize: (s) => ({ tenantId: s.tenantId, personaByTenant: s.personaByTenant, clusterId: s.clusterId, env: s.env, sidebarCollapsed: s.sidebarCollapsed }),
     },
   ),
 );

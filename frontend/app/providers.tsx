@@ -45,7 +45,7 @@ export function Providers({ children }: { children: ReactNode }) {
           <MockStarter />
           <LiveBridge />
           {children}
-          <Toaster position="bottom-right" />
+          <Toaster position="top-right" offset={56} />
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>

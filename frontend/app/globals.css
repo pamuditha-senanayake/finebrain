@@ -254,3 +254,39 @@
 
 .scrollbar-thin { scrollbar-width: thin; }
 .tabular { font-variant-numeric: tabular-nums; }
+
+/* Brain map: the L1 constellation. Its own surface tokens so it reads as one object in both themes. */
+:root {
+  --map-bg-1: oklch(0.97 0.018 290);
+  --map-bg-2: oklch(0.91 0.04 290);
+  --map-node: oklch(0.36 0.09 285);
+  --map-line: oklch(0.36 0.09 285 / 0.26);
+  --map-label: oklch(0.27 0.07 285);
+  --map-sub: oklch(0.44 0.06 285);
+}
+.dark {
+  --map-bg-1: oklch(0.33 0.09 285);
+  --map-bg-2: oklch(0.17 0.05 285);
+  --map-node: oklch(0.95 0.02 290);
+  --map-line: oklch(0.95 0.02 290 / 0.26);
+  --map-label: oklch(0.95 0.02 290);
+  --map-sub: oklch(0.8 0.05 290);
+}
+.map-surface {
+  background: radial-gradient(120% 90% at 50% 45%, var(--map-bg-1), var(--map-bg-2));
+}
+.map-layer { transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1), opacity 500ms ease; transform-box: view-box; transform-origin: 0 0; }
+@keyframes map-twinkle { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+.map-twinkle { animation: map-twinkle 2.6s ease-in-out infinite; }
+@keyframes map-pulse { 0% { r: 11; opacity: 0.55; } 100% { r: 26; opacity: 0; } }
+.map-pulse { animation: map-pulse 2.4s ease-out infinite; }
+@keyframes map-flow { to { stroke-dashoffset: -24; } }
+.map-flow { stroke-dasharray: 2 10; animation: map-flow 1.6s linear infinite; }
+@keyframes spark-ping { 0% { r: 2.5; opacity: 0.8; } 100% { r: 7; opacity: 0; } }
+.spark-ping { animation: spark-ping 1.6s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .map-twinkle, .map-pulse, .map-flow, .spark-ping { animation: none !important; }
+}
+@keyframes map-enter { from { opacity: 0; transform: scale(0.55); } to { opacity: 1; transform: scale(1); } }
+.map-enter { animation: map-enter 650ms cubic-bezier(0.22, 1, 0.36, 1) both; transform-box: fill-box; transform-origin: 50% 92%; }
+@media (prefers-reduced-motion: reduce) { .map-enter { animation: none !important; } }

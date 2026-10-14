@@ -1,7 +1,7 @@
 import type { Analytics, AskAnswer, Human, LegibilityCell, Overview, SearchHit } from "@/contracts";
 import type { ResearchSnapshot } from "@/contracts/research";
 import { checkNode, humanPrincipal } from "@/lib/governance/access";
-import { DAY, hashString, iso } from "./prng";
+import { DAY, HOUR, hashString, iso } from "./prng";
 import type { TenantData } from "./types";
 
 const dayKey = (ms: number) => iso(ms).slice(0, 10);
@@ -65,7 +65,43 @@ export function overview(d: TenantData, now: number): Overview {
       const b = byDay.get(day)!;
       return { day, runs: b.runs, autonomy: b.runs ? b.auto / b.runs : 0, escalation: b.runs ? b.esc / b.runs : 0 };
     }),
+    runSeries: runSeries(d, now),
+    runningNow: d.runs.filter((r) => r.status === "running").length,
+    costs: {
+      weekUsd: costBetween(d, now - 7 * DAY, now),
+      prevWeekUsd: costBetween(d, now - 14 * DAY, now - 7 * DAY),
+      monthUsd: costBetween(d, now - 30 * DAY, now),
+      prevMonthUsd: costBetween(d, now - 60 * DAY, now - 30 * DAY),
+    },
+    entity: {
+      red: d.obligations.filter((o) => o.status === "red").length,
+      amber: d.obligations.filter((o) => o.status === "amber").length,
+      risks: d.risks.length,
+      evidenceOpen: d.evidenceRequests.filter((e) => e.status === "open" || e.status === "awaiting_grant_approval").length,
+    },
   };
+}
+
+const SLOT = HOUR / 2;
+
+function runSeries(d: TenantData, now: number) {
+  const end = Math.floor(now / SLOT) * SLOT + SLOT;
+  const start = end - 48 * SLOT;
+  const counts = new Array<number>(48).fill(0);
+  for (const r of d.runs) {
+    const t = Date.parse(r.startedAt);
+    if (t >= start && t < end) counts[Math.floor((t - start) / SLOT)] += 1;
+  }
+  return counts.map((runs, i) => ({ at: iso(start + i * SLOT), runs }));
+}
+
+function costBetween(d: TenantData, from: number, to: number) {
+  let sum = 0;
+  for (const r of d.runs) {
+    const t = Date.parse(r.startedAt);
+    if (t >= from && t < to) sum += r.costUsd;
+  }
+  return Math.round(sum * 100) / 100;
 }
 
 export function analytics(d: TenantData, now: number): Analytics {

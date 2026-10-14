@@ -22,6 +22,10 @@ import type {
   Loop,
   Notification,
   Obligation,
+  PendingChange,
+  Revision,
+  StudioItem,
+  Workflow,
   Policy,
   ReadinessGap,
   ReadinessRule,
@@ -43,6 +47,13 @@ export type ActivityDef = {
   sensors: string[];
   template: string;
   criticality: string;
+};
+
+export type StudioData = {
+  workflows: Workflow[];
+  items: StudioItem[];
+  revisions: Revision[];
+  pending: PendingChange[];
 };
 
 export type TenantData = {
@@ -82,5 +93,6 @@ export type TenantData = {
   audit: AuditEvent[];
   notifications: Notification[];
   digest: Digest | null;
+  studio: StudioData;
   counter: number;
 };

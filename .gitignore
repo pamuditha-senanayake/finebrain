@@ -5,3 +5,5 @@ __pycache__/
 .next/
 .vercel
 .claude/settings.local.json
+backend/.env
+video/guide/*.mp4

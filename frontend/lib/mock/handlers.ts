@@ -3,6 +3,8 @@ import type { OpName } from "./ops";
 import { db, OpError, TENANTS } from "./db";
 import { analytics, ask, overview, researchSnapshots, search } from "./queries";
 import { generateSteps } from "./seed/build";
+import { chat, historyOf, reviewReply } from "./studio/chat";
+import { StudioError, detail, healthOf, scopeOf, summaries, workflowsUsingTool } from "./studio/engine";
 import type { TenantData } from "./types";
 
 const LATENCY_MS = Number(process.env.NEXT_PUBLIC_MOCK_LATENCY_MS ?? 120);
@@ -97,7 +99,55 @@ const GETTERS: Record<string, Getter> = {
   search: (d, _p, url) => search(d, url.searchParams.get("q") ?? ""),
   research: (d) => researchSnapshots(d, db.now()),
   clock: () => ({ now: new Date(db.now()).toISOString() }),
+  "studio/workflows": (d) => summaries(d),
+  "studio/map": (d) => {
+    const o = overview(d, db.now());
+    const sums = summaries(d);
+    return {
+      clusters: d.clusters.map((c) => {
+        const k = o.kpis.find((x) => x.clusterId === c.id);
+        return { id: c.id, name: c.name, description: c.description, status: c.status, dri: c.dri, health: c.health, kpi: c.status === "active" && k ? { runs24h: k.runs24h, autonomyRate: k.autonomyRate, escalationRate: k.escalationRate, costPerResolvedUsd: k.costPerResolvedUsd, moneyAtStakeMinor: k.moneyAtStakeMinor, openRisks: k.openRisks } : null };
+      }),
+      workflows: d.studio.workflows.map((w) => ({
+        id: w.id, name: w.name, description: w.description, clusterId: w.clusterId, status: w.status, criticality: w.criticality, dri: w.dri,
+        health: sums.find((x) => x.id === w.id)?.health ?? { breaks: 0, warnings: 0 },
+        items: scopeOf(d.studio, w).map((i) => ({ id: i.id, kind: i.kind, name: i.name, description: i.description, status: i.status, shared: i.kind === "tool" && workflowsUsingTool(d.studio, i.id).length > 1 })),
+      })),
+    };
+  },
+  "studio/workflows/:id": (d, p) => detail(d, str(p.id)),
+  "studio/workflows/:id/health": (d, p) => {
+    const wf = d.studio.workflows.find((w) => w.id === str(p.id));
+    return wf ? healthOf(d, wf) : null;
+  },
+  "studio/tools": (d) => d.studio.items.filter((i) => i.kind === "tool").map((t) => ({ tool: t, workflows: workflowsUsingTool(d.studio, t.id).map((w) => ({ id: w.id, name: w.name })) })),
+  "studio/revisions": (d, _p, url) => {
+    const target = url.searchParams.get("target");
+    const workflow = url.searchParams.get("workflow");
+    if (target) return historyOf(d, target);
+    return d.studio.revisions.filter((r) => !workflow || r.workflowId === workflow).sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 200);
+  },
+  "studio/pending": (d) =>
+    d.studio.pending.map((p) => {
+      const cr = d.changeRequests.find((c) => c.id === p.changeRequestId);
+      return p.status === "awaiting_approval" && cr && ["rejected", "expired"].includes(cr.status) ? { ...p, status: "rejected" as const } : p;
+    }),
 };
+
+function studioPost(path: string, fn: (d: TenantData, persona: string, body: unknown) => unknown) {
+  return http.post(`*/api/t/:tenant/studio/${path}`, async ({ params, request }) => {
+    await delay(LATENCY_MS * 3);
+    try {
+      const d = db.tenant(str(params.tenant));
+      const persona = request.headers.get("x-persona") ?? "";
+      if (!d.humans.some((h) => h.id === persona)) throw new OpError("Unknown persona", 401);
+      return HttpResponse.json(structuredClone(fn(d, persona, await request.json().catch(() => ({})))) as Record<string, unknown>);
+    } catch (e) {
+      if (e instanceof StudioError) return HttpResponse.json({ error: e.message }, { status: e.status });
+      return fail(e);
+    }
+  });
+}
 
 export const handlers = [
   http.get("*/api/tenants", async () => {
@@ -140,6 +190,11 @@ export const handlers = [
     } catch (e) {
       return fail(e);
     }
+  }),
+  studioPost("chat", (d, persona, body) => chat(d, d.humans.find((h) => h.id === persona)!, body as Parameters<typeof chat>[2])),
+  studioPost("review", (d, persona, body) => {
+    const { input, workflowId } = body as { input: Parameters<typeof reviewReply>[2]; workflowId: string };
+    return reviewReply(d, d.humans.find((h) => h.id === persona)!, input, workflowId);
   }),
   http.post("*/api/mock/reset", async () => {
     db.reset();

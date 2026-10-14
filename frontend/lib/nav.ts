@@ -24,6 +24,7 @@ import {
   Sunrise,
   Table2,
   Vault,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 import type { Area } from "@/lib/auth";
@@ -39,6 +40,7 @@ export const NAV: NavArea[] = [
     home: "/l1",
     items: [
       { href: "/l1", label: "nav.overview", icon: LayoutDashboard, exact: true },
+      { href: "/studio", label: "nav.studio", icon: Workflow },
       { href: "/l1/digest", label: "nav.digest", icon: Sunrise },
       { href: "/l1/approvals", label: "nav.approvals", icon: Inbox },
       { href: "/l1/entity", label: "nav.entity", icon: CalendarClock },
@@ -52,6 +54,7 @@ export const NAV: NavArea[] = [
     label: "tier.L2",
     home: "/l2/graph",
     items: [
+      { href: "/studio", label: "nav.studio", icon: Workflow },
       { href: "/l2/graph", label: "nav.graph", icon: Network },
       { href: "/l2/versioning", label: "nav.versioning", icon: GitBranch },
       { href: "/l2/library", label: "nav.library", icon: Library },
@@ -76,6 +79,7 @@ export const NAV: NavArea[] = [
       { href: "/l3/conversations", label: "nav.conversations", icon: MessagesSquare },
       { href: "/l3/escalations", label: "nav.escalations", icon: Siren },
       { href: "/l3/templates", label: "nav.templateBoard", icon: Table2 },
+      { href: "/studio", label: "nav.studio", icon: Workflow },
     ],
   },
 ];

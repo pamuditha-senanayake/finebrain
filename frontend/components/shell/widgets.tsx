@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Check, ChevronDown, Moon, RotateCcw, Sun, UserCog } from "lucide-react";
+import { Bell, Check, ChevronDown, Inbox, Monitor, Moon, RotateCcw, Sun, UserCog } from "lucide-react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -14,10 +14,12 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useApprovals, useBranches, useClusters, useHumans, useNotifications, useOp, useTenants } from "@/lib/api/hooks";
 import { canView, homeFor, useCurrentUser } from "@/lib/auth";
@@ -116,49 +118,42 @@ export function TenantClusterSwitcher() {
   );
 }
 
-export function ApprovalsCounter() {
+/** Approvals this person can act on: their tier, their DRI work or delegated to them, inside their ceiling. */
+export function useMyApprovals() {
   const approvals = useApprovals();
   const { user } = useCurrentUser();
   const mine = (approvals.data ?? []).filter((a) => a.status === "pending" && user && (a.requiredApprovers.tier === user.tier || a.dri === user.id || a.delegatedTo === user.id) && user.maxApprovalCriticality >= a.criticality);
-  if (!user || user.tier === "L3") return null;
-  return (
-    <Button asChild variant="ghost" size="sm" className="h-8 gap-1.5" aria-label={`${mine.length} approvals waiting on you`}>
-      <Link href="/l1/approvals">
-        <span className="text-xs">Approvals</span>
-        <Badge variant={mine.length ? "default" : "secondary"} className="tabular" data-testid="approvals-count">
-          {mine.length}
-        </Badge>
-      </Link>
-    </Button>
-  );
+  return { mine, canApprove: !!user && user.tier !== "L3", isLoading: approvals.isLoading };
 }
 
-export function NotificationCenter() {
+export function useMyNotifications() {
   const notifications = useNotifications();
   const { user } = useCurrentUser();
-  const markRead = useOp<{ id: string }>("markRead", { silent: true });
   const list = (notifications.data ?? []).filter((n) => !n.to || n.to === user?.id);
-  const unread = list.filter((n) => !n.read).length;
+  return { list, unread: list.filter((n) => !n.read).length };
+}
+
+/** Notifications in a side sheet, opened from the shell menu or the L1 status box. */
+export function NotificationsSheet() {
+  const open = useUi((st) => st.notificationsOpen);
+  const setOpen = useUi((st) => st.setNotificationsOpen);
+  const { list, unread } = useMyNotifications();
+  const markRead = useOp<{ id: string }>("markRead", { silent: true });
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon-sm" className="relative" aria-label={`${t("shell.notifications")}, ${unread} unread`}>
-          <Bell />
-          {unread > 0 && <span className="absolute right-1 top-1 size-2 rounded-full bg-risk" aria-hidden />}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-[360px] p-0">
-        <div className="flex items-center justify-between border-b px-3 py-2">
-          <span className="text-sm font-medium">{t("shell.notifications")}</span>
-          <Button variant="ghost" size="xs" onClick={() => markRead.mutate({ id: "all" })} disabled={!unread}>
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetContent className="w-full gap-0 p-0 sm:max-w-sm">
+        <SheetHeader className="flex-row items-center justify-between border-b px-4 py-3">
+          <SheetTitle className="flex items-center gap-2 text-sm"><Bell className="size-4" /> {t("shell.notifications")}</SheetTitle>
+          <SheetDescription className="sr-only">{unread} unread</SheetDescription>
+          <Button variant="ghost" size="xs" className="mr-8" onClick={() => markRead.mutate({ id: "all" })} disabled={!unread}>
             <Check /> Mark all read
           </Button>
-        </div>
-        <ul className="max-h-[380px] overflow-auto" aria-live="polite">
+        </SheetHeader>
+        <ul className="min-h-0 flex-1 overflow-auto" aria-live="polite">
           {list.length === 0 && <li className="p-4 text-center text-xs text-muted-foreground">Nothing new</li>}
-          {list.slice(0, 30).map((n) => (
+          {list.slice(0, 40).map((n) => (
             <li key={n.id}>
-              <Link href={n.href} onClick={() => !n.read && markRead.mutate({ id: n.id })} className={cn("block border-b px-3 py-2 text-sm last:border-0 hover:bg-accent", !n.read && "bg-primary/5")}>
+              <Link href={n.href} onClick={() => { if (!n.read) markRead.mutate({ id: n.id }); setOpen(false); }} className={cn("block border-b px-4 py-2.5 text-sm last:border-0 hover:bg-accent", !n.read && "bg-primary/5")}>
                 <div className="flex items-start gap-2">
                   {!n.read && <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" aria-label="unread" />}
                   <div className="min-w-0">
@@ -171,8 +166,77 @@ export function NotificationCenter() {
             </li>
           ))}
         </ul>
-      </PopoverContent>
-    </Popover>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+/** The one menu left in the top bar: theme, approvals, notifications and demo data. Personas switch on the home page. */
+export function ShellMenu() {
+  const { user } = useCurrentUser();
+  const { theme, setTheme } = useTheme();
+  const { mine, canApprove } = useMyApprovals();
+  const { unread } = useMyNotifications();
+  const setNotifications = useUi((st) => st.setNotificationsOpen);
+  const qc = useQueryClient();
+  const router = useRouter();
+  if (!user) return null;
+  const alerts = unread + (canApprove ? mine.length : 0);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" className="relative h-9 gap-1.5 px-1.5" aria-label={`Menu for ${user.name}${alerts ? `, ${alerts} items need you` : ""}`} data-testid="shell-menu">
+          <span className="grid size-7 place-items-center rounded-full text-[10px] font-semibold" style={{ background: user.color, color: textOn(user.color) }} aria-hidden>
+            {initials(user.name)}
+          </span>
+          {alerts > 0 && <span className="absolute left-7 top-1 size-2 rounded-full bg-risk ring-2 ring-background" aria-hidden />}
+          <ChevronDown className="size-3.5 text-muted-foreground" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuLabel className="leading-tight">
+          <span className="block text-sm">{user.name}</span>
+          <span className="block text-[11px] font-normal text-muted-foreground">{user.tier} · {user.title}</span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {canApprove && (
+          <DropdownMenuItem onSelect={() => router.push("/l1/approvals")} data-testid="menu-approvals">
+            <Inbox /> Approvals
+            <Badge variant={mine.length ? "default" : "secondary"} className="ml-auto tabular" data-testid="approvals-count">{mine.length}</Badge>
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem onSelect={() => setNotifications(true)}>
+          <Bell /> {t("shell.notifications")}
+          {unread > 0 && <Badge className="ml-auto tabular">{unread}</Badge>}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Theme</DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
+          <DropdownMenuRadioItem value="light"><Sun /> Light</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="dark"><Moon /> Dark</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="system"><Monitor /> System</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+        {flags.mocks && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={async () => {
+                await fetch("/api/mock/reset", { method: "POST" });
+                qc.invalidateQueries();
+              }}
+            >
+              <RotateCcw /> {t("demo.reset")}
+              <span className="ml-auto rounded border border-dashed border-warn/60 px-1 text-[9px] font-semibold uppercase text-warn-fg">{t("demo.badge")}</span>
+            </DropdownMenuItem>
+          </>
+        )}
+        {flags.roleSwitcher && (
+          <DropdownMenuItem onSelect={() => router.push("/")}>
+            <UserCog /> Switch persona on the home page
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -224,7 +288,7 @@ export function RoleSwitcher() {
                   setPersona(h.id);
                   qc.invalidateQueries({ queryKey: ["t", tenantId] });
                   const area = pathname.startsWith("/l1") ? "L1" : pathname.startsWith("/l2") ? "L2" : pathname.startsWith("/l3") ? "L3" : pathname.startsWith("/research") ? "research" : null;
-                  if (!area || !canView(h, area)) router.push(homeFor(h));
+                  if (pathname !== "/" && (!area || !canView(h, area))) router.push(homeFor(h));
                 }}
               >
                 <span className="grid size-5 place-items-center rounded-full text-[9px] font-semibold" style={{ background: h.color, color: textOn(h.color) }} aria-hidden>

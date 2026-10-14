@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, Menu, Search, Sparkles } from "lucide-react";
+import { Brain, Menu, PanelLeftClose, PanelLeftOpen, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useState, type ReactNode } from "react";
@@ -16,7 +16,7 @@ import { useUi } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { AskPanel } from "./ask-panel";
 import { CommandPalette } from "./command-palette";
-import { ApprovalsCounter, DemoBadge, EnvBanner, EnvSwitcher, NotificationCenter, RoleSwitcher, TenantClusterSwitcher, ThemeToggle } from "./widgets";
+import { EnvSwitcher, NotificationsSheet, ShellMenu, TenantClusterSwitcher } from "./widgets";
 
 function useAreas() {
   const { user } = useCurrentUser();
@@ -92,20 +92,38 @@ function Sidebar({ area, onNavigate }: { area: Area; onNavigate?: () => void }) 
   );
 }
 
+/** Ask the Brain floats bottom right on every page. Workflow Studio has its own assistant, so it steps aside there. */
+function AskFab() {
+  const setAsk = useUi((s) => s.setAskOpen);
+  const pathname = usePathname();
+  if (pathname.startsWith("/studio")) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => setAsk(true)}
+      className="fixed bottom-4 right-4 z-40 inline-flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-lg shadow-primary/25 transition hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:bottom-6 sm:right-6"
+      aria-label={t("shell.ask")}
+    >
+      <Sparkles className="size-4" aria-hidden />
+      {t("shell.ask")}
+    </button>
+  );
+}
+
 export function AppShell({ area, children }: { area: Area; children: ReactNode }) {
   const { user, isLoading } = useCurrentUser();
   const setPalette = useUi((s) => s.setPaletteOpen);
-  const setAsk = useUi((s) => s.setAskOpen);
+  const collapsed = useUi((s) => s.sidebarCollapsed);
+  const toggleSidebar = useUi((s) => s.toggleSidebar);
   const [mobileNav, setMobileNav] = useState(false);
   const allowed = canView(user, area);
 
   return (
     <BeamScope>
       <div className="flex min-h-dvh flex-col">
-        <EnvBanner />
         <div className="flex min-h-0 flex-1">
-          <aside className="hidden w-60 shrink-0 border-r bg-sidebar lg:block" aria-label="Sidebar">
-            <div className="sticky top-0 h-[calc(100dvh-1.5rem)]">
+          <aside className={cn("hidden w-60 shrink-0 border-r bg-sidebar", !collapsed && "lg:block")} aria-label="Sidebar">
+            <div className="sticky top-0 h-dvh">
               <Sidebar area={area} />
             </div>
           </aside>
@@ -114,6 +132,16 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
               <Button variant="ghost" size="icon-sm" className="lg:hidden" onClick={() => setMobileNav(true)} aria-label="Open navigation">
                 <Menu />
               </Button>
+              <Button variant="ghost" size="icon-sm" className="max-lg:hidden" onClick={toggleSidebar} aria-label={collapsed ? "Show sidebar" : "Hide sidebar"} aria-pressed={!collapsed} data-testid="sidebar-toggle">
+                {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+              </Button>
+              {collapsed && (
+                <Link href="/" className="max-lg:hidden" aria-label={t("app.name")}>
+                  <span className="grid size-7 place-items-center rounded-lg bg-primary text-primary-foreground">
+                    <Brain className="size-4" aria-hidden />
+                  </span>
+                </Link>
+              )}
               <TenantClusterSwitcher />
               <div className="max-md:hidden">
                 <EnvSwitcher />
@@ -121,28 +149,14 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
               <button
                 type="button"
                 onClick={() => setPalette(true)}
-                className="ml-auto flex h-8 items-center gap-2 rounded-lg border bg-surface px-2.5 text-xs text-muted-foreground hover:bg-accent sm:ml-2 sm:min-w-[220px]"
+                className="ml-auto flex h-8 items-center gap-2 rounded-lg border bg-surface px-2.5 text-xs text-muted-foreground hover:bg-accent sm:min-w-[220px]"
                 aria-label="Open command palette"
               >
                 <Search className="size-3.5" aria-hidden />
                 <span className="max-sm:hidden">{t("shell.search")}</span>
                 <kbd className="ml-auto rounded border bg-background px-1 font-mono text-[10px] max-sm:hidden">⌘K</kbd>
               </button>
-              <div className="flex items-center gap-1 sm:ml-auto">
-                <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={() => setAsk(true)} aria-label={t("shell.ask")}>
-                  <Sparkles className="text-primary" />
-                  <span className="text-xs max-md:hidden">{t("shell.ask")}</span>
-                </Button>
-                <div className="max-sm:hidden">
-                  <ApprovalsCounter />
-                </div>
-                <NotificationCenter />
-                <ThemeToggle />
-                <div className="max-sm:hidden">
-                  <DemoBadge />
-                </div>
-                <RoleSwitcher />
-              </div>
+              <ShellMenu />
             </header>
             <main id="main" className="mx-auto w-full max-w-[1600px] flex-1 px-3 py-4 sm:px-6 sm:py-5">
               {isLoading ? <LoadingState /> : !allowed ? <DeniedState reason={user ? `${user.name} (${user.tier}) cannot open ${area === "research" ? "the Research Console" : `${area} ${t(`tier.${area}`)}`}.` : "No persona selected."} home={homeFor(user)} /> : <Suspense fallback={<LoadingState />}>{children}</Suspense>}
@@ -160,6 +174,8 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
       </Sheet>
       <CommandPalette />
       <AskPanel />
+      <NotificationsSheet />
+      <AskFab />
     </BeamScope>
   );
 }

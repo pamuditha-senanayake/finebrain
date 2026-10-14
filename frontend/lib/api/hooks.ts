@@ -84,6 +84,30 @@ export const useAnalytics = () => useResource("analytics", C.Analytics);
 export const useActivities = () => useResource("activities", list(z.object({ cluster: z.string(), activity: z.string(), agent: z.string(), sensors: z.array(z.string()), template: z.string(), criticality: z.string() })));
 export const useSearch = (q: string) => useResource(`search?q=${encodeURIComponent(q)}`, list(C.SearchHit), { enabled: q.trim().length > 1 });
 export const useResearch = () => useResource("research", list(ResearchSnapshot));
+export const useBrainMap = () => useResource("studio/map", C.BrainMap);
+export const useStudioWorkflows = () => useResource("studio/workflows", list(C.WorkflowSummary));
+export const useStudioWorkflow = (id: string) => useResource(`studio/workflows/${id}`, C.WorkflowDetail, { enabled: !!id });
+export const useStudioHealth = (id: string) => useResource(`studio/workflows/${id}/health`, z.object({ findings: z.array(C.Finding), fixes: z.array(C.Suggestion) }), { enabled: !!id });
+export const useStudioHistory = (targetId: string) => useResource(`studio/revisions?target=${encodeURIComponent(targetId)}`, list(C.Revision), { enabled: !!targetId });
+export const useStudioActivity = (workflowId: string) => useResource(`studio/revisions?workflow=${encodeURIComponent(workflowId)}`, list(C.Revision), { enabled: !!workflowId });
+export const useStudioTools = () => useResource("studio/tools", list(z.object({ tool: C.StudioItem, workflows: z.array(z.object({ id: z.string(), name: z.string() })) })));
+export const useStudioPending = () => useResource("studio/pending", list(C.PendingChange));
+
+/** Studio assistant. Replies are reads; nothing changes until a proposal is confirmed through `studioApply`. */
+export function useStudioChat() {
+  return useMutation({
+    mutationFn: (req: C.ChatRequest) => apiPost("studio/chat", req, C.ChatReply),
+    onError: (e) => reportError(e, { op: "studio.chat" }),
+  });
+}
+
+export function useStudioReview() {
+  return useMutation({
+    mutationFn: (body: { input: C.ProposalInput; workflowId: string }) => apiPost("studio/review", body, C.ChatReply),
+    onError: (e) => reportError(e, { op: "studio.review" }),
+  });
+}
+
 export const useClock = () => useResource("clock", z.object({ now: z.string() }), { refetchInterval: 60_000 });
 
 /** The brain's clock (the mock clock in demos), so countdowns agree with the data. */

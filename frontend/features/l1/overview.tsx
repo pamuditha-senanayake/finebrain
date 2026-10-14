@@ -1,151 +1,102 @@
 "use client";
 
-import { useReducedMotion } from "motion/react";
-import { Check, EyeOff, Minus } from "lucide-react";
-import Link from "next/link";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import { AmbientSurface, NumberTween } from "@/components/brain/motion";
+import { List, Orbit } from "lucide-react";
+import { useCallback, useState } from "react";
+import type { BrainMap } from "@/contracts";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useLookup } from "@/components/brain/names";
-import { Kpi, PageHeader, QueryView, Section, StatusChip } from "@/components/brain/primitives";
-import { useClusters, useOverview } from "@/lib/api/hooks";
-import { money, pct, usd } from "@/lib/format";
-import { useUi } from "@/lib/store";
+import { ErrorState, LoadingState, StatusChip } from "@/components/brain/primitives";
+import { useBrainMap, useOverview } from "@/lib/api/hooks";
+import { pct } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { BrainMapView, CLUSTER_PALETTE, type MapSelection } from "./brain-map";
+import { MapDetail } from "./map-detail";
+import { StatusBox } from "./status-box";
 
-const trendConfig = {
-  autonomy: { label: "Autonomy", color: "var(--chart-1)" },
-  escalation: { label: "Escalation", color: "var(--chart-4)" },
-} satisfies ChartConfig;
-
+/** L1 home: the whole brain as one map, with a small status box. Charts and tables live on Analytics. */
 export function Overview() {
-  const reduceMotion = useReducedMotion();
+  const map = useBrainMap();
   const overview = useOverview();
-  const clusters = useClusters();
   const lookup = useLookup();
-  const clusterId = useUi((s) => s.clusterId);
-  return (
-    <div>
-      <AmbientSurface className="-mx-3 -mt-4 mb-5 rounded-b-2xl border-b px-3 pb-5 pt-6 sm:-mx-6 sm:-mt-5 sm:px-6">
-        <div className="relative">
-          <PageHeader title="Brain overview" description="Every cluster at once: how much work finishes without a person, what is at stake, and where the brain is still blind." />
-          <QueryView query={overview} rows={2}>
-            {(o) => (
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-                <Kpi label="Runs, last 24 hours" value={<NumberTween value={o.totals.runs24h} />} />
-                <Kpi label="Autonomy rate" value={<NumberTween value={o.totals.autonomyRate * 100} format={(n) => `${n.toFixed(0)}%`} />} hint="finished without a person" tone="ok" />
-                <Kpi label="Escalation rate" value={pct(o.totals.escalationRate, 1)} />
-                <Kpi label="Money at stake" value={money(o.totals.moneyAtStakeMinor, lookup.currency, { compact: true })} />
-                <Kpi label="Open risks" value={o.totals.openRisks} tone={o.totals.openRisks > 5 ? "risk" : "warn"} hint={<Link href="/l1/entity" className="hover:underline">risk register</Link>} />
-                <Kpi label="Cost per resolved task" value={usd(o.totals.costPerResolvedUsd)} />
-              </div>
-            )}
-          </QueryView>
-        </div>
-      </AmbientSurface>
+  const [view, setView] = useState<"map" | "list">("map");
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const [selection, setSelection] = useState<MapSelection | null>(null);
 
-      <QueryView query={overview}>
-        {(o) => (
-          <div className="space-y-4">
-            <div>
-              <h2 className="mb-2 text-sm font-semibold">Clusters</h2>
-              <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {(clusters.data ?? []).map((c) => {
-                  const k = o.kpis.find((x) => x.clusterId === c.id);
-                  const planned = c.status === "planned";
-                  return (
-                    <li key={c.id} className={cn("rounded-xl border bg-card p-3", planned && "border-dashed bg-transparent", clusterId === c.id && "ring-2 ring-primary/40")}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h3 className="text-sm font-semibold">{c.name}</h3>
-                          <p className="line-clamp-2 text-[11px] text-muted-foreground">{c.description}</p>
-                        </div>
-                        {planned ? <StatusChip tone="neutral">planned</StatusChip> : <HealthRing value={c.health} />}
-                      </div>
-                      {!planned && k && (
-                        <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                          <dt className="text-muted-foreground">Autonomy</dt>
-                          <dd className="text-right tabular">{pct(k.autonomyRate)}</dd>
-                          <dt className="text-muted-foreground">Escalations</dt>
-                          <dd className="text-right tabular">{pct(k.escalationRate, 1)}</dd>
-                          <dt className="text-muted-foreground">Money at stake</dt>
-                          <dd className="text-right tabular">{money(k.moneyAtStakeMinor, lookup.currency, { compact: true })}</dd>
-                          <dt className="text-muted-foreground">Cost per task</dt>
-                          <dd className="text-right tabular">{usd(k.costPerResolvedUsd)}</dd>
-                          <dt className="text-muted-foreground">Runs 24h</dt>
-                          <dd className="text-right tabular">{k.runs24h}</dd>
-                        </dl>
-                      )}
-                      {planned && <p className="mt-3 text-[11px] text-muted-foreground">Plugs in the same way as the active clusters. No sensors connected yet.</p>}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-            <div className="grid gap-4 xl:grid-cols-[1fr_1.4fr]">
-              <Section title="Autonomy and escalation, 14 days">
-                <ChartContainer config={trendConfig} className="h-[260px] w-full">
-                  <AreaChart data={o.trend.map((t) => ({ ...t, autonomy: Math.round(t.autonomy * 100), escalation: Math.round(t.escalation * 1000) / 10, day: t.day.slice(5) }))} margin={{ left: 0, right: 8, top: 8 }}>
-                    <CartesianGrid vertical={false} />
-                    <XAxis dataKey="day" tickLine={false} axisLine={false} fontSize={11} />
-                    <YAxis tickLine={false} axisLine={false} fontSize={11} width={44} unit="%" />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Area isAnimationActive={!reduceMotion} dataKey="autonomy" type="monotone" fill="var(--color-autonomy)" fillOpacity={0.15} stroke="var(--color-autonomy)" strokeWidth={2} />
-                    <Area isAnimationActive={!reduceMotion} dataKey="escalation" type="monotone" fill="var(--color-escalation)" fillOpacity={0.12} stroke="var(--color-escalation)" strokeWidth={2} />
-                  </AreaChart>
-                </ChartContainer>
-              </Section>
-              <Section title="Legibility map" description="Each activity against four checks. Gaps are where the brain still cannot see.">
-                <div className="max-h-[300px] overflow-auto scrollbar-thin" tabIndex={0} aria-label="Legibility map, scrollable">
-                  <table className="w-full text-xs">
-                    <thead className="sticky top-0 bg-card text-[10px] uppercase tracking-wide text-muted-foreground">
-                      <tr>
-                        <th className="py-1.5 text-left font-medium">Activity</th>
-                        {["Sensed", "Skilled", "Governed", "Reported"].map((h) => (
-                          <th key={h} className="w-16 py-1.5 text-center font-medium">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {o.legibility
-                        .filter((l) => clusterId === "all" || l.clusterId === clusterId)
-                        .map((l) => (
-                          <tr key={l.activity} className="border-t">
-                            <td className="py-1.5 pr-2">
-                              <div className="truncate font-medium">{l.activity}</div>
-                              <div className="truncate text-[10px] text-muted-foreground">{l.agent}</div>
-                            </td>
-                            {[l.sensed, l.skilled, l.governed, l.reported].map((v, i) => (
-                              <td key={i} className="text-center">
-                                {v ? <Check className="mx-auto size-3.5 text-ok" aria-label="yes" /> : <EyeOff className="mx-auto size-3.5 text-risk" aria-label="gap" />}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-                <p className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <Minus className="size-3" /> {o.legibility.filter((l) => !(l.sensed && l.skilled && l.governed && l.reported)).length} of {o.legibility.length} activities have at least one gap.
-                </p>
-              </Section>
-            </div>
-          </div>
-        )}
-      </QueryView>
+  const select = useCallback(
+    (s: MapSelection | null) => {
+      setSelection(s);
+      if (!s || !map.data) return;
+      const cluster = s.kind === "cluster" ? s.id : map.data.workflows.find((w) => w.id === (s.kind === "workflow" ? s.id : s.workflowId))?.clusterId;
+      if (cluster) setFocusId(cluster);
+    },
+    [map.data],
+  );
+
+  return (
+    <div className="relative -mx-3 -my-4 flex flex-col sm:-mx-6 sm:-my-5 lg:block lg:h-[calc(100dvh-3rem)]">
+      <h1 className="sr-only">Brain overview</h1>
+      <div className="relative h-[68vh] min-h-[420px] lg:absolute lg:inset-0 lg:h-auto">
+        {map.isLoading ? (
+          <div className="map-surface grid h-full place-items-center"><LoadingState rows={3} label="Loading the brain map" /></div>
+        ) : map.error ? (
+          <div className="p-4"><ErrorState error={map.error} onRetry={() => map.refetch()} /></div>
+        ) : map.data && view === "map" ? (
+          <BrainMapView map={map.data} currency={lookup.currency} focusId={focusId} selection={selection} onFocus={setFocusId} onSelect={select} />
+        ) : map.data ? (
+          <MapList map={map.data} onSelect={(s) => { select(s); }} />
+        ) : null}
+      </div>
+
+      <div className="pointer-events-none absolute left-3 top-3 z-10 flex">
+        <ToggleGroup type="single" value={view} onValueChange={(v) => v && setView(v as "map" | "list")} variant="outline" size="sm" className="pointer-events-auto rounded-full bg-card/80 shadow-sm backdrop-blur" aria-label="View">
+          <ToggleGroupItem value="map" aria-label="Map view" className="rounded-l-full px-3"><Orbit /> Map</ToggleGroupItem>
+          <ToggleGroupItem value="list" aria-label="List view" className="rounded-r-full px-3"><List /> List</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+
+      {selection && map.data && (
+        <div className="z-10 p-3 lg:absolute lg:bottom-20 lg:left-3 lg:top-24 lg:w-[300px] lg:p-0">
+          <MapDetail map={map.data} selection={selection} currency={lookup.currency} onSelect={select} onClose={() => setSelection(null)} />
+        </div>
+      )}
+
+      <div className="z-10 p-3 lg:absolute lg:right-3 lg:top-3 lg:w-[236px] lg:p-0">
+        {overview.data ? <StatusBox o={overview.data} /> : overview.error ? <ErrorState error={overview.error} onRetry={() => overview.refetch()} /> : <LoadingState rows={4} />}
+      </div>
     </div>
   );
 }
 
-function HealthRing({ value }: { value: number }) {
-  const r = 14;
-  const c = 2 * Math.PI * r;
-  const tone = value >= 85 ? "var(--ok)" : value >= 70 ? "var(--warn)" : "var(--risk)";
+/** The same brain as an outline, for keyboards, screen readers and quick scanning. */
+function MapList({ map, onSelect }: { map: BrainMap; onSelect: (s: MapSelection) => void }) {
   return (
-    <svg width="36" height="36" viewBox="0 0 36 36" role="img" aria-label={`Health ${value}`}>
-      <circle cx="18" cy="18" r={r} fill="none" stroke="var(--muted)" strokeWidth="4" />
-      <circle cx="18" cy="18" r={r} fill="none" stroke={tone} strokeWidth="4" strokeDasharray={c} strokeDashoffset={c * (1 - value / 100)} strokeLinecap="round" transform="rotate(-90 18 18)" />
-      <text x="18" y="21.5" textAnchor="middle" fontSize="10" fontWeight="600" fill="currentColor">{value}</text>
-    </svg>
+    <div className="map-surface h-full overflow-y-auto px-4 pb-6 pt-16 lg:pr-[264px]">
+      <div className="mx-auto grid max-w-4xl gap-3 sm:grid-cols-2">
+        {map.clusters.map((c, i) => {
+          const wfs = map.workflows.filter((w) => w.clusterId === c.id);
+          return (
+            <section key={c.id} className="rounded-xl border bg-card/90 p-3 backdrop-blur" style={{ borderTop: `3px solid ${CLUSTER_PALETTE[i % CLUSTER_PALETTE.length]}` }}>
+              <button type="button" className="w-full text-left" onClick={() => onSelect({ kind: "cluster", id: c.id })}>
+                <h2 className="text-sm font-semibold uppercase tracking-wider">{c.name}</h2>
+                <p className="text-[11px] text-muted-foreground">{c.kpi ? `${wfs.length} workflows · ${pct(c.kpi.autonomyRate)} autonomous · ${c.kpi.runs24h} runs today` : "planned"}</p>
+              </button>
+              {wfs.length > 0 && (
+                <ul className="mt-2 space-y-0.5">
+                  {wfs.map((w) => (
+                    <li key={w.id}>
+                      <button type="button" className={cn("flex min-h-7 w-full items-center gap-2 rounded-md px-1.5 text-left text-xs hover:bg-accent")} onClick={() => onSelect({ kind: "workflow", id: w.id })}>
+                        <span className="min-w-0 flex-1 truncate">{w.name}</span>
+                        {w.health.breaks > 0 && <StatusChip tone="risk" className="h-4 px-1.5 text-[10px]">{w.health.breaks} break{w.health.breaks === 1 ? "" : "s"}</StatusChip>}
+                        <span className="text-[10px] text-muted-foreground">{w.items.length} parts</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          );
+        })}
+      </div>
+    </div>
   );
 }

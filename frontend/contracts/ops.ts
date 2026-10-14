@@ -65,6 +65,11 @@ export const Overview = z.object({
   }),
   legibility: z.array(LegibilityCell),
   trend: z.array(z.object({ day: z.string(), autonomy: z.number(), escalation: z.number(), runs: z.number().int() })),
+  /** Runs started per 30 minute slot over the last 24 hours, oldest first. The last slot fills live. */
+  runSeries: z.array(z.object({ at: z.string(), runs: z.number().int() })),
+  runningNow: z.number().int(),
+  costs: z.object({ weekUsd: z.number(), prevWeekUsd: z.number(), monthUsd: z.number(), prevMonthUsd: z.number() }),
+  entity: z.object({ red: z.number().int(), amber: z.number().int(), risks: z.number().int(), evidenceOpen: z.number().int() }),
 });
 export type Overview = z.infer<typeof Overview>;
 

@@ -5,7 +5,8 @@ import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "rec
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader, QueryView, Section, Status } from "@/components/brain/primitives";
-import { useAnalytics } from "@/lib/api/hooks";
+import { useAnalytics, useOverview } from "@/lib/api/hooks";
+import { AutonomyTrend, LegibilityMap } from "./overview-panels";
 import { pct } from "@/lib/format";
 
 const COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)", "var(--chart-1)"];
@@ -13,9 +14,18 @@ const COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--cha
 export function Analytics() {
   const reduceMotion = useReducedMotion();
   const analytics = useAnalytics();
+  const overview = useOverview();
   return (
     <div>
-      <PageHeader title="Progress and analytics" description="KPIs per cluster, loop performance, experiment outcomes and template completion." />
+      <PageHeader title="Progress and analytics" description="KPIs per cluster, loop performance, experiment outcomes, template completion, and where the brain is still blind." />
+      <QueryView query={overview} rows={4}>
+        {(o) => (
+          <div className="mb-4 grid gap-4 xl:grid-cols-[1fr_1.4fr]">
+            <AutonomyTrend o={o} />
+            <LegibilityMap o={o} />
+          </div>
+        )}
+      </QueryView>
       <QueryView query={analytics}>
         {(a) => {
           const days = a.clusters[0]?.series.map((s) => s.day.slice(5)) ?? [];
