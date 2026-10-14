@@ -57,7 +57,7 @@ type Props<T extends object> = {
 };
 
 /** Dense, virtualized, sortable, searchable table. Handles tens of thousands of rows. */
-export function DataTable<T extends object>({ data, columns, getRowId, onRowClick, height = 560, searchPlaceholder = "Filter…", initialSort, toolbar, rowHeight = 36, label, emptyText, rowClassName }: Props<T>) {
+export function DataTable<T extends object>({ data, columns, getRowId, onRowClick, height = 560, searchPlaceholder = "Filter…", initialSort, toolbar, rowHeight = 44, label, emptyText, rowClassName }: Props<T>) {
   const [globalFilter, setGlobalFilter] = useState("");
   const helper = useMemo(() => createColumnHelper<typeof features, T>(), []);
   const tableColumns = useMemo(
@@ -95,11 +95,11 @@ export function DataTable<T extends object>({ data, columns, getRowId, onRowClic
   const mobileTemplate = columns.filter((c) => !c.hideOnMobile).map((c) => c.width ?? "minmax(0,1fr)").join(" ");
 
   return (
-    <div className="flex min-w-0 flex-col gap-2">
+    <div className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative w-full max-w-xs">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input value={globalFilter} onChange={(e) => setGlobalFilter(e.target.value)} placeholder={searchPlaceholder} aria-label={`Filter ${label}`} className="h-8 pl-8 text-[13px]" />
+          <Input value={globalFilter} onChange={(e) => setGlobalFilter(e.target.value)} placeholder={searchPlaceholder} aria-label={`Filter ${label}`} className="h-9 pl-8 text-[13px]" />
         </div>
         <span className="text-xs text-muted-foreground tabular" aria-live="polite">
           {rows.length.toLocaleString()} {rows.length === 1 ? "row" : "rows"}
@@ -107,16 +107,16 @@ export function DataTable<T extends object>({ data, columns, getRowId, onRowClic
         <div className="ml-auto flex items-center gap-2">{toolbar}</div>
       </div>
       <div className="overflow-hidden rounded-xl border bg-card" role="table" aria-label={label} aria-rowcount={rows.length + 1}>
-        <div role="rowgroup" className="border-b bg-surface">
-          <div role="row" className="grid items-center gap-3 px-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground max-sm:[grid-template-columns:var(--mt)] sm:[grid-template-columns:var(--t)]" style={{ "--t": template, "--mt": mobileTemplate } as React.CSSProperties}>
+        <div role="rowgroup" className="border-b bg-table-head">
+          <div role="row" className="grid items-center gap-4 px-4 text-[11px] font-semibold uppercase tracking-[0.07em] text-foreground/65 max-sm:[grid-template-columns:var(--mt)] sm:[grid-template-columns:var(--t)]" style={{ "--t": template, "--mt": mobileTemplate } as React.CSSProperties}>
             {table.getHeaderGroups()[0].headers.map((header) => {
               const col = columns[colIndex.get(header.column.id) ?? 0];
               const sorted = header.column.getIsSorted();
               const canSort = header.column.getCanSort();
               return (
-                <div role="columnheader" key={header.id} aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : "none"} className={cn("py-2", col.align === "right" && "text-right", col.hideOnMobile && "max-sm:hidden")}>
+                <div role="columnheader" key={header.id} aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : "none"} className={cn("whitespace-nowrap py-2.5", col.align === "right" && "text-right", col.hideOnMobile && "max-sm:hidden")}>
                   {canSort ? (
-                    <button type="button" onClick={header.column.getToggleSortingHandler()} className={cn("inline-flex items-center gap-1 rounded hover:text-foreground", col.align === "right" && "flex-row-reverse")}>
+                    <button type="button" onClick={header.column.getToggleSortingHandler()} className={cn("inline-flex items-center gap-1 rounded uppercase tracking-[0.07em] hover:text-foreground", col.align === "right" && "flex-row-reverse")}>
                       {col.header}
                       {sorted === "asc" ? <ArrowUp className="size-3" /> : sorted === "desc" ? <ArrowDown className="size-3" /> : <ChevronsUpDown className="size-3 opacity-40" />}
                     </button>
@@ -133,7 +133,7 @@ export function DataTable<T extends object>({ data, columns, getRowId, onRowClic
             <EmptyState title={emptyText ?? "No rows match"} />
           </div>
         ) : (
-          <div ref={scrollRef} role="rowgroup" tabIndex={0} aria-label={`${label} rows, scrollable`} className="scrollbar-thin overflow-auto" style={{ height: typeof height === "number" ? Math.min(height, rows.length * rowHeight + 2) : height }}>
+          <div ref={scrollRef} role="rowgroup" tabIndex={0} aria-label={`${label} rows, scrollable`} className="scrollbar-thin overflow-auto" style={{ height: rows.length * rowHeight + 2, maxHeight: height }}>
             <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
               {virtualizer.getVirtualItems().map((item) => {
                 const row = rows[item.index];
@@ -148,8 +148,9 @@ export function DataTable<T extends object>({ data, columns, getRowId, onRowClic
                     onClick={onRowClick ? () => onRowClick(original) : undefined}
                     onKeyDown={onRowClick ? (e) => e.key === "Enter" && onRowClick(original) : undefined}
                     className={cn(
-                      "absolute left-0 top-0 grid w-full items-center gap-3 border-b px-3 text-[13px] last:border-b-0 max-sm:[grid-template-columns:var(--mt)] sm:[grid-template-columns:var(--t)]",
-                      onRowClick && "cursor-pointer hover:bg-accent/60 focus-visible:bg-accent/60",
+                      "absolute left-0 top-0 grid w-full items-center gap-4 border-b border-border/70 px-4 text-[13.5px] transition-colors last:border-b-0 max-sm:[grid-template-columns:var(--mt)] sm:[grid-template-columns:var(--t)]",
+                      item.index % 2 === 1 && "bg-table-stripe",
+                      onRowClick && "cursor-pointer hover:bg-table-hover focus-visible:bg-table-hover",
                       rowClassName?.(original),
                     )}
                     style={{ height: rowHeight, transform: `translateY(${item.start}px)`, "--t": template, "--mt": mobileTemplate } as React.CSSProperties}

@@ -37,7 +37,7 @@ export function TemplateBoard() {
       />
       <QueryView query={templates}>
         {(list) => (
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3">
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-5">
             {list
               .filter((t) => (filter === "all" || t.status === filter) && (clusterId === "all" || t.clusterId === clusterId))
               .slice(0, 120)

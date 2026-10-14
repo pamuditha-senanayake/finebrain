@@ -57,33 +57,32 @@ export function Vault() {
                 getRowId={(i) => i.id}
                 columns={[
                   { id: "kind", header: "Type", cell: (i) => <StatusChip tone={i.kind === "conflict" ? "risk" : i.kind === "stale" || i.kind === "unverified" ? "warn" : "neutral"}>{i.kind}</StatusChip> },
-                  { id: "title", header: "Item", className: "font-medium", cell: (i) => <span data-testid={`librarian-${i.id}`}>{i.title}</span> },
-                  { id: "detail", header: "Detail", className: "max-w-md text-xs text-muted-foreground", cell: (i) => i.detail },
+                  {
+                    id: "title",
+                    header: "Item",
+                    cell: (i) => (
+                      <div className="max-w-lg space-y-1.5">
+                        <div className="font-medium" data-testid={`librarian-${i.id}`}>{i.title}</div>
+                        <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground" title={i.detail}>{i.detail}</p>
+                        {i.proposal && (
+                          <p className="text-xs">
+                            <span className="text-muted-foreground">Proposal:</span> {i.proposal.winningSource} wins, valid from {date(i.proposal.newValidFrom, lookup.tz)}
+                            {i.proposal.dependents.length > 0 && <span className="text-muted-foreground"> · updates {i.proposal.dependents.map((d) => d.label).join(", ")}</span>}
+                          </p>
+                        )}
+                      </div>
+                    ),
+                  },
                   {
                     id: "facts",
                     header: "Facts",
                     cell: (i) => (
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex max-w-[180px] flex-col items-start gap-1">
                         {i.factIds.map((f) => (
                           <Link key={f} href={`/l2/vault?fact=${f}`} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] hover:underline">{f}</Link>
                         ))}
                       </div>
                     ),
-                  },
-                  {
-                    id: "proposal",
-                    header: "Librarian proposal",
-                    className: "max-w-xs text-xs",
-                    cell: (i) =>
-                      i.proposal ? (
-                        <div className="space-y-0.5">
-                          <div><span className="text-muted-foreground">Winning source:</span> {i.proposal.winningSource}</div>
-                          <div><span className="text-muted-foreground">Valid from:</span> {date(i.proposal.newValidFrom, lookup.tz)}</div>
-                          <div><span className="text-muted-foreground">Updates:</span> {i.proposal.dependents.map((d) => d.label).join(", ") || "none"}</div>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">none yet</span>
-                      ),
                   },
                   { id: "status", header: "Status", cell: (i) => <Status value={i.status} /> },
                   {

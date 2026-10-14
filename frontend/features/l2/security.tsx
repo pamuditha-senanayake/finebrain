@@ -25,10 +25,9 @@ export function Security() {
       { id: "at", header: "When", width: "120px", value: (a) => a.at, cell: (a) => <span className="text-muted-foreground">{dateTime(a.at, lookup.tz)}</span> },
       { id: "decision", header: "Decision", width: "80px", value: (a) => a.decision, cell: (a) => <Status value={a.decision} /> },
       { id: "principal", header: "Principal", width: "minmax(130px,1fr)", value: (a) => lookup.name(a.principal), cell: (a) => <AgentChip id={a.principal} /> },
-      { id: "obo", header: "On behalf of", width: "120px", value: (a) => (a.onBehalfOf ? lookup.name(a.onBehalfOf) : ""), hideOnMobile: true, cell: (a) => (a.onBehalfOf ? lookup.name(a.onBehalfOf) : <span className="text-muted-foreground">itself</span>) },
+      { id: "obo", header: "For", width: "100px", value: (a) => (a.onBehalfOf ? lookup.name(a.onBehalfOf) : ""), hideOnMobile: true, cell: (a) => (a.onBehalfOf ? lookup.name(a.onBehalfOf) : <span className="text-muted-foreground">itself</span>) },
       { id: "resource", header: "Action and resource", width: "minmax(160px,1.2fr)", value: (a) => a.resource, cell: (a) => <Mono className="truncate">{a.resource}</Mono> },
-      { id: "rule", header: "Deciding rule", width: "minmax(120px,1fr)", value: (a) => a.ruleId, hideOnMobile: true, cell: (a) => <Mono className="truncate">{a.ruleId}</Mono> },
-      { id: "reason", header: "Reason", width: "minmax(180px,1.6fr)", value: (a) => a.reason, hideOnMobile: true, cell: (a) => <span className="truncate text-muted-foreground" title={a.reason}>{a.reason}</span> },
+      { id: "reason", header: "Why", width: "minmax(220px,2fr)", value: (a) => a.reason, hideOnMobile: true, cell: (a) => <div className="min-w-0"><div className="truncate" title={a.reason}>{a.reason}</div><Mono className="mt-0.5 block truncate text-[11px] text-muted-foreground">{a.ruleId}</Mono></div> },
       { id: "latency", header: "Latency", width: "70px", align: "right", value: (a) => a.latencyMs, hideOnMobile: true, cell: (a) => `${a.latencyMs} ms` },
     ],
     [lookup],
@@ -62,6 +61,7 @@ export function Security() {
           <QueryView query={decisions}>
             {(ds) => (
               <DataTable
+                rowHeight={56}
                 label="Invocation decision log"
                 data={ds}
                 columns={columns}
@@ -98,8 +98,8 @@ export function Security() {
         <TabsContent value="humans" className="mt-3">
           <QueryView query={humans}>
             {(hs) => (
-              <table className="w-full text-sm">
-                <thead className="text-left text-[10px] uppercase tracking-wide text-muted-foreground">
+              <table className="mini-table">
+                <thead className="text-left">
                   <tr><th className="py-1.5 font-medium">Person</th><th className="py-1.5 font-medium">Tier</th><th className="py-1.5 font-medium">Roles</th><th className="py-1.5 font-medium">Attributes</th><th className="py-1.5 font-medium">Approves up to</th></tr>
                 </thead>
                 <tbody>

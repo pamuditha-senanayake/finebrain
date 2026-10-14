@@ -17,27 +17,26 @@ export function LibraryView() {
   const [category, setCategory] = useState("all");
   const columns: Column<Document>[] = useMemo(
     () => [
-      { id: "title", header: "Document", width: "minmax(220px,2fr)", value: (d) => d.title, cell: (d) => <span className="truncate font-medium">{d.title}</span> },
+      { id: "title", header: "Document", width: "minmax(240px,2.4fr)", value: (d) => d.title, cell: (d) => <div className="min-w-0"><div className="truncate font-medium" title={d.title}>{d.title}</div><div className="mt-0.5 truncate text-[11px] text-muted-foreground">{lookup.cluster(d.clusterId)} · added {date(d.uploadedAt, lookup.tz)}</div></div> },
       { id: "category", header: "Category", width: "110px", value: (d) => d.type, cell: (d) => <StatusChip tone="info" className="capitalize">{d.type}</StatusChip> },
-      { id: "cluster", header: "Cluster", width: "minmax(120px,1fr)", value: (d) => lookup.cluster(d.clusterId), hideOnMobile: true, cell: (d) => <span className="truncate text-muted-foreground">{lookup.cluster(d.clusterId)}</span> },
       { id: "sens", header: "Sensitivity", width: "110px", value: (d) => d.sensitivity, cell: (d) => <StatusChip tone={d.sensitivity === "restricted" ? "risk" : d.sensitivity === "confidential" ? "warn" : "neutral"}>{d.sensitivity}</StatusChip> },
-      { id: "pd", header: "Personal data", width: "100px", value: (d) => (d.personalData ? 1 : 0), hideOnMobile: true, cell: (d) => (d.personalData ? <StatusChip tone="warn">masked</StatusChip> : <span className="text-muted-foreground">none</span>) },
+      { id: "pd", header: "Personal", width: "92px", value: (d) => (d.personalData ? 1 : 0), hideOnMobile: true, cell: (d) => (d.personalData ? <StatusChip tone="warn">masked</StatusChip> : <span className="text-muted-foreground">none</span>) },
       { id: "extract", header: "Extraction", width: "96px", value: (d) => d.extractionStatus, hideOnMobile: true, cell: (d) => <Status value={d.extractionStatus} /> },
       { id: "facts", header: "Facts", width: "56px", align: "right", value: (d) => d.linkedFacts.length, cell: (d) => d.linkedFacts.length },
       { id: "retention", header: "Retention", width: "88px", align: "right", value: (d) => d.retentionDays, hideOnMobile: true, cell: (d) => `${Math.round(d.retentionDays / 365)}y` },
-      { id: "uploaded", header: "Added", width: "100px", value: (d) => d.uploadedAt, hideOnMobile: true, cell: (d) => <span className="text-muted-foreground">{date(d.uploadedAt, lookup.tz)}</span> },
     ],
     [lookup],
   );
   return (
     <div>
       <PageHeader title="Library" description="Every ingested source and document by category, cluster and sensitivity, with extraction status, linked facts and retention." />
-      <div className="space-y-4">
+      <div className="space-y-12">
         <QueryView query={documents}>
           {(docs) => {
             const shown = category === "all" ? docs : docs.filter((d) => d.type === category);
             return (
               <DataTable
+                rowHeight={58}
                 label="Documents"
                 data={shown}
                 columns={columns}
@@ -50,7 +49,7 @@ export function LibraryView() {
             );
           }}
         </QueryView>
-        <Section title="Filing rules" description="Decide where new material lands.">
+        <Section plain title="Filing rules" description="Decide where new material lands.">
           <QueryView query={rules} rows={3}>
             {(rs) => (
               <SimpleTable

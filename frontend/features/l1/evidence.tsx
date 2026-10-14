@@ -126,7 +126,7 @@ export function EvidenceRequests() {
           const mineFirst = [...open].sort((a, b) => Number(b.requestedFrom === user?.id) - Number(a.requestedFrom === user?.id));
           const done = list.filter((r) => r.status === "fulfilled");
           return (
-            <div className="space-y-5">
+            <div className="space-y-8">
               <section aria-label="Open requests">
                 <h2 className="mb-2 text-sm font-semibold">Open ({open.length})</h2>
                 {open.length === 0 ? <EmptyState title="Nothing open" /> : <RequestTable label="Open requests" rows={mineFirst} />}
@@ -141,7 +141,7 @@ export function EvidenceRequests() {
           );
         }}
       </QueryView>
-      <Section title="Data source grants" className="mt-5">
+      <Section plain title="Data source grants" className="mt-5">
         <QueryView query={grants} rows={2}>
           {(gs) => (
             <SimpleTable

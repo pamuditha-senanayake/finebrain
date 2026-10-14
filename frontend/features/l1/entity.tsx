@@ -24,8 +24,8 @@ export function EntityProtection() {
       <PageHeader title="Entity protection" actions={<SampleBadge />} />
       <QueryView query={obligations}>
         {() => (
-          <div className="space-y-4">
-            <Section title="Risk register">
+          <div className="space-y-12">
+            <Section plain title="Risk register">
               <QueryView query={risks}>
                 {(rs) => (
                   <SimpleTable
@@ -48,7 +48,7 @@ export function EntityProtection() {
                 <div className="relative h-full min-w-[640px]">
                   <div className="absolute inset-x-0 top-12 h-px bg-border" />
                   {[0, 7, 14, 21, 30, 45, 60].map((dd) => (
-                    <div key={dd} className="absolute top-14 -translate-x-1/2 text-[10px] text-muted-foreground" style={{ left: `${(dd / horizon) * 100}%` }}>
+                    <div key={dd} className={cn("absolute top-14 text-[11px] text-muted-foreground", dd === 0 ? "" : dd === horizon ? "-translate-x-full" : "-translate-x-1/2")} style={{ left: `${(dd / horizon) * 100}%` }}>
                       {dd === 0 ? "today" : `${dd}d`}
                     </div>
                   ))}
@@ -62,7 +62,7 @@ export function EntityProtection() {
                 </div>
               </div>
             </Section>
-            <Section title="Obligations">
+            <Section plain title="Obligations">
               <SimpleTable
                 label="Obligations"
                 rows={sorted}
@@ -86,7 +86,7 @@ export function EntityProtection() {
                     className: "w-40",
                     cell: (o) => (
                       <div className="flex items-center gap-2">
-                        <Progress value={o.readiness} className="h-1.5" aria-label={`Readiness ${o.readiness}%`} />
+                        <Progress value={o.readiness} className={cn("h-1.5", o.status === "green" ? "[&>[data-slot=progress-indicator]]:bg-ok/80" : o.status === "amber" ? "[&>[data-slot=progress-indicator]]:bg-warn" : "[&>[data-slot=progress-indicator]]:bg-risk")} aria-label={`Readiness ${o.readiness}%`} />
                         <span className="w-10 text-right text-xs tabular" data-testid="readiness">{o.readiness}%</span>
                       </div>
                     ),

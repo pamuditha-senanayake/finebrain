@@ -38,16 +38,21 @@ export function Fleet() {
   );
   const columns: Column<Agent>[] = useMemo(
     () => [
-      { id: "name", header: "Agent", width: "minmax(180px,1.6fr)", value: (a) => a.name, cell: (a) => (
-        <span className="flex items-center gap-2">
+      { id: "name", header: "Agent", width: "minmax(200px,1.6fr)", value: (a) => a.name, cell: (a) => (
+        <span className="flex min-w-0 items-center gap-2.5">
           {a.status === "working" ? <ThinkingOrb kind={a.workKind} size={12} /> : <IdleDot tone={a.status === "blocked" || a.status === "error" ? "risk" : "neutral"} />}
-          <span className="truncate font-medium">{a.name}</span>
+          <span className="min-w-0">
+            <span className="block truncate font-medium">{a.name}</span>
+            <span className="block truncate text-[11px] text-muted-foreground">{a.kind === "supervisor" ? "L2 supervisor" : "L3 worker"} · {lookup.cluster(a.clusterId)}</span>
+          </span>
         </span>
       ) },
-      { id: "category", header: "Category", width: "110px", value: (a) => catOf(a), hideOnMobile: true, cell: (a) => <span className="capitalize text-muted-foreground">{catOf(a)}</span> },
-      { id: "workflow", header: "Workflow", width: "minmax(140px,1fr)", value: (a) => wfOf(a).join(", "), hideOnMobile: true, cell: (a) => { const w = wfOf(a); return w.length ? <span className="truncate" title={w.join(", ")}>{w[0]}{w.length > 1 && <span className="text-muted-foreground"> +{w.length - 1}</span>}</span> : <span className="text-muted-foreground">none</span>; } },
-      { id: "kind", header: "Kind", width: "90px", value: (a) => a.kind, hideOnMobile: true, cell: (a) => <span className="text-muted-foreground">{a.kind === "supervisor" ? "L2 supervisor" : "L3 worker"}</span> },
-      { id: "cluster", header: "Cluster", width: "minmax(120px,1fr)", value: (a) => lookup.cluster(a.clusterId), hideOnMobile: true, cell: (a) => <span className="text-muted-foreground">{lookup.cluster(a.clusterId)}</span> },
+      { id: "workflow", header: "Workflow", width: "minmax(170px,1.3fr)", value: (a) => wfOf(a).join(", "), hideOnMobile: true, cell: (a) => { const w = wfOf(a); return (
+        <span className="block min-w-0">
+          <span className="block truncate" title={w.join(", ")}>{w[0] ?? "—"}{w.length > 1 && <span className="text-muted-foreground"> +{w.length - 1}</span>}</span>
+          <span className="block truncate text-[11px] capitalize text-muted-foreground">{catOf(a)}</span>
+        </span>
+      ); } },
       { id: "status", header: "Status", width: "96px", value: (a) => a.status, cell: (a) => <Status value={a.status} /> },
       { id: "autonomy", header: "Autonomy", width: "100px", value: (a) => a.autonomy, hideOnMobile: true, cell: (a) => <span className="capitalize">{a.autonomy}</span> },
       { id: "queue", header: "Queue", width: "64px", align: "right", value: (a) => a.queueDepth, cell: (a) => a.queueDepth },
@@ -73,6 +78,7 @@ export function Fleet() {
         {() =>
           view === "table" ? (
             <DataTable
+              rowHeight={58}
               label="Agents"
               data={data}
               columns={columns}

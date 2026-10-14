@@ -43,7 +43,7 @@ export function RunTrace() {
                 </div>
               }
             />
-            <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+            <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
               <Section title="Step timeline" description="Every step is labelled as model judgment or a deterministic call.">
                 <Beam active={r.status === "running"} className="rounded-xl">
                   <ol className="relative space-y-3 border-l pl-5" aria-label="Trace steps">
@@ -103,7 +103,7 @@ export function RunTrace() {
                   </ol>
                 </Beam>
               </Section>
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <RunInput run={r} conversation={ctx.conversationOf(r)} actor={ctx.actorOf(r)} />
                 <Section title="Run">
                   <KeyValue

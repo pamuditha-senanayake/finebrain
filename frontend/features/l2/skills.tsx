@@ -112,7 +112,7 @@ export function SkillsStudio() {
         <TabsContent value="academy" className="mt-3">
           <QueryView query={agents}>
             {(as) => (
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-5 md:grid-cols-3">
                 {(["trainee", "supervised", "autonomous"] as const).map((level) => (
                   <Section key={level} title={<span className="capitalize">{level}</span>} description={`${as.filter((a) => a.autonomy === level).length} agents`}>
                     <ul className="max-h-[50vh] space-y-1.5 overflow-auto">
@@ -204,10 +204,10 @@ function SkillDetail({ live, versions }: { live: Skill; versions: Skill[] }) {
           ) : null
         }
       />
-      <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
-        <div className="space-y-4">
+      <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
+        <div className="space-y-6">
           <Section title="What it does" description="Read only. To change the skill, open it in Workflow Studio.">
-            <div className="space-y-4">
+            <div className="space-y-6">
               <p className="text-sm">{live.trigger}</p>
               <ol className="space-y-1.5 text-sm">
                 {live.steps.map((st, i) => (
@@ -258,7 +258,7 @@ function SkillDetail({ live, versions }: { live: Skill; versions: Skill[] }) {
             </div>
           </Section>
         </div>
-        <div className="space-y-4">
+        <div className="space-y-6">
           <Section title="Skill health">
             <HealthBars s={live} />
           </Section>

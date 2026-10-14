@@ -39,7 +39,7 @@ export function ApprovalsInbox() {
   return (
     <div>
       <PageHeader title="All approvals" description="Sorted by criticality, then deadline. C4 needs two L1 approvers. Requests expire and can be delegated, never silently skipped." />
-      <ToggleGroup type="single" value={tab} onValueChange={(v) => v && setTab(v as typeof tab)} variant="outline" size="sm" className="mb-3" aria-label="Which approvals">
+      <ToggleGroup type="single" value={tab} onValueChange={(v) => v && setTab(v as typeof tab)} variant="outline" size="sm" className="mb-5" aria-label="Which approvals">
         <ToggleGroupItem value="mine" className="px-3 text-xs">Waiting on me</ToggleGroupItem>
         <ToggleGroupItem value="pending" className="px-3 text-xs">All pending</ToggleGroupItem>
         <ToggleGroupItem value="decided" className="px-3 text-xs">Decided</ToggleGroupItem>
@@ -61,20 +61,22 @@ export function ApprovalsInbox() {
                   id: "title",
                   header: "Approval",
                   cell: (a) => (
-                    <Link href={`/l1/approvals/${a.id}`} className="font-medium hover:text-primary hover:underline" data-testid={`approval-${a.id}`} onClick={(e) => e.stopPropagation()}>
-                      {a.title}
-                    </Link>
+                    <div className="max-w-md py-0.5">
+                      <Link href={`/l1/approvals/${a.id}`} className="font-medium hover:text-primary hover:underline" data-testid={`approval-${a.id}`} onClick={(e) => e.stopPropagation()}>
+                        {a.title}
+                      </Link>
+                      <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{a.summary}</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground/80">Drafted by {a.drafter.name}</p>
+                    </div>
                   ),
                 },
-                { id: "summary", header: "Summary", className: "max-w-sm text-xs text-muted-foreground", cell: (a) => <span className="line-clamp-2">{a.summary}</span> },
-                { id: "due", header: "Due", className: "whitespace-nowrap text-xs", cell: (a) => relTime(a.dueAt) },
+                { id: "due", header: "Due", className: "whitespace-nowrap text-xs text-muted-foreground", cell: (a) => relTime(a.dueAt) },
                 {
                   id: "votes",
-                  header: "Approvals",
+                  header: "Votes",
                   className: "whitespace-nowrap text-xs tabular",
                   cell: (a) => `${new Set(a.votes.filter((v) => v.decision === "approve").map((v) => v.by)).size} of ${a.requiredApprovers.count} ${a.requiredApprovers.tier}`,
                 },
-                { id: "drafter", header: "Drafted by", className: "text-xs", cell: (a) => a.drafter.name },
                 { id: "dri", header: "DRI", cell: (a) => <PersonChip id={a.dri} /> },
                 { id: "status", header: "Status", cell: (a) => <Status value={a.status} /> },
               ]}
@@ -126,8 +128,8 @@ export function ApprovalDetail() {
           return (
             <div>
               <PageHeader eyebrow={<Link href="/l1/approvals" className="hover:underline">All approvals</Link>} title={a.title} description={a.summary} actions={<Status value={a.status} />} />
-              <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
-                <div className="space-y-4">
+              <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+                <div className="space-y-6">
                   {isMerge ? (
                     <QueryView query={cr}>{(c) => <ChangeRequestSummary cr={c} />}</QueryView>
                   ) : grant ? (

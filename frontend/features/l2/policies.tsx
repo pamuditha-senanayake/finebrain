@@ -60,10 +60,9 @@ export function PolicyRegistry() {
   }, [map.data]);
   const columns: Column<Policy>[] = useMemo(
     () => [
-      { id: "name", header: "Policy", width: "minmax(180px,1.4fr)", value: (p) => p.name, cell: (p) => <span className="font-medium">{p.name} <Mono className="text-muted-foreground">v{p.version}</Mono></span> },
+      { id: "name", header: "Policy", width: "minmax(280px,2.6fr)", value: (p) => p.name, cell: (p) => <div className="min-w-0"><div className="truncate font-medium">{p.name} <Mono className="text-muted-foreground">v{p.version}</Mono></div><div className="mt-0.5 truncate text-xs text-muted-foreground" title={p.statement}>{p.statement}</div></div> },
       { id: "category", header: "Category", width: "150px", value: (p) => policyCategory(p), cell: (p) => <StatusChip tone="info" className="capitalize">{policyCategory(p)}</StatusChip> },
-      { id: "workflow", header: "Workflow", width: "minmax(160px,1.2fr)", value: (p) => (workflowsOf.get(p.key) ?? []).join(", "), cell: (p) => { const w = workflowsOf.get(p.key) ?? []; return w.length ? <span className="truncate" title={w.join(", ")}>{w[0]}{w.length > 1 && <span className="text-muted-foreground"> +{w.length - 1}</span>}</span> : <span className="text-muted-foreground">none</span>; } },
-      { id: "statement", header: "Statement", width: "minmax(240px,2.4fr)", value: (p) => p.statement, hideOnMobile: true, cell: (p) => <span className="truncate text-muted-foreground" title={p.statement}>{p.statement}</span> },
+      { id: "workflow", header: "Workflow", width: "minmax(150px,1fr)", value: (p) => (workflowsOf.get(p.key) ?? []).join(", "), cell: (p) => { const w = workflowsOf.get(p.key) ?? []; return w.length ? <span className="truncate" title={w.join(", ")}>{w[0]}{w.length > 1 && <span className="text-muted-foreground"> +{w.length - 1}</span>}</span> : <span className="text-muted-foreground">none</span>; } },
       { id: "crit", header: "Level", width: "56px", value: (p) => p.criticality, cell: (p) => <CritBadge level={p.criticality} /> },
       { id: "from", header: "Valid from", width: "110px", value: (p) => p.validFrom, hideOnMobile: true, cell: (p) => <span className="text-muted-foreground">{date(p.validFrom, lookup.tz)}</span> },
       { id: "signals", header: "Freshness", width: "120px", value: (p) => signals(p, now).filter((s) => s.fired).length, cell: (p) => {
@@ -77,7 +76,7 @@ export function PolicyRegistry() {
     <div>
       <PageHeader title="Policy registry" description="Each version carries valid from, valid to, recorded at and superseded by. Freshness signals warn when a policy may be going stale. Nothing is invalidated without approval." />
       <QueryView query={policies}>
-        {() => <DataTable label="Policies" data={current.filter((p) => (category === "all" || policyCategory(p) === category) && (wf === "all" || (workflowsOf.get(p.key) ?? []).includes(wf)))} columns={columns} getRowId={(p) => p.id} onRowClick={(p) => router.push(`/l2/policies/${p.key}`)} initialSort={{ id: "signals", desc: true }} height="calc(100dvh - 240px)" toolbar={<><CategoryFilter label="Filter by category" allLabel="All categories" value={category} onChange={setCategory} options={countBy(current, policyCategory)} /><WorkflowFilter value={wf} onChange={setWf} options={countByMany(current, (p) => workflowsOf.get(p.key) ?? [])} /></>} />}
+        {() => <DataTable rowHeight={60} label="Policies" data={current.filter((p) => (category === "all" || policyCategory(p) === category) && (wf === "all" || (workflowsOf.get(p.key) ?? []).includes(wf)))} columns={columns} getRowId={(p) => p.id} onRowClick={(p) => router.push(`/l2/policies/${p.key}`)} initialSort={{ id: "signals", desc: true }} height="calc(100dvh - 240px)" toolbar={<><CategoryFilter label="Filter by category" allLabel="All categories" value={category} onChange={setCategory} options={countBy(current, policyCategory)} /><WorkflowFilter value={wf} onChange={setWf} options={countByMany(current, (p) => workflowsOf.get(p.key) ?? [])} /></>} />}
       </QueryView>
     </div>
   );

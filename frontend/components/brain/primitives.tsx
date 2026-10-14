@@ -40,7 +40,7 @@ const TONE: Record<Tone, string> = {
   warn: "bg-warn/15 text-warn-fg ring-warn/35",
   risk: "bg-risk/12 text-risk ring-risk/30",
   neutral: "bg-muted text-muted-foreground ring-border",
-  info: "bg-primary/10 text-primary ring-primary/25",
+  info: "bg-secondary text-secondary-foreground ring-foreground/12",
   agent: "bg-agent/12 text-agent ring-agent/30",
 };
 
@@ -74,25 +74,26 @@ export function Mono({ children, className }: { children: ReactNode; className?:
 
 export function PageHeader({ title, description, actions, eyebrow }: { title: string; description?: ReactNode; actions?: ReactNode; eyebrow?: ReactNode }) {
   return (
-    <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mb-8 flex flex-col gap-4 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
-        {eyebrow && <div className="mb-1 text-xs font-medium text-muted-foreground">{eyebrow}</div>}
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{title}</h1>
-        {description && <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{description}</p>}
+        {eyebrow && <div className="mb-2 text-xs font-medium text-muted-foreground">{eyebrow}</div>}
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-[28px] sm:leading-tight">{title}</h1>
+        {description && <p className="mt-2 max-w-2xl text-[14.5px] leading-relaxed text-muted-foreground">{description}</p>}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }
 
-export function Section({ title, description, actions, children, className }: { title?: ReactNode; description?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string }) {
+/** A titled block. `plain` sits on the page with no box, for tables and lists that already carry their own frame. */
+export function Section({ title, description, actions, children, className, plain = false }: { title?: ReactNode; description?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string; plain?: boolean }) {
   return (
-    <section className={cn("rounded-xl border bg-card p-4 shadow-xs", className)}>
+    <section className={cn(plain ? "" : "rounded-2xl border bg-card p-5 shadow-xs sm:p-6", className)}>
       {(title || actions) && (
-        <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            {title && <h2 className="text-sm font-semibold">{title}</h2>}
-            {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
+            {title && <h2 className="text-[15px] font-semibold tracking-tight">{title}</h2>}
+            {description && <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-muted-foreground">{description}</p>}
           </div>
           {actions}
         </div>
@@ -104,10 +105,10 @@ export function Section({ title, description, actions, children, className }: { 
 
 export function Kpi({ label, value, hint, tone, className }: { label: string; value: ReactNode; hint?: ReactNode; tone?: Tone; className?: string }) {
   return (
-    <div className={cn("rounded-xl border bg-card p-3 shadow-xs", className)}>
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={cn("mt-1 text-xl font-semibold tabular", tone === "risk" && "text-risk", tone === "ok" && "text-ok", tone === "warn" && "text-warn-fg")}>{value}</div>
-      {hint && <div className="mt-0.5 text-[11px] text-muted-foreground">{hint}</div>}
+    <div className={cn("rounded-2xl border bg-card px-5 py-4 shadow-xs", className)}>
+      <div className="text-[11px] font-medium uppercase tracking-[0.07em] text-muted-foreground">{label}</div>
+      <div className={cn("mt-2 text-2xl font-semibold tracking-tight tabular", tone === "risk" && "text-risk", tone === "ok" && "text-ok", tone === "warn" && "text-warn-fg")}>{value}</div>
+      {hint && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}
     </div>
   );
 }
@@ -183,7 +184,7 @@ export function QueryView<T>({ query, empty, isEmpty, rows, children }: { query:
 
 export function KeyValue({ items, className }: { items: [ReactNode, ReactNode][]; className?: string }) {
   return (
-    <dl className={cn("grid grid-cols-[minmax(110px,auto)_1fr] gap-x-4 gap-y-1.5 text-sm", className)}>
+    <dl className={cn("grid grid-cols-[minmax(110px,auto)_1fr] gap-x-6 gap-y-2.5 text-sm", className)}>
       {items.map(([k, v], i) => (
         <div key={i} className="contents">
           <dt className="text-muted-foreground">{k}</dt>

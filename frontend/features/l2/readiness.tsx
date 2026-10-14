@@ -35,7 +35,7 @@ export function Readiness() {
           </div>
         }
       />
-      <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+      <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
         <Section title="Gaps" description="Found on the last run">
           <QueryView query={gaps} empty={<EmptyState title="No gaps yet" description="Run the scheduler to compare required and available evidence." />}>
             {(gs) => (

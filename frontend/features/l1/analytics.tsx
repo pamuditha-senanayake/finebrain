@@ -4,6 +4,7 @@ import { useReducedMotion } from "motion/react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 import { PageHeader, QueryView, Section, Status } from "@/components/brain/primitives";
 import { useAnalytics, useOverview } from "@/lib/api/hooks";
 import { AutonomyTrend, LegibilityMap } from "./overview-panels";
@@ -20,7 +21,7 @@ export function Analytics() {
       <PageHeader title="Progress and analytics" description="KPIs per cluster, loop performance, experiment outcomes, template completion, and where the brain is still blind." />
       <QueryView query={overview} rows={4}>
         {(o) => (
-          <div className="mb-4 grid gap-4 xl:grid-cols-[1fr_1.4fr]">
+          <div className="mb-10 grid gap-6">
             <AutonomyTrend o={o} />
             <LegibilityMap o={o} />
           </div>
@@ -33,7 +34,7 @@ export function Analytics() {
           const autonomy = days.map((day, i) => Object.fromEntries([["day", day], ...a.clusters.map((c) => [c.clusterId, Math.round((c.series[i]?.autonomy ?? 0) * 100)])]));
           const config = Object.fromEntries(a.clusters.map((c, i) => [c.clusterId, { label: c.name, color: COLORS[i % COLORS.length] }])) satisfies ChartConfig;
           return (
-            <div className="grid gap-4 xl:grid-cols-2">
+            <div className="grid gap-6 xl:grid-cols-2 [&>*]:min-w-0">
               <Section title="Runs per day">
                 <ChartContainer config={config} className="h-[240px] w-full">
                   <BarChart data={runs}>
@@ -63,8 +64,8 @@ export function Analytics() {
                 </ChartContainer>
               </Section>
               <Section title="Loop performance">
-                <table className="w-full text-sm">
-                  <thead className="text-left text-[10px] uppercase tracking-wide text-muted-foreground">
+                <table className="mini-table">
+                  <thead className="text-left">
                     <tr>
                       <th className="py-1.5 font-medium">Loop</th>
                       <th className="py-1.5 text-right font-medium">Runs 7d</th>
@@ -99,14 +100,14 @@ export function Analytics() {
                 </ul>
               </Section>
               <Section title="Template completion" className="xl:col-span-2">
-                <ul className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+                <ul className="grid gap-x-10 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
                   {a.templates.map((t) => (
                     <li key={t.id} className="text-xs">
                       <div className="mb-1 flex justify-between gap-2">
                         <span className="truncate">{t.name}</span>
                         <span className="tabular text-muted-foreground">{pct(t.completion)}</span>
                       </div>
-                      <Progress value={t.completion * 100} className="h-1.5" aria-label={`${t.name} completion`} />
+                      <Progress value={t.completion * 100} className={cn("h-1.5", t.completion >= 1 ? "[&>[data-slot=progress-indicator]]:bg-ok/80" : "[&>[data-slot=progress-indicator]]:bg-warn")} aria-label={`${t.name} completion`} />
                     </li>
                   ))}
                 </ul>

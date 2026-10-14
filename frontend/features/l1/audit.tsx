@@ -32,7 +32,7 @@ export function AuditTrail() {
       { id: "action", header: "Action", width: "minmax(150px,1fr)", value: (e) => e.action, cell: (e) => <Mono>{e.action}</Mono> },
       { id: "target", header: "Object", width: "minmax(160px,1.2fr)", value: (e) => e.target.label, hideOnMobile: true, cell: (e) => <span className="truncate" title={e.target.id}>{e.target.label}</span> },
       { id: "detail", header: "Detail", width: "minmax(200px,2fr)", value: (e) => e.detail, hideOnMobile: true, cell: (e) => <span className="truncate text-muted-foreground" title={e.detail}>{e.detail}</span> },
-      { id: "env", header: "Env", width: "90px", value: (e) => e.env, hideOnMobile: true, cell: (e) => <EnvBadge env={e.env} /> },
+      { id: "env", header: "Env", width: "90px", value: (e) => e.env, hideOnMobile: true, cell: (e) => (e.env === "production" ? <span className="text-xs text-muted-foreground">production</span> : <EnvBadge env={e.env} />) },
       { id: "crit", header: "Level", width: "56px", value: (e) => e.criticality, cell: (e) => <CritBadge level={e.criticality} /> },
     ],
     [lookup.tz],

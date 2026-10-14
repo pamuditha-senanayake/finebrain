@@ -39,10 +39,9 @@ export function Versioning() {
   const crColumns: Column<ChangeRequest>[] = useMemo(
     () => [
       { id: "crit", header: "Level", width: "56px", value: (c) => c.criticality, cell: (c) => <CritBadge level={c.criticality} /> },
-      { id: "title", header: "Change request", width: "minmax(220px,2fr)", value: (c) => c.title, cell: (c) => <span className="truncate font-medium">{c.title}</span> },
+      { id: "title", header: "Change request", width: "minmax(260px,2.4fr)", value: (c) => c.title, cell: (c) => <div className="min-w-0"><div className="truncate font-medium">{c.title}</div><Mono className="mt-0.5 block truncate text-[11px] text-muted-foreground">{c.fromBranch}</Mono></div> },
       { id: "kind", header: "Category", width: "110px", value: (c) => c.kind, cell: (c) => <StatusChip tone="info" className="capitalize">{c.kind}</StatusChip> },
-      { id: "branch", header: "Branch", width: "minmax(160px,1fr)", value: (c) => c.fromBranch, hideOnMobile: true, cell: (c) => <Mono className="truncate">{c.fromBranch}</Mono> },
-      { id: "drafter", header: "Drafter", width: "140px", value: (c) => c.drafter.name, hideOnMobile: true, cell: (c) => <span className="truncate">{c.drafter.name}</span> },
+      { id: "drafter", header: "Drafter", width: "170px", value: (c) => c.drafter.name, hideOnMobile: true, cell: (c) => <span className="truncate">{c.drafter.name}</span> },
       { id: "status", header: "Status", width: "140px", value: (c) => c.status, cell: (c) => <Status value={c.status} /> },
       { id: "created", header: "Opened", width: "100px", value: (c) => c.createdAt, hideOnMobile: true, cell: (c) => <span className="text-muted-foreground">{relTime(c.createdAt)}</span> },
     ],
@@ -72,7 +71,7 @@ export function Versioning() {
         </TabsList>
         <TabsContent value="crs" className="mt-3">
           <QueryView query={crs}>
-            {(list) => <DataTable label="Change requests" data={crKind === "all" ? list : list.filter((c) => c.kind === crKind)} toolbar={<CategoryFilter label="Filter by category" allLabel="All categories" value={crKind} onChange={setCrKind} options={countBy(list, (c) => c.kind)} />} columns={crColumns} getRowId={(c) => c.id} onRowClick={(c) => router.push(`/l2/versioning/${c.id}`)} initialSort={{ id: "created", desc: true }} height="calc(100dvh - 300px)" />}
+            {(list) => <DataTable rowHeight={60} label="Change requests" data={crKind === "all" ? list : list.filter((c) => c.kind === crKind)} toolbar={<CategoryFilter label="Filter by category" allLabel="All categories" value={crKind} onChange={setCrKind} options={countBy(list, (c) => c.kind)} />} columns={crColumns} getRowId={(c) => c.id} onRowClick={(c) => router.push(`/l2/versioning/${c.id}`)} initialSort={{ id: "created", desc: true }} height="calc(100dvh - 300px)" />}
           </QueryView>
         </TabsContent>
         <TabsContent value="branches" className="mt-3 space-y-3">
@@ -148,7 +147,7 @@ export function ChangeRequestDetail() {
           return (
             <div>
               <PageHeader eyebrow={<Link href="/l2/versioning" className="hover:underline">Knowledge graph&apos;s versioning</Link>} title={c.title} description={<span className="inline-flex flex-wrap items-center gap-1">Drafted by {c.drafter.name} · DRI <PersonChip id={c.dri} /></span>} />
-              <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
+              <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
                 <ChangeRequestSummary cr={c} />
                 <div className="space-y-4 lg:sticky lg:top-16 lg:self-start">
                   <Section title="Next step">
@@ -198,7 +197,7 @@ export function ChangeRequestDetail() {
               </div>
               {conflictWith && (
                 <Section title="Conflict resolution" description="Both sides with their evidence. Pick a side by editing the draft, then run checks again." className="mt-4">
-                  <div className="grid gap-3 md:grid-cols-2">
+                  <div className="grid gap-5 md:grid-cols-2">
                     <div>
                       <div className="mb-1 text-xs font-medium">This branch</div>
                       <StructuredDiff cr={c} />

@@ -89,7 +89,7 @@ export function ConversationsIndex() {
   return (
     <div>
       <PageHeader title="Live conversations" description="Customer care transcripts stream in with the agent's reasoning and proposed actions. Take over, hand back, or Skillify what you handled." />
-      <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
         <ConversationList />
         <div className="max-lg:hidden">
           <EmptyState title="Pick a conversation" description="Escalated and blocked conversations are marked in the list." />
@@ -104,7 +104,7 @@ export function ConversationDetailPage() {
   return (
     <div>
       <PageHeader eyebrow={<Link href="/l3/conversations" className="hover:underline">Live conversations</Link>} title="Conversation" />
-      <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
         <div className="max-lg:hidden">
           <ConversationList activeId={id} />
         </div>
@@ -160,7 +160,7 @@ export function ConversationDetail({ id }: { id: string }) {
         const mine = c.status === "human" && c.takenOverBy === user?.id;
         const canAct = !!user;
         return (
-          <div className="grid gap-4 xl:grid-cols-[1fr_300px]">
+          <div className="grid gap-6 xl:grid-cols-[1fr_300px]">
             <Section
               title={c.topic}
               description={<span className="flex flex-wrap items-center gap-2"><Masked conv={c} /> · {c.channel} · <AgentChip id={c.agentId} /></span>}
@@ -216,7 +216,7 @@ export function ConversationDetail({ id }: { id: string }) {
                 c.status === "human" && <p className="mt-3 text-xs text-muted-foreground">{lookup.name(c.takenOverBy ?? "")} is handling this conversation.</p>
               )}
             </Section>
-            <div className="space-y-4">
+            <div className="space-y-6">
               <Section title="Agent reasoning">
                 <p className="text-sm text-muted-foreground">{c.reasoningSummary}</p>
               </Section>

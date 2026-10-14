@@ -23,9 +23,9 @@ export function PlainDiff({ cr }: { cr: ChangeRequest }) {
 
 export function StructuredDiff({ cr }: { cr: ChangeRequest }) {
   return (
-    <div className="overflow-x-auto rounded-lg border">
-      <table className="w-full text-xs" aria-label="Structured diff">
-        <thead className="bg-surface text-[10px] uppercase tracking-wide text-muted-foreground">
+    <div className="overflow-x-auto">
+      <table className="mini-table" aria-label="Structured diff">
+        <thead className="text-left">
           <tr>
             <th className="px-2 py-1.5 text-left font-medium">Op</th>
             <th className="px-2 py-1.5 text-left font-medium">Node</th>
@@ -57,7 +57,7 @@ export function StructuredDiff({ cr }: { cr: ChangeRequest }) {
 
 export function ImpactAndTests({ cr }: { cr: ChangeRequest }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="grid gap-5 md:grid-cols-2">
       <div className={cn("rounded-lg border p-3", !cr.impactPreview && "border-dashed")}>
         <div className="mb-1 flex items-center gap-1.5 text-xs font-medium">
           <Telescope className="size-3.5" /> Impact preview and replay
@@ -102,7 +102,7 @@ export function ImpactAndTests({ cr }: { cr: ChangeRequest }) {
 export function ChangeRequestSummary({ cr, compact = false }: { cr: ChangeRequest; compact?: boolean }) {
   const req = approverFor(cr.criticality);
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <CritBadge level={cr.criticality} showLabel />
         <Status value={cr.status} />

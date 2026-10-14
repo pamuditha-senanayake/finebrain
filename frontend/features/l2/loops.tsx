@@ -35,7 +35,7 @@ export function LoopsIndex() {
           return (
           <div className="space-y-3">
           <WorkflowFilter value={wf} onChange={setWf} options={countByMany(all, (l) => index.of("loop", l.id))} />
-          <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <ul className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {ls.map((l) => (
               <li key={l.id}>
                 <Link href={`/l2/loops/${l.id}`} className="block rounded-xl border bg-card p-4 hover:border-primary/40">
@@ -97,8 +97,8 @@ function ExperimentCard({ exp }: { exp: Experiment }) {
         </div>
         <p className="mt-2 text-sm">{exp.hypothesis}</p>
         <p className="mt-1 text-xs text-muted-foreground">Signal: {exp.signal} Proposed by {lookup.name(exp.proposedBy)}.</p>
-        <table className="mt-3 w-full text-xs">
-          <thead className="text-left text-[10px] uppercase tracking-wide text-muted-foreground">
+        <table className="mini-table mt-4">
+          <thead className="text-left">
             <tr><th className="py-1 font-medium">Variant</th><th className="py-1 font-medium">Traffic</th><th className="py-1 text-right font-medium">Conversion</th></tr>
           </thead>
           <tbody>
@@ -145,28 +145,28 @@ export function LoopDetail() {
       {(l) => (
         <div>
           <PageHeader eyebrow={<Link href="/l2/loops" className="hover:underline">Loops</Link>} title={l.name} description={l.description} actions={<span className="text-xs">DRI <PersonChip id={l.dri} /></span>} />
-          <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+          <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
             <Section title="Loop canvas" description="Live metrics per stage. Pending items wait at the quality gate.">
               <Suspense fallback={<LoadingState rows={4} label="Loading loop canvas" />}><LoopCanvas loop={l} /></Suspense>
             </Section>
             <Section title="Run history, 14 days">
-              <ChartContainer config={{ runs: { label: "Runs", color: "var(--chart-1)" } }} className="h-[300px] w-full">
+              <ChartContainer config={{ runs: { label: "Runs", color: "var(--chart-1)" } }} className="h-[260px] w-full">
                 <BarChart data={l.history.map((h) => ({ ...h, day: h.day.slice(5) }))}>
                   <CartesianGrid vertical={false} />
                   <XAxis dataKey="day" tickLine={false} axisLine={false} fontSize={11} />
                   <YAxis tickLine={false} axisLine={false} fontSize={11} width={30} />
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar isAnimationActive={!reduceMotion} dataKey="runs" fill="var(--color-runs)" radius={3} />
+                  <Bar isAnimationActive={!reduceMotion} dataKey="runs" fill="var(--color-runs)" fillOpacity={0.78} radius={[4, 4, 0, 0]} maxBarSize={22} />
                 </BarChart>
               </ChartContainer>
             </Section>
           </div>
           {l.experiments.length > 0 && (
-            <div className="mt-4">
-              <h2 className="mb-2 text-sm font-semibold">Experiments</h2>
+            <div className="mt-12">
+              <h2 className="mb-4 text-[15px] font-semibold tracking-tight">Experiments</h2>
               <QueryView query={experiments}>
                 {(es) => (
-                  <div className="grid gap-3 lg:grid-cols-2">
+                  <div className="grid gap-5 lg:grid-cols-2">
                     {es.filter((e) => e.loopId === l.id).map((e) => <ExperimentCard key={e.id} exp={e} />)}
                   </div>
                 )}

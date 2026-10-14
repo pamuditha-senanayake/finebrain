@@ -142,6 +142,8 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
   // Full-bleed canvases (maps, graphs, the studio) fill the page. Everything else keeps a readable width, so collapsing the sidebar never stretches tables and cards.
   const pathname = usePathname();
   const fullBleed = /^\/(l1|studio|l2\/graph|l2\/policies\/.+)\/?$/.test(pathname);
+  // Working surfaces with several panes get more room than reading pages.
+  const wide = /^\/l3\/conversations(\/.+)?\/?$/.test(pathname);
 
   return (
     <BeamScope>
@@ -186,7 +188,7 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
               </button>
               <ShellMenu />
             </header>
-            <main id="main" className={cn("w-full flex-1 px-3 py-4 sm:px-6 sm:py-5", !fullBleed && "mx-auto max-w-[1280px]")}>
+            <main id="main" className={cn("w-full flex-1", fullBleed ? "px-3 py-4 sm:px-6 sm:py-5" : cn("mx-auto px-4 pb-16 pt-8 sm:px-8 sm:pt-10 lg:px-10", wide ? "max-w-[1440px]" : "max-w-[1120px]"))}>
               {isLoading ? <LoadingState /> : !allowed ? <DeniedState reason={user ? `${user.name} (${user.tier}) cannot open ${area === "research" ? "the Research Console" : `${area} ${t(`tier.${area}`)}`}.` : "No persona selected."} home={homeFor(user)} /> : <Suspense fallback={<LoadingState />}>{children}</Suspense>}
             </main>
           </div>

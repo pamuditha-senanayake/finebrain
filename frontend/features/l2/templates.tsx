@@ -24,7 +24,7 @@ export function Templates() {
           const list = wf === "all" ? all : all.filter((x) => index.of("template", x.id).includes(wf));
           const t: Template = list.find((x) => x.id === selected) ?? list[0] ?? all[0];
           return (
-            <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
+            <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
               <div className="space-y-2">
               <WorkflowFilter value={wf} onChange={setWf} options={countByMany(all, (x) => index.of("template", x.id))} />
               <ul className="max-h-[calc(100dvh-270px)] space-y-1 overflow-auto scrollbar-thin" tabIndex={0} aria-label="Templates">
@@ -38,7 +38,7 @@ export function Templates() {
                 ))}
               </ul>
               </div>
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <Section title={t.name} description={lookup.cluster(t.clusterId)}>
                   <KeyValue
                     items={[
@@ -52,8 +52,8 @@ export function Templates() {
                   />
                 </Section>
                 <Section title="Fields">
-                  <table className="w-full text-sm">
-                    <thead className="text-left text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <table className="mini-table">
+                    <thead className="text-left">
                       <tr>
                         <th className="py-1.5 font-medium">Field</th>
                         <th className="py-1.5 font-medium">Source sensors</th>
