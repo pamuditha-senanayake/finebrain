@@ -1,22 +1,24 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Plus, Save, Trash2 } from "lucide-react";
+import { useReducedMotion } from "motion/react";
+import { Pencil } from "lucide-react";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import type { Skill, SkillStep } from "@/contracts";
+import type { Skill } from "@/contracts";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CategoryFilter, WorkflowFilter, countBy, countByMany } from "@/components/brain/category-filter";
 import { DataTable, type Column } from "@/components/brain/data-table";
-import { AgentChip, PersonChip, useLookup } from "@/components/brain/names";
-import { EmptyState, KeyValue, Mono, PageHeader, QueryView, Section, Status, StatusChip } from "@/components/brain/primitives";
-import { useAgents, useOp, useSkills, useSkillVersions, useStudioWorkflows } from "@/lib/api/hooks";
+import { AgentChip, useLookup } from "@/components/brain/names";
+import { EmptyState, Kpi, KeyValue, Mono, PageHeader, QueryView, Section, Status, StatusChip } from "@/components/brain/primitives";
+import { useAgents, useNow, useRuns, useSkills, useSkillVersions, useStudioWorkflows } from "@/lib/api/hooks";
 import { useCurrentUser } from "@/lib/auth";
-import { pct, relTime } from "@/lib/format";
+import { duration, pct, relTime, usd } from "@/lib/format";
+import { studioHref, useWorkflowIndex } from "@/lib/workflow-index";
 import { cn } from "@/lib/utils";
 
 function HealthBars({ s }: { s: Skill }) {
@@ -135,7 +137,7 @@ export function SkillsStudio() {
   );
 }
 
-type DraftStep = { kind: SkillStep["kind"]; text: string; tool: string | null };
+const DAY_MS = 86_400_000;
 
 export function SkillEditor() {
   const { id } = useParams<{ id: string }>();
@@ -144,108 +146,144 @@ export function SkillEditor() {
     <QueryView query={versions}>
       {(vs) => {
         const live = vs.find((s) => s.branch === "main") ?? vs[0];
-        return live ? <SkillEditorForm key={`${live.id}@${live.version}@${live.branch}`} live={live} versions={vs} /> : null;
+        return live ? <SkillDetail live={live} versions={vs} /> : null;
       }}
     </QueryView>
   );
 }
 
-function SkillEditorForm({ live, versions }: { live: Skill; versions: Skill[] }) {
+/** Read-only skill page: what it is for, how it is used over time, and how healthy it is. Edits happen in Workflow Studio. */
+function SkillDetail({ live, versions }: { live: Skill; versions: Skill[] }) {
   const { user } = useCurrentUser();
-  const router = useRouter();
-  const [trigger, setTrigger] = useState(live.trigger);
-  const [steps, setSteps] = useState<DraftStep[]>(() => live.steps.map((s) => ({ kind: s.kind, text: s.text, tool: s.tool })));
-  const save = useOp<{ skillId: string; trigger: string; steps: DraftStep[] }>("saveSkillDraft", { success: "Draft saved on a sandbox branch with a change request" });
-  const dirty = trigger !== live.trigger || JSON.stringify(steps) !== JSON.stringify(live.steps.map((s) => ({ kind: s.kind, text: s.text, tool: s.tool })));
+  const reduce = useReducedMotion();
+  const runs = useRuns();
+  const now = useNow();
+  const index = useWorkflowIndex();
+  const links = index.links("skill", live.id);
   const canEdit = !!user && user.tier !== "L3" && live.branch === "main";
-  const move = (i: number, d: -1 | 1) => setSteps((s) => {
-    const next = [...s];
-    [next[i], next[i + d]] = [next[i + d], next[i]];
-    return next;
-  });
+  const mine = useMemo(() => (runs.data ?? []).filter((r) => r.skill.id === live.id), [runs.data, live.id]);
+  // Requested: every run that called the skill. Completed: runs that finished without escalating or failing.
+  const series = useMemo(() => {
+    const end = Math.max(now, ...mine.map((r) => Date.parse(r.startedAt)));
+    const days = 30;
+    const rows = Array.from({ length: days }, (_, i) => {
+      const t = end - (days - 1 - i) * DAY_MS;
+      return { key: new Date(t).toISOString().slice(0, 10), day: new Date(t).toISOString().slice(5, 10), requested: 0, completed: 0, escalated: 0 };
+    });
+    const at = new Map(rows.map((r) => [r.key, r]));
+    for (const r of mine) {
+      const row = at.get(r.startedAt.slice(0, 10));
+      if (!row) continue;
+      row.requested++;
+      if (r.status === "succeeded") row.completed++;
+      if (r.status === "escalated" || r.status === "blocked") row.escalated++;
+    }
+    return rows;
+  }, [mine, now]);
+  const total = mine.length;
+  const done = mine.filter((r) => r.status === "succeeded").length;
+  const escalated = mine.filter((r) => r.status === "escalated" || r.status === "blocked").length;
+  const avg = (f: (r: (typeof mine)[number]) => number) => (total ? mine.reduce((s, r) => s + f(r), 0) / total : 0);
+  const config = { requested: { label: "Wanted (runs requested)", color: "var(--chart-1)" }, completed: { label: "Used (completed)", color: "var(--chart-2)" }, escalated: { label: "Escalated", color: "var(--chart-4)" } } satisfies ChartConfig;
+  const byAgent = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of mine) m.set(r.agentId, (m.get(r.agentId) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [mine]);
   return (
-          <div>
-            <PageHeader eyebrow={<Link href="/l2/skills" className="hover:underline">Skills studio</Link>} title={`${live.name} v${live.version}`} description={<span className="inline-flex flex-wrap items-center gap-1"><Status value={live.status} /> on <Mono>{live.branch}</Mono> · DRI <PersonChip id={live.dri} /></span>} />
-            <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
-              <Section title="Skill definition" description={canEdit ? "Edit and save. Your change goes to a sandbox branch as a change request; main never changes directly." : "Read only."}>
-                <div className="space-y-4">
-                  <div>
-                    <label htmlFor="trigger" className="mb-1 block text-xs font-medium">Trigger</label>
-                    <Input id="trigger" value={trigger} onChange={(e) => setTrigger(e.target.value)} disabled={!canEdit} />
-                  </div>
-                  <div>
-                    <div className="mb-1 text-xs font-medium">Steps</div>
-                    <ol className="space-y-2">
-                      {steps.map((s, i) => (
-                        <li key={i} className="flex items-start gap-2 rounded-lg border bg-surface/50 p-2">
-                          <span className="mt-2 w-5 text-center text-xs text-muted-foreground tabular">{i + 1}</span>
-                          <Select value={s.kind} onValueChange={(v) => setSteps((all) => all.map((x, j) => (j === i ? { ...x, kind: v as DraftStep["kind"] } : x)))} disabled={!canEdit}>
-                            <SelectTrigger size="sm" className="w-[130px] text-xs" aria-label={`Step ${i + 1} kind`}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="retrieval">Retrieval</SelectItem>
-                              <SelectItem value="judgment">Judgment</SelectItem>
-                              <SelectItem value="tool">Tool call</SelectItem>
-                              <SelectItem value="quality_gate">Quality gate</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <Input value={s.text} onChange={(e) => setSteps((all) => all.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))} disabled={!canEdit} aria-label={`Step ${i + 1} text`} className="flex-1" />
-                          {canEdit && (
-                            <div className="flex">
-                              <Button size="icon-sm" variant="ghost" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up"><ArrowUp /></Button>
-                              <Button size="icon-sm" variant="ghost" disabled={i === steps.length - 1} onClick={() => move(i, 1)} aria-label="Move down"><ArrowDown /></Button>
-                              <Button size="icon-sm" variant="ghost" onClick={() => setSteps((all) => all.filter((_, j) => j !== i))} aria-label="Remove step"><Trash2 /></Button>
-                            </div>
-                          )}
-                        </li>
-                      ))}
-                    </ol>
-                    {canEdit && (
-                      <Button size="sm" variant="ghost" className="mt-2" onClick={() => setSteps((s) => [...s, { kind: "judgment", text: "New step", tool: null }])}>
-                        <Plus /> Add step
-                      </Button>
-                    )}
-                  </div>
-                  <KeyValue
-                    items={[
-                      ["Inputs", live.inputs.join(", ")],
-                      ["Tools", live.tools.map((t) => t.replace("tool:", "")).join(", ")],
-                      ["Governing policies", live.policies.map((p) => <Link key={p} href={`/l2/policies/${p}`} className="mr-2 hover:underline">{p}</Link>)],
-                      ["Required capabilities", live.requiredCapabilities.map((c) => <Mono key={c} className="mr-1 rounded bg-muted px-1">{c}</Mono>)],
-                      ["Outputs", live.outputs.join(", ")],
-                      ["Template fields", live.templateFields.map((f) => <Mono key={f} className="mr-1">{f}</Mono>)],
-                    ]}
-                  />
-                  {canEdit && (
-                    <Button
-                      disabled={!dirty || save.isPending}
-                      onClick={() => save.mutate({ skillId: live.id, trigger, steps }, { onSuccess: (cr) => router.push(`/l2/versioning/${(cr as { id: string }).id}`) })}
-                    >
-                      <Save /> Save as draft on a sandbox branch
-                    </Button>
-                  )}
-                </div>
-              </Section>
-              <div className="space-y-4">
-                <Section title="Skill health">
-                  <HealthBars s={live} />
-                </Section>
-                <Section title="Eval suite" description="Runs in a sandbox against recorded cases">
-                  <KeyValue items={[["Suite", <Mono key="s">{live.evalSuite.id}</Mono>], ["Cases", live.evalSuite.cases], ["Pass rate", pct(live.evalSuite.passRate)]]} />
-                </Section>
-                <Section title="Agents using it">
-                  <ul className="space-y-1 text-sm">{live.agentIds.map((a) => <li key={a}><AgentChip id={a} /></li>)}</ul>
-                </Section>
-                {versions.filter((v) => v.branch !== "main").length > 0 && (
-                  <Section title="Drafts of this skill">
-                    <ul className="space-y-1 text-xs">
-                      {versions.filter((v) => v.branch !== "main").map((v) => <li key={v.branch}><Mono>{v.branch}</Mono> · {v.origin}</li>)}
-                    </ul>
-                  </Section>
-                )}
-              </div>
+    <div>
+      <PageHeader
+        eyebrow={<Link href="/l2/skills" className="hover:underline">Skills studio</Link>}
+        title={`${live.name} v${live.version}`}
+        description={<span className="inline-flex flex-wrap items-center gap-1.5"><Status value={live.status} /> on <Mono>{live.branch}</Mono> · {links.length ? links.map((l) => l.wfName).join(", ") : "no workflow yet"}</span>}
+        actions={
+          canEdit ? (
+            <Button asChild>
+              <Link href={links[0] ? studioHref(links[0]) : "/studio"}><Pencil /> Edit in Workflow Studio</Link>
+            </Button>
+          ) : null
+        }
+      />
+      <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
+        <div className="space-y-4">
+          <Section title="What it does" description="Read only. To change the skill, open it in Workflow Studio.">
+            <div className="space-y-4">
+              <p className="text-sm">{live.trigger}</p>
+              <ol className="space-y-1.5 text-sm">
+                {live.steps.map((st, i) => (
+                  <li key={st.id} className="flex items-start gap-2.5">
+                    <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-muted text-[11px] font-semibold tabular">{i + 1}</span>
+                    <span>{st.text} <StatusChip tone="neutral" className="ml-1 capitalize">{st.kind.replace("_", " ")}</StatusChip></span>
+                  </li>
+                ))}
+              </ol>
+              <KeyValue
+                items={[
+                  ["Inputs", live.inputs.join(", ") || "none"],
+                  ["Outputs", live.outputs.join(", ") || "none"],
+                  ["Tools", live.tools.map((t) => t.replace("tool:", "")).join(", ") || "none"],
+                  ["Governing policies", live.policies.length ? live.policies.map((p) => <Link key={p} href={`/l2/policies/${p}`} className="mr-2 hover:underline">{p}</Link>) : "none"],
+                ]}
+              />
             </div>
-          </div>
+          </Section>
+          <Section title="Demand and use over time" description="Last 30 days. Wanted is every run that asked for this skill; used is the runs it completed.">
+            <QueryView query={runs} rows={3}>
+              {() => (
+                <ChartContainer config={config} className="h-[260px] w-full">
+                  <AreaChart data={series}>
+                    <defs>
+                      <linearGradient id="skill-req" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--color-requested)" stopOpacity={0.35} />
+                        <stop offset="100%" stopColor="var(--color-requested)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid vertical={false} />
+                    <XAxis dataKey="day" tickLine={false} axisLine={false} fontSize={11} interval={4} />
+                    <YAxis tickLine={false} axisLine={false} fontSize={11} width={32} allowDecimals={false} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <ChartLegend content={<ChartLegendContent />} />
+                    <Area isAnimationActive={!reduce} dataKey="requested" type="monotone" stroke="var(--color-requested)" fill="url(#skill-req)" strokeWidth={2} />
+                    <Area isAnimationActive={!reduce} dataKey="completed" type="monotone" stroke="var(--color-completed)" fill="transparent" strokeWidth={2} />
+                    <Area isAnimationActive={!reduce} dataKey="escalated" type="monotone" stroke="var(--color-escalated)" fill="transparent" strokeWidth={1.5} strokeDasharray="4 3" />
+                  </AreaChart>
+                </ChartContainer>
+              )}
+            </QueryView>
+            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+              <Kpi label="Runs, all time" value={total.toLocaleString()} />
+              <Kpi label="Completed" value={total ? pct(done / total) : "n/a"} tone={total && done / total < 0.75 ? "warn" : "ok"} />
+              <Kpi label="Escalated" value={total ? pct(escalated / total) : "n/a"} tone={escalated ? "warn" : undefined} />
+              <Kpi label="Avg cost per run" value={usd(avg((r) => r.costUsd))} hint={`${duration(avg((r) => r.latencyMs))} average`} />
+            </div>
+          </Section>
+        </div>
+        <div className="space-y-4">
+          <Section title="Skill health">
+            <HealthBars s={live} />
+          </Section>
+          <Section title="Who uses it">
+            <ul className="space-y-1.5 text-sm">
+              {live.agentIds.map((a) => (
+                <li key={a} className="flex items-center justify-between gap-2">
+                  <AgentChip id={a} />
+                  <span className="text-xs tabular text-muted-foreground">{byAgent.find(([id]) => id === a)?.[1] ?? 0} runs</span>
+                </li>
+              ))}
+            </ul>
+          </Section>
+          <Section title="Eval suite" description="Runs in a sandbox against recorded cases">
+            <KeyValue items={[["Suite", <Mono key="s">{live.evalSuite.id}</Mono>], ["Cases", live.evalSuite.cases], ["Pass rate", pct(live.evalSuite.passRate)]]} />
+          </Section>
+          {versions.filter((v) => v.branch !== "main").length > 0 && (
+            <Section title="Drafts of this skill">
+              <ul className="space-y-1 text-xs">
+                {versions.filter((v) => v.branch !== "main").map((v) => <li key={v.branch}><Mono>{v.branch}</Mono> · {v.origin}</li>)}
+              </ul>
+            </Section>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

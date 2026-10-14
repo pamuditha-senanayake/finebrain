@@ -30,7 +30,7 @@ export const en = {
   "nav.readiness": "Readiness scheduler",
   "nav.security": "Security and access",
   "nav.fleet": "Fleet",
-  "nav.runs": "Runs",
+  "nav.runs": "Agent running history",
   "nav.conversations": "Live conversations",
   "nav.escalations": "Escalations",
   "nav.templateBoard": "Template board",

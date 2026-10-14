@@ -9,6 +9,7 @@ import { Beam } from "@/components/brain/motion";
 import { AgentChip, useLookup } from "@/components/brain/names";
 import { CritBadge, EnvBadge, KeyValue, Mono, PageHeader, QueryView, Section, Status, StatusChip } from "@/components/brain/primitives";
 import { useRun } from "@/lib/api/hooks";
+import { RunInput, useRunContext } from "./run-context";
 import { date, dateTime, duration, num, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +26,7 @@ export function RunTrace() {
   const { id } = useParams<{ id: string }>();
   const run = useRun(id);
   const lookup = useLookup();
+  const ctx = useRunContext();
   return (
     <QueryView query={run}>
       {(r) => {
@@ -32,7 +34,7 @@ export function RunTrace() {
         return (
           <div>
             <PageHeader
-              eyebrow={<span className="flex items-center gap-2"><Link href="/l3" className="hover:underline">Fleet</Link> / <AgentChip id={r.agentId} /></span>}
+              eyebrow={<span className="flex items-center gap-2"><Link href="/l3/runs" className="hover:underline">Agent running history</Link> / <AgentChip id={r.agentId} /></span>}
               title={r.subject}
               actions={
                 <div className="flex items-center gap-2">
@@ -102,6 +104,7 @@ export function RunTrace() {
                 </Beam>
               </Section>
               <div className="space-y-4">
+                <RunInput run={r} conversation={ctx.conversationOf(r)} actor={ctx.actorOf(r)} />
                 <Section title="Run">
                   <KeyValue
                     items={[

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { Agent } from "@/contracts";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { CategoryFilter, WorkflowFilter, countBy, countByMany } from "@/components/brain/category-filter";
 import { DataTable, type Column } from "@/components/brain/data-table";
 import { IdleDot, ThinkingOrb } from "@/components/brain/motion";
 import { useLookup } from "@/components/brain/names";
@@ -14,6 +15,7 @@ import { useAgents } from "@/lib/api/hooks";
 import { num, pct, usd } from "@/lib/format";
 import { useUi } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { useWorkflowIndex } from "@/lib/workflow-index";
 
 export function Fleet() {
   const agents = useAgents();
@@ -21,7 +23,19 @@ export function Fleet() {
   const [view, setView] = useState<"table" | "grid">("table");
   const router = useRouter();
   const lookup = useLookup();
-  const data = useMemo(() => (agents.data ?? []).filter((a) => clusterId === "all" || a.clusterId === clusterId), [agents.data, clusterId]);
+  const index = useWorkflowIndex();
+  const [category, setCategory] = useState("all");
+  const [wf, setWf] = useState("all");
+  const catOf = (a: Agent) => index.category("agent", a.id);
+  const wfOf = (a: Agent) => index.of("agent", a.id);
+  const scoped = useMemo(() => (agents.data ?? []).filter((a) => clusterId === "all" || a.clusterId === clusterId), [agents.data, clusterId]);
+  const data = scoped.filter((a) => (category === "all" || catOf(a) === category) && (wf === "all" || wfOf(a).includes(wf)));
+  const filters = (
+    <>
+      <CategoryFilter label="Filter by category" allLabel="All categories" value={category} onChange={setCategory} options={countBy(scoped, catOf)} />
+      <WorkflowFilter value={wf} onChange={setWf} options={countByMany(scoped, wfOf)} />
+    </>
+  );
   const columns: Column<Agent>[] = useMemo(
     () => [
       { id: "name", header: "Agent", width: "minmax(180px,1.6fr)", value: (a) => a.name, cell: (a) => (
@@ -30,6 +44,8 @@ export function Fleet() {
           <span className="truncate font-medium">{a.name}</span>
         </span>
       ) },
+      { id: "category", header: "Category", width: "110px", value: (a) => catOf(a), hideOnMobile: true, cell: (a) => <span className="capitalize text-muted-foreground">{catOf(a)}</span> },
+      { id: "workflow", header: "Workflow", width: "minmax(140px,1fr)", value: (a) => wfOf(a).join(", "), hideOnMobile: true, cell: (a) => { const w = wfOf(a); return w.length ? <span className="truncate" title={w.join(", ")}>{w[0]}{w.length > 1 && <span className="text-muted-foreground"> +{w.length - 1}</span>}</span> : <span className="text-muted-foreground">none</span>; } },
       { id: "kind", header: "Kind", width: "90px", value: (a) => a.kind, hideOnMobile: true, cell: (a) => <span className="text-muted-foreground">{a.kind === "supervisor" ? "L2 supervisor" : "L3 worker"}</span> },
       { id: "cluster", header: "Cluster", width: "minmax(120px,1fr)", value: (a) => lookup.cluster(a.clusterId), hideOnMobile: true, cell: (a) => <span className="text-muted-foreground">{lookup.cluster(a.clusterId)}</span> },
       { id: "status", header: "Status", width: "96px", value: (a) => a.status, cell: (a) => <Status value={a.status} /> },
@@ -39,7 +55,8 @@ export function Fleet() {
       { id: "errors", header: "Errors", width: "64px", align: "right", value: (a) => a.errorRate, hideOnMobile: true, cell: (a) => <span className={cn(a.errorRate > 0.04 && "text-risk")}>{pct(a.errorRate, 1)}</span> },
       { id: "cost", header: "Cost today", width: "84px", align: "right", value: (a) => a.costTodayUsd, hideOnMobile: true, cell: (a) => usd(a.costTodayUsd) },
     ],
-    [lookup],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lookup, index],
   );
   const working = data.filter((a) => a.status === "working").length;
   return (
@@ -64,11 +81,12 @@ export function Fleet() {
               initialSort={{ id: "status", desc: true }}
               height="calc(100dvh - 330px)"
               searchPlaceholder="Filter agents"
-              toolbar={<ViewToggle view={view} setView={setView} />}
+              toolbar={<>{filters}<ViewToggle view={view} setView={setView} /></>}
             />
           ) : (
             <div>
-              <div className="mb-2 flex justify-end">
+              <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
+                {filters}
                 <ViewToggle view={view} setView={setView} />
               </div>
               <ul className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2" aria-label="Agents">

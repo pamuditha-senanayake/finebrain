@@ -170,13 +170,6 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
               <Button variant="ghost" size="icon-sm" className="max-lg:hidden" onClick={() => { hover.close(); toggleSidebar(); }} onMouseEnter={hover.enter} onMouseLeave={hover.leave} onFocus={hover.enter} aria-label={collapsed ? "Show sidebar" : "Hide sidebar"} aria-pressed={!collapsed} data-testid="sidebar-toggle">
                 {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
               </Button>
-              {collapsed && (
-                <Link href="/" className="max-lg:hidden" aria-label={t("app.name")}>
-                  <span className="grid size-7 place-items-center rounded-lg bg-primary text-primary-foreground">
-                    <Brain className="size-4" aria-hidden />
-                  </span>
-                </Link>
-              )}
               <TenantClusterSwitcher />
               <div className="max-md:hidden">
                 <EnvSwitcher />
