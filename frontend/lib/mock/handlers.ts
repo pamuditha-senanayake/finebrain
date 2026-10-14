@@ -185,8 +185,8 @@ export const handlers = [
       const persona = request.headers.get("x-persona") ?? "";
       const asker = d.humans.find((h) => h.id === persona);
       if (!asker) throw new OpError("Unknown persona", 401);
-      const { question } = (await request.json()) as { question: string };
-      return HttpResponse.json(ask(d, asker, question, db.now()));
+      const { question, page } = (await request.json()) as { question: string; page?: { path: string; scope: "page" | "system" } };
+      return HttpResponse.json(ask(d, asker, question, db.now(), page));
     } catch (e) {
       return fail(e);
     }

@@ -116,6 +116,10 @@ export const AskAnswer = z.object({
     z.object({ id: z.string(), kind: z.string(), label: z.string(), validFrom: IsoDate, validTo: IsoDate.nullable(), href: z.string() }),
   ),
   withheld: z.number().int(),
+  scope: z.enum(["page", "system"]).optional(),
+  /** Short how-to steps for the page the person is on. */
+  guide: z.array(z.string()).optional(),
+  actions: z.array(z.object({ label: z.string(), href: z.string() })).optional(),
 });
 export type AskAnswer = z.infer<typeof AskAnswer>;
 

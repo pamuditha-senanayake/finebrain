@@ -10,10 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CategoryFilter, countBy } from "@/components/brain/category-filter";
 import { DataTable, type Column } from "@/components/brain/data-table";
 import { AgentChip, PersonChip, useLookup } from "@/components/brain/names";
 import { EmptyState, KeyValue, Mono, PageHeader, QueryView, Section, Status, StatusChip } from "@/components/brain/primitives";
-import { useAgents, useOp, useSkills, useSkillVersions } from "@/lib/api/hooks";
+import { useAgents, useOp, useSkills, useSkillVersions, useStudioWorkflows } from "@/lib/api/hooks";
 import { useCurrentUser } from "@/lib/auth";
 import { pct, relTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -44,11 +45,28 @@ export function SkillsStudio() {
   const agents = useAgents();
   const router = useRouter();
   const lookup = useLookup();
+  const workflows = useStudioWorkflows();
+  const [category, setCategory] = useState("all");
+  // Related workflows come from each workflow's members; a skill's category is its first workflow's lead topic.
+  const info = useMemo(() => {
+    const m = new Map<string, { workflows: string[]; category: string }>();
+    for (const w of workflows.data ?? []) for (const id of w.members) {
+      const [, kind, skillId] = id.split(".");
+      if (kind !== "skill" || !skillId) continue;
+      const cur = m.get(skillId) ?? { workflows: [], category: w.topics[0] ?? "general" };
+      cur.workflows.push(w.name);
+      m.set(skillId, cur);
+    }
+    return m;
+  }, [workflows.data]);
+  const categoryOf = (s: Skill) => info.get(s.id)?.category ?? "general";
   const main = useMemo(() => (skills.data ?? []).filter((s) => s.branch === "main" && s.status === "active"), [skills.data]);
   const drafts = useMemo(() => (skills.data ?? []).filter((s) => s.status === "draft"), [skills.data]);
   const columns: Column<Skill>[] = useMemo(
     () => [
       { id: "name", header: "Skill", width: "minmax(200px,1.6fr)", value: (s) => s.name, cell: (s) => <span className="font-medium">{s.name} <Mono className="text-muted-foreground">v{s.version}</Mono></span> },
+      { id: "category", header: "Category", width: "120px", value: (s) => categoryOf(s), cell: (s) => <StatusChip tone="info" className="capitalize">{categoryOf(s)}</StatusChip> },
+      { id: "workflow", header: "Related workflows", width: "minmax(180px,1.3fr)", value: (s) => (info.get(s.id)?.workflows ?? []).join(", "), cell: (s) => { const w = info.get(s.id)?.workflows ?? []; return w.length ? <span className="truncate" title={w.join(", ")}>{w.join(", ")}</span> : <span className="text-muted-foreground">none</span>; } },
       { id: "agent", header: "Agent", width: "minmax(140px,1fr)", value: (s) => lookup.name(s.agentIds[0] ?? ""), hideOnMobile: true, cell: (s) => (s.agentIds[0] ? <AgentChip id={s.agentIds[0]} link={false} /> : null) },
       { id: "success", header: "Success", width: "80px", align: "right", value: (s) => s.health.taskSuccess, cell: (s) => pct(s.health.taskSuccess) },
       { id: "passk", header: "pass^k", width: "70px", align: "right", value: (s) => s.health.consistencyPassK, hideOnMobile: true, cell: (s) => pct(s.health.consistencyPassK) },
@@ -56,7 +74,8 @@ export function SkillsStudio() {
       { id: "evals", header: "Eval cases", width: "84px", align: "right", value: (s) => s.evalSuite.cases, hideOnMobile: true, cell: (s) => s.evalSuite.cases },
       { id: "updated", header: "Updated", width: "100px", value: (s) => s.updatedAt, hideOnMobile: true, cell: (s) => <span className="text-muted-foreground">{relTime(s.updatedAt)}</span> },
     ],
-    [lookup],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lookup, info],
   );
   return (
     <div>
@@ -68,7 +87,7 @@ export function SkillsStudio() {
           <TabsTrigger value="academy">Academy</TabsTrigger>
         </TabsList>
         <TabsContent value="skills" className="mt-3">
-          <QueryView query={skills}>{() => <DataTable label="Skills" data={main} columns={columns} getRowId={(s) => `${s.id}@${s.branch}`} onRowClick={(s) => router.push(`/l2/skills/${s.id}`)} initialSort={{ id: "conf", desc: false }} height="calc(100dvh - 280px)" />}</QueryView>
+          <QueryView query={skills}>{() => <DataTable label="Skills" data={category === "all" ? main : main.filter((s) => categoryOf(s) === category)} toolbar={<CategoryFilter label="Filter by category" allLabel="All categories" value={category} onChange={setCategory} options={countBy(main, categoryOf)} />} columns={columns} getRowId={(s) => `${s.id}@${s.branch}`} onRowClick={(s) => router.push(`/l2/skills/${s.id}`)} initialSort={{ id: "conf", desc: false }} height="calc(100dvh - 280px)" />}</QueryView>
         </TabsContent>
         <TabsContent value="drafts" className="mt-3">
           {drafts.length === 0 ? (

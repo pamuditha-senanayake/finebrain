@@ -1,3 +1,4 @@
+import { guideFor } from "@/lib/page-context";
 import type { Analytics, AskAnswer, Human, LegibilityCell, Overview, SearchHit } from "@/contracts";
 import type { ResearchSnapshot } from "@/contracts/research";
 import { checkNode, humanPrincipal } from "@/lib/governance/access";
@@ -143,7 +144,36 @@ export function search(d: TenantData, q: string): SearchHit[] {
 const STOP = new Set(["what", "is", "the", "a", "an", "for", "of", "our", "do", "we", "how", "when", "does", "are", "to", "in", "on", "and", "with", "can", "i", "my"]);
 
 /** Answers only from facts the asker may see, with valid time on every citation. */
-export function ask(d: TenantData, asker: Human, question: string, now: number): AskAnswer {
+/** One line of live numbers for the page a person is on, so "this page" answers use real data. */
+function pageLine(d: TenantData, key: string): string | null {
+  const pending = d.approvals.filter((a) => a.status === "pending").length;
+  switch (key) {
+    case "approvals": case "digest": case "overview": return `${pending} approval${pending === 1 ? " is" : "s are"} pending.`;
+    case "entity": return `${d.obligations.filter((o) => o.status === "red").length} obligations are red and ${d.obligations.filter((o) => o.status === "amber").length} amber; ${d.risks.length} risks are registered.`;
+    case "evidence": return `${d.evidenceRequests.filter((r) => r.status !== "fulfilled").length} evidence requests are open.`;
+    case "library": return `${d.documents.length} documents, ${d.documents.filter((x) => x.sensitivity === "restricted").length} restricted, ${d.documents.filter((x) => x.personalData).length} with personal data.`;
+    case "vault": return `${d.facts.filter((f) => f.status === "unverified").length} unverified and ${d.facts.filter((f) => f.status === "conflicted").length} conflicted facts.`;
+    case "policies": case "policy": return `${d.policies.filter((p) => !p.supersededBy && p.branch === "main").length} current policies.`;
+    case "skills": return `${d.skills.filter((x) => x.branch === "main").length} skills on main.`;
+    default: return null;
+  }
+}
+
+export function ask(d: TenantData, asker: Human, question: string, now: number, page?: { path: string; scope: "page" | "system" }): AskAnswer {
+  if (page?.scope === "page") {
+    const guide = guideFor(page.path);
+    const words = question.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !STOP.has(w));
+    const tips = guide.tips.filter((t) => words.some((w) => t.toLowerCase().includes(w)));
+    const facts = ask(d, asker, question, now);
+    const live = pageLine(d, guide.key);
+    const lead = `${guide.title}: ${guide.summary}`;
+    const body = [live, facts.citations.length ? facts.answer : null].filter(Boolean).join(" ");
+    return { ...facts, answer: body ? `${body}` : lead, scope: "page", guide: tips.length ? tips : guide.tips, actions: guide.links };
+  }
+  return { ...askSystem(d, asker, question, now), scope: "system" };
+}
+
+function askSystem(d: TenantData, asker: Human, question: string, now: number): AskAnswer {
   const words = question.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !STOP.has(w));
   const principal = humanPrincipal(asker);
   const scored = d.facts

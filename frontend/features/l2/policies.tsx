@@ -1,16 +1,19 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Maximize2, Pencil } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Policy } from "@/contracts";
 import { CategoryFilter, countBy } from "@/components/brain/category-filter";
 import { DataTable, type Column } from "@/components/brain/data-table";
 import { PersonChip, useLookup } from "@/components/brain/names";
 import { CritBadge, KeyValue, Mono, PageHeader, QueryView, StatusChip } from "@/components/brain/primitives";
-import { useBrainMap, useNow, usePolicies, usePolicyVersions } from "@/lib/api/hooks";
+import { useBrainMap, useNow, usePolicies, usePolicyVersions, useStudioWorkflows } from "@/lib/api/hooks";
 import { date, pct } from "@/lib/format";
+import { useCurrentUser } from "@/lib/auth";
+import { useStudio } from "@/features/studio/state";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 function signals(p: Policy, now: number) {
@@ -101,10 +104,47 @@ function PolicyTimeline({ versions, now, tz }: { versions: Policy[]; now: number
   const [selectedId, setSelectedId] = useState<string>(live.id);
   const [signalKey, setSignalKey] = useState<string | null>(null);
   const selected = all.find((v) => v.id === selectedId) ?? live;
-  const start = Math.min(...all.map((v) => Date.parse(v.validFrom)), ...all.map((v) => Date.parse(v.recordedAt))) - 20 * DAY;
-  const end = Math.max(now + 120 * DAY, ...all.map((v) => Date.parse(v.validFrom) + 60 * DAY));
+  const fitStart = Math.min(...all.map((v) => Date.parse(v.validFrom)), ...all.map((v) => Date.parse(v.recordedAt))) - 20 * DAY;
+  const fitEnd = Math.max(now + 120 * DAY, ...all.map((v) => Date.parse(v.validFrom) + 60 * DAY));
+  // The visible time window. Drag to move through time, scroll to zoom around the cursor.
+  const [dom, setDom] = useState<{ start: number; end: number } | null>(null);
+  const start = dom?.start ?? fitStart;
+  const end = dom?.end ?? fitEnd;
+  const plot = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ x: number; start: number; end: number; moved: boolean } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const suppress = useRef(false);
+  const win = useRef({ start, end });
+  useEffect(() => {
+    win.current = { start, end };
+  }, [start, end]);
+  useEffect(() => {
+    const el = plot.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      const { start: a, end: b } = win.current;
+      const at = a + ((e.clientX - r.left) / r.width) * (b - a);
+      const f = Math.exp(e.deltaY * 0.0015);
+      const span = Math.min(Math.max((b - a) * f, 14 * DAY), (fitEnd - fitStart) * 4);
+      const k = (at - a) / (b - a);
+      setDom({ start: at - k * span, end: at + (1 - k) * span });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [fitStart, fitEnd]);
   const pos = (t: number) => `${((t - start) / (end - start)) * 100}%`;
   const sigs = signals(live, now);
+  const { user } = useCurrentUser();
+  const studio = useStudioWorkflows();
+  const setDraft = useStudio((st) => st.setDraft);
+  const canEdit = !!user && user.tier !== "L3";
+  // The workflows that use this policy, so the edit opens where the policy lives.
+  const studioLinks = (studio.data ?? []).flatMap((w) => {
+    const item = w.members.find((m) => m.endsWith(`.policy.${live.key}`));
+    return item ? [{ name: w.name, href: `/studio?wf=${w.id}&focus=${encodeURIComponent(item)}&view=chat` }] : [];
+  });
   const activeSignal = sigs.find((s) => s.key === signalKey) ?? null;
   // Freshness markers: dated signals sit at their date, the rest gather at today.
   const markerAt = (key: string): number =>
@@ -112,7 +152,7 @@ function PolicyTimeline({ versions, now, tz }: { versions: Policy[]; now: number
   // Month ticks along the top.
   const ticks: { t: number; label: string }[] = [];
   const d0 = new Date(start);
-  for (let t = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() + 1, 1); t < end; ) {
+  for (let t = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() + 1, 1); t < end && ticks.length < 400; ) {
     const d = new Date(t);
     ticks.push({ t, label: d.getUTCMonth() === 0 ? `${MONTHS[0]} ${d.getUTCFullYear()}` : MONTHS[d.getUTCMonth()] });
     t = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1);
@@ -132,11 +172,48 @@ function PolicyTimeline({ versions, now, tz }: { versions: Policy[]; now: number
           <CritBadge level={live.criticality} showLabel />
           <StatusChip tone="info" className="capitalize">{policyCategory(live)}</StatusChip>
         </div>
+        <button type="button" onClick={() => setDom(null)} className={`${panel} inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground`} aria-label="Fit the whole timeline">
+          <Maximize2 className="size-3.5" /> Fit
+        </button>
+        <span className="hidden text-[11px] text-muted-foreground sm:inline">Drag to move · scroll to zoom</span>
       </div>
 
       {/* the graph: fills the page. Bars are versions, clickable. */}
       <div className="absolute inset-0 pb-6 pt-16 lg:pr-[368px]" role="group" aria-label="Validity timeline">
-        <div className="relative mx-4 h-full">
+        <div
+          ref={plot}
+          className={cn("relative mx-4 h-full touch-none select-none overflow-hidden", dragging ? "cursor-grabbing" : "cursor-grab")}
+          onPointerDown={(e) => {
+            if (e.button !== 0) return;
+            drag.current = { x: e.clientX, start, end, moved: false };
+          }}
+          onPointerMove={(e) => {
+            const d = drag.current;
+            const el = plot.current;
+            if (!d || !el) return;
+            const dx = e.clientX - d.x;
+            if (!d.moved && Math.abs(dx) < 4) return;
+            if (!d.moved) {
+              d.moved = true;
+              setDragging(true);
+              el.setPointerCapture(e.pointerId);
+            }
+            const shift = (dx / el.clientWidth) * (d.end - d.start);
+            setDom({ start: d.start - shift, end: d.end - shift });
+          }}
+          onPointerUp={() => {
+            if (drag.current?.moved) suppress.current = true;
+            drag.current = null;
+            setDragging(false);
+          }}
+          onClickCapture={(e) => {
+            if (suppress.current) {
+              suppress.current = false;
+              e.stopPropagation();
+              e.preventDefault();
+            }
+          }}
+        >
           <div className="absolute inset-x-0 top-0 h-6 border-b text-[10px] text-muted-foreground" aria-hidden>
             {ticks.map((k, i) => (
               <span key={k.t} className={cn("absolute top-0 -translate-x-1/2", i % every !== 0 && "hidden")} style={{ left: pos(k.t) }}>{k.label}</span>
@@ -213,6 +290,26 @@ function PolicyTimeline({ versions, now, tz }: { versions: Policy[]; now: number
             Valid {date(selected.validFrom, tz)} → {selected.validTo ? date(selected.validTo, tz) : "open"} · recorded {date(selected.recordedAt, tz)}
           </p>
         </section>
+        {canEdit && (
+          <section className={`${panel} p-3`} aria-label="Change this policy">
+            {studioLinks.length > 0 ? (
+              <div className="space-y-2">
+                {studioLinks.map((l, i) => (
+                  <Button key={l.href} asChild size="sm" variant={i === 0 ? "default" : "outline"} className="w-full">
+                    <Link href={l.href} onClick={() => setDraft(`Change the "${live.name}" policy: `)}>
+                      <Pencil /> Change this policy{studioLinks.length > 1 ? ` in ${l.name}` : " in Workflow Studio"}
+                    </Link>
+                  </Button>
+                ))}
+                <p className="text-[11px] text-muted-foreground">Opens the workflow that uses this policy. Edits are reviewed before anyone confirms them.</p>
+              </div>
+            ) : (
+              <Button asChild size="sm" variant="outline" className="w-full">
+                <Link href="/studio" onClick={() => setDraft(`Change the "${live.name}" policy: `)}><Pencil /> Open Workflow Studio</Link>
+              </Button>
+            )}
+          </section>
+        )}
         {activeSignal && (
           <section className={`${panel} border-warn/40 p-3`} aria-label="Freshness signal">
             <div className="flex items-start gap-2 text-sm">
