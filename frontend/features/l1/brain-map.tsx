@@ -40,6 +40,11 @@ function orbitArc(c: P, r: number, a0: number, a1: number) {
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 6;
+// Semantic zoom: zooming the overview in past this dives into the nearest cluster; zooming a cluster out past the other returns to the whole map.
+const DIVE_IN_AT = 1.3;
+const DIVE_OUT_AT = 0.85;
+// Horizontal swipe (touch drag or trackpad) that flips to the next or previous cluster.
+const SWIPE_PX = 50;
 type View = { x: number; y: number; k: number };
 const IDENTITY: View = { x: 0, y: 0, k: 1 };
 
@@ -132,7 +137,7 @@ function focusLayout(cn: ClusterNode) {
   const startA = -Math.PI / 2 - arc / 2;
   const wfs = cn.wfs.map((w, j) => {
     const a = m === 1 ? -Math.PI / 2 : startA + (j * arc) / (m - 1);
-    const r = 205 + (m > 6 ? (j % 2) * 62 : 0);
+    const r = 215 + (m > 6 ? (j % 2) * 70 : 0);
     return { wf: w.wf, angle: a, x: hub.x + Math.cos(a) * r, y: hub.y + Math.sin(a) * r };
   });
   const items: ItemNode[] = [];
@@ -144,7 +149,7 @@ function focusLayout(cn: ClusterNode) {
       const ba = w.angle + (bs.length > 1 ? (bi - (bs.length - 1) / 2) * (width / bs.length) : 0);
       let prev: P = { x: w.x, y: w.y };
       b.forEach((item, t) => {
-        const r = base + 46 + t * 30;
+        const r = base + 56 + t * 38;
         const p = { x: hub.x + Math.cos(ba) * r, y: hub.y + Math.sin(ba) * r };
         items.push({ key: `${w.wf.id}:${item.id}`, item, wf: w.wf, prev, ...p });
         prev = p;
@@ -154,12 +159,12 @@ function focusLayout(cn: ClusterNode) {
   // Place each workflow label where it collides with no other label: right, left, above, then below its node.
   const placed: { x0: number; y0: number; x1: number; y1: number }[] = [{ x0: hub.x - 30, y0: hub.y - 30, x1: hub.x + 30, y1: hub.y + 30 }];
   const labels = wfs.map((w) => {
-    const width = w.wf.name.length * 7 + 6;
+    const width = w.wf.name.length * 8 + 6;
     const tries: { dx: number; dy: number; anchor: "start" | "end" | "middle" }[] = w.x < hub.x - 20
-      ? [{ dx: -15, dy: 4, anchor: "end" }, { dx: 0, dy: -17, anchor: "middle" }, { dx: 0, dy: 26, anchor: "middle" }, { dx: 15, dy: 4, anchor: "start" }]
+      ? [{ dx: -26, dy: 5, anchor: "end" }, { dx: 0, dy: -26, anchor: "middle" }, { dx: 0, dy: 36, anchor: "middle" }, { dx: 26, dy: 5, anchor: "start" }]
       : w.x > hub.x + 20
-        ? [{ dx: 15, dy: 4, anchor: "start" }, { dx: 0, dy: -17, anchor: "middle" }, { dx: 0, dy: 26, anchor: "middle" }, { dx: -15, dy: 4, anchor: "end" }]
-        : [{ dx: 0, dy: -17, anchor: "middle" }, { dx: 15, dy: 4, anchor: "start" }, { dx: -15, dy: 4, anchor: "end" }, { dx: 0, dy: 26, anchor: "middle" }];
+        ? [{ dx: 26, dy: 5, anchor: "start" }, { dx: 0, dy: -26, anchor: "middle" }, { dx: 0, dy: 36, anchor: "middle" }, { dx: -26, dy: 5, anchor: "end" }]
+        : [{ dx: 0, dy: -26, anchor: "middle" }, { dx: 26, dy: 5, anchor: "start" }, { dx: -26, dy: 5, anchor: "end" }, { dx: 0, dy: 36, anchor: "middle" }];
     const box = (t: (typeof tries)[number]) => {
       const x = w.x + t.dx;
       const x0 = t.anchor === "start" ? x : t.anchor === "end" ? x - width : x - width / 2;
@@ -170,7 +175,7 @@ function focusLayout(cn: ClusterNode) {
     placed.push(box(pick));
     return { x: w.x + pick.dx, y: w.y + pick.dy, anchor: pick.anchor };
   });
-  const orbits = { radii: m > 6 ? [205, 267] : [205], from: startA - 0.18, to: startA + arc + 0.18 };
+  const orbits = { radii: m > 6 ? [215, 285] : [215], from: startA - 0.18, to: startA + arc + 0.18 };
   return { hub, wfs, items, labels, orbits };
 }
 
@@ -194,14 +199,40 @@ export function BrainMapView({ map, currency, focusId, selection, onFocus, onSel
   const boxRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // Pan and zoom. The view belongs to the cluster it was set for, so flying in or out starts from a fitted view.
   const [vs, setVs] = useState<{ f: string | null; v: View; smooth: boolean }>({ f: null, v: IDENTITY, smooth: false });
+  const levelLock = useRef(0);
+  useEffect(() => {
+    levelLock.current = performance.now();
+  }, [focusId]);
+  const fly = useCallback(
+    (id: string | null) => {
+      onFocus(id);
+      setVs({ f: id, v: IDENTITY, smooth: false });
+      setHoverId(null);
+      setTip(null);
+      setHoverWf(null);
+      onSelect(null);
+    },
+    [onFocus, onSelect],
+  );
+  const step = useCallback(
+    (d: 1 | -1) => {
+      const i = layout.findIndex((l) => l.c.id === focusId);
+      if (i < 0) return;
+      fly(layout[(i + d + layout.length) % layout.length].c.id);
+    },
+    [layout, focusId, fly],
+  );
+
+  // Pan and zoom. The view belongs to the cluster it was set for, so flying in or out starts from a fitted view.
   const view = vs.f === focusId ? vs.v : IDENTITY;
   const setView = useCallback((fn: (v: View) => View, smooth = false) => setVs((cur) => ({ f: focusId, v: fn(cur.f === focusId ? cur.v : IDENTITY), smooth })), [focusId]);
   const [dragging, setDragging] = useState(false);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<{ sx: number; sy: number; v: View; moved: boolean; d0: number; mid: P | null } | null>(null);
   const suppressClick = useRef(false);
+  const swipeAcc = useRef(0);
+  const swipeLock = useRef(0);
 
   const toUser = useCallback((clientX: number, clientY: number): P => {
     const ctm = svgRef.current?.getScreenCTM();
@@ -209,16 +240,46 @@ export function BrainMapView({ map, currency, focusId, selection, onFocus, onSel
     const p = new DOMPoint(clientX, clientY).matrixTransform(ctm.inverse());
     return { x: p.x, y: p.y };
   }, []);
+  /** Crossing a zoom threshold changes level instead of scaling: dive into the cluster nearest the zoom point, or back out to the whole map. */
+  const changeLevel = useCallback(
+    (k: number, u: P): boolean => {
+      if (!focusId && k >= DIVE_IN_AT) {
+        const p = { x: (u.x - view.x) / view.k, y: (u.y - view.y) / view.k };
+        const nearest = layout.reduce<ClusterNode | null>((best, l) => (!best || Math.hypot(l.hub.x - p.x, l.hub.y - p.y) < Math.hypot(best.hub.x - p.x, best.hub.y - p.y) ? l : best), null);
+        if (nearest) {
+          fly(nearest.c.id);
+          return true;
+        }
+      }
+      if (focusId && k <= DIVE_OUT_AT) {
+        fly(null);
+        return true;
+      }
+      return false;
+    },
+    [focusId, view, layout, fly],
+  );
   const zoomAt = useCallback(
-    (u: P, factor: number, smooth = false) =>
+    (u: P, factor: number, smooth = false) => {
+      // Momentum from the gesture that just changed level must not bounce straight back.
+      if (performance.now() - levelLock.current < 500) return;
+      if (changeLevel(view.k * factor, u)) return;
       setView((v) => {
         const k = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.k * factor));
         const f = k / v.k;
         return { k, x: u.x - (u.x - v.x) * f, y: u.y - (u.y - v.y) * f };
-      }, smooth),
-    [setView],
+      }, smooth);
+    },
+    [setView, changeLevel, view.k],
   );
-  const zoomCenter = (factor: number) => zoomAt({ x: vb.x + vb.w / 2, y: vb.y + vb.h / 2 }, factor, true);
+  const zoomCenter = (factor: number) => {
+    const c = { x: vb.x + vb.w / 2, y: vb.y + vb.h / 2 };
+    // The buttons switch level directly: + from the whole map enters the nearest cluster, - from a fitted cluster returns to the map.
+    if (!focusId && factor > 1) {
+      if (!changeLevel(DIVE_IN_AT, c)) zoomAt(c, factor, true);
+    } else if (focusId && factor < 1 && view.k <= 1.05) fly(null);
+    else zoomAt(c, factor, true);
+  };
 
   // Wheel and trackpad pinch zoom around the cursor. Needs a non-passive listener to keep the page from scrolling.
   useEffect(() => {
@@ -226,13 +287,26 @@ export function BrainMapView({ map, currency, focusId, selection, onFocus, onSel
     if (!svg) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const speed = e.ctrlKey ? 0.01 : 0.0018;
+      // Two-finger sideways scroll flips between clusters.
+      if (focusId && !e.ctrlKey && Math.abs(e.deltaX) > Math.abs(e.deltaY) * 1.2) {
+        const now = performance.now();
+        if (now - swipeLock.current > 450) {
+          swipeAcc.current += e.deltaX;
+          if (Math.abs(swipeAcc.current) > 70) {
+            step(swipeAcc.current > 0 ? 1 : -1);
+            swipeAcc.current = 0;
+            swipeLock.current = now;
+          }
+        }
+        return;
+      }
+      const speed = e.ctrlKey ? 0.012 : 0.0025;
       zoomAt(toUser(e.clientX, e.clientY), Math.exp(-e.deltaY * speed));
       setTip(null);
     };
     svg.addEventListener("wheel", onWheel, { passive: false });
     return () => svg.removeEventListener("wheel", onWheel);
-  }, [zoomAt, toUser]);
+  }, [zoomAt, toUser, focusId, step]);
 
   const pxPerUnit = () => svgRef.current?.getScreenCTM()?.a ?? 1;
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -255,6 +329,11 @@ export function BrainMapView({ map, currency, focusId, selection, onFocus, onSel
       const k = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, g.v.k * (d / g.d0)));
       const f = k / g.v.k;
       g.moved = true;
+      if (changeLevel(k, g.mid)) {
+        gesture.current = null;
+        pointers.current.clear();
+        return;
+      }
       setView(() => ({ k, x: g.mid!.x - (g.mid!.x - g.v.x) * f, y: g.mid!.y - (g.mid!.y - g.v.y) * f }));
       return;
     }
@@ -268,11 +347,24 @@ export function BrainMapView({ map, currency, focusId, selection, onFocus, onSel
       svgRef.current?.setPointerCapture(e.pointerId);
     }
     const u = pxPerUnit();
+    // At fit, a sideways drag carries the cluster with the finger and flips to the neighbour on release.
+    if (focusId && g.v.k <= 1.05) {
+      setView(() => ({ ...g.v, x: g.v.x + (dx / u) * 0.6 }));
+      return;
+    }
     setView(() => ({ ...g.v, x: g.v.x + dx / u, y: g.v.y + dy / u }));
   };
   const endPointer = (e: React.PointerEvent<SVGSVGElement>) => {
+    const g = gesture.current;
+    const single = pointers.current.size === 1 && g && !g.d0;
     pointers.current.delete(e.pointerId);
-    if (gesture.current?.moved) suppressClick.current = true;
+    if (g?.moved) suppressClick.current = true;
+    if (focusId && single && g.v.k <= 1.05) {
+      const dx = e.clientX - g.sx;
+      const dy = e.clientY - g.sy;
+      if (Math.abs(dx) > SWIPE_PX && Math.abs(dx) > Math.abs(dy) * 1.2) step(dx < 0 ? 1 : -1);
+      else setView(() => g.v, true);
+    }
     if (pointers.current.size === 0) {
       gesture.current = null;
       setDragging(false);
@@ -290,14 +382,14 @@ export function BrainMapView({ map, currency, focusId, selection, onFocus, onSel
     const out = new Set<string>();
     if (!focus || !activeWf) return out;
     const boxes = [...focus.labels.map((l, i) => {
-      const w = focus.wfs[i].wf.name.length * 7 + 6;
+      const w = focus.wfs[i].wf.name.length * 8 + 6;
       const x0 = l.anchor === "start" ? l.x : l.anchor === "end" ? l.x - w : l.x - w / 2;
       return { x0, y0: l.y - 12, x1: x0 + w, y1: l.y + 3 };
     })];
     for (const it of focus.items.filter((i) => i.wf.id === activeWf)) {
-      const w = it.item.name.length * 5.8 + 4;
+      const w = it.item.name.length * 6.6 + 4;
       const left = it.x < focus.hub.x;
-      const x0 = left ? it.x - 9 - w : it.x + 9;
+      const x0 = left ? it.x - 16 - w : it.x + 16;
       const b = { x0, y0: it.y - 7, x1: x0 + w, y1: it.y + 5 };
       if (!boxes.some((p) => b.x0 < p.x1 && b.x1 > p.x0 && b.y0 < p.y1 && b.y1 > p.y0)) {
         boxes.push(b);
@@ -307,27 +399,18 @@ export function BrainMapView({ map, currency, focusId, selection, onFocus, onSel
     return out;
   }, [focus, activeWf]);
 
-  const fly = useCallback(
-    (id: string | null) => {
-      onFocus(id);
-      setVs({ f: id, v: IDENTITY, smooth: false });
-      setHoverId(null);
-      setTip(null);
-      setHoverWf(null);
-      onSelect(null);
-    },
-    [onFocus, onSelect],
-  );
-  const step = (d: 1 | -1) => {
-    const i = layout.findIndex((l) => l.c.id === focusId);
-    fly(layout[(i + d + layout.length) % layout.length].c.id);
-  };
-
   useEffect(() => {
-    const esc = (e: globalThis.KeyboardEvent) => e.key === "Escape" && focusId && fly(null);
-    window.addEventListener("keydown", esc);
-    return () => window.removeEventListener("keydown", esc);
-  }, [focusId, fly]);
+    const onKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (!focusId) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if (e.key === "Escape") fly(null);
+      else if (e.key === "ArrowRight") step(1);
+      else if (e.key === "ArrowLeft") step(-1);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [focusId, fly, step]);
 
   const showTip = (id: string, p: P) => {
     const svg = svgRef.current;
@@ -369,7 +452,7 @@ export function BrainMapView({ map, currency, focusId, selection, onFocus, onSel
         preserveAspectRatio="xMidYMid meet"
         className={cn("absolute inset-0 h-full w-full touch-none select-none", dragging ? "cursor-grabbing" : "cursor-grab")}
         role="group"
-        aria-label={`Brain map: ${map.clusters.length} clusters and ${totalWf} workflows. Drag to move, scroll to zoom, pick a cluster to open it.`}
+        aria-label={`Brain map: ${map.clusters.length} clusters and ${totalWf} workflows. Drag to move, scroll or pinch to zoom into a cluster, swipe sideways to switch clusters.`}
         data-testid="brain-map"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -425,10 +508,10 @@ export function BrainMapView({ map, currency, focusId, selection, onFocus, onSel
                     <line key={`e-${it.key}`} x1={it.prev.x} y1={it.prev.y} x2={it.x} y2={it.y} stroke="var(--map-line)" strokeWidth={0.7} />
                   ))}
                   {l.items.map((it) => (
-                    <circle key={it.key} cx={it.x} cy={it.y} r={it.item.kind === "tool" && it.item.shared ? 2.6 : 2.1} fill={lit ? KIND_COLOR[it.item.kind] : "var(--map-node)"} opacity={it.item.status === "active" ? 0.9 : 0.4} />
+                    <circle key={it.key} cx={it.x} cy={it.y} r={it.item.kind === "tool" && it.item.shared ? 3.6 : 3} fill={lit ? KIND_COLOR[it.item.kind] : "var(--map-node)"} opacity={it.item.status === "active" ? 0.9 : 0.4} />
                   ))}
                   {l.wfs.map((w) => (
-                    <circle key={`n-${w.wf.id}`} cx={w.x} cy={w.y} r={4.2} fill="var(--map-node)" stroke={w.wf.health.breaks ? "#ef4444" : lit ? l.color : "none"} strokeWidth={1.4} />
+                    <circle key={`n-${w.wf.id}`} cx={w.x} cy={w.y} r={6} fill={l.color} fillOpacity={lit ? 1 : 0.75} stroke={w.wf.health.breaks ? "#ef4444" : "none"} strokeWidth={1.4} />
                   ))}
                 </g>
                 {!planned && !reduce && <circle cx={l.hub.x} cy={l.hub.y} r={11} fill="none" stroke={l.color} className="map-pulse" aria-hidden pointerEvents="none" />}
@@ -496,10 +579,10 @@ export function BrainMapView({ map, currency, focusId, selection, onFocus, onSel
                   onMouseLeave={() => { setHoverWf(null); setHoverItem(null); }}
                 >
                   <title>{`${it.item.name} (${it.item.kind})`}</title>
-                  <circle cx={it.x} cy={it.y} r={12} fill="transparent" />
-                  <circle cx={it.x} cy={it.y} r={sel ? 7 : 5} fill="var(--map-node)" stroke={KIND_COLOR[it.item.kind as MemberKind]} strokeWidth={sel ? 3 : 2} strokeDasharray={it.item.status === "active" ? undefined : "2 2"} />
+                  <circle cx={it.x} cy={it.y} r={16} fill="transparent" />
+                  <circle cx={it.x} cy={it.y} r={sel ? 13 : 10} fill={KIND_COLOR[it.item.kind as MemberKind]} fillOpacity={it.item.status === "active" ? 1 : 0.45} stroke={sel ? "var(--map-label)" : "none"} strokeWidth={2} />
                   {(itemLabels.has(it.key) || sel || hoverItem === it.key) && (
-                    <text x={it.x + (left ? -9 : 9)} y={it.y + 3.5} textAnchor={left ? "end" : "start"} fontSize={10.5} fill="var(--map-label)" paintOrder="stroke" stroke="var(--map-bg-2)" strokeWidth={3}>
+                    <text x={it.x + (left ? -16 : 16)} y={it.y + 4} textAnchor={left ? "end" : "start"} fontSize={12} fill="var(--map-label)" paintOrder="stroke" stroke="var(--map-bg-2)" strokeWidth={3}>
                       {it.item.name}
                     </text>
                   )}
@@ -521,11 +604,10 @@ export function BrainMapView({ map, currency, focusId, selection, onFocus, onSel
                   onMouseEnter={() => setHoverWf(w.wf.id)}
                   onMouseLeave={() => setHoverWf(null)}
                 >
-                  <circle cx={w.x} cy={w.y} r={16} fill="transparent" />
-                  <circle className="ring opacity-0" cx={w.x} cy={w.y} r={15} fill="none" stroke="var(--ring)" strokeWidth={2} />
-                  <circle cx={w.x} cy={w.y} r={sel ? 11 : 9} fill="var(--map-bg-2)" stroke={w.wf.health.breaks ? "#ef4444" : focused.color} strokeWidth={sel ? 3.5 : 2.5} />
-                  <circle cx={w.x} cy={w.y} r={3.2} fill={focused.color} />
-                  <text x={lab.x} y={lab.y} textAnchor={lab.anchor} fontSize={12.5} fontWeight={600} fill="var(--map-label)" paintOrder="stroke" stroke="var(--map-bg-2)" strokeWidth={4}>
+                  <circle cx={w.x} cy={w.y} r={24} fill="transparent" />
+                  <circle className="ring opacity-0" cx={w.x} cy={w.y} r={22} fill="none" stroke="var(--ring)" strokeWidth={2} />
+                  <circle cx={w.x} cy={w.y} r={sel ? 19 : 16} fill={focused.color} stroke={w.wf.health.breaks ? "#ef4444" : sel ? "var(--map-label)" : "none"} strokeWidth={sel ? 2.5 : 3} />
+                  <text x={lab.x} y={lab.y} textAnchor={lab.anchor} fontSize={14} fontWeight={600} fill="var(--map-label)" paintOrder="stroke" stroke="var(--map-bg-2)" strokeWidth={4}>
                     {w.wf.name}
                   </text>
                 </g>
@@ -533,8 +615,7 @@ export function BrainMapView({ map, currency, focusId, selection, onFocus, onSel
             })}
             <g role="button" tabIndex={0} aria-label={`${focused.c.name} details`} className="cursor-pointer outline-none" onClick={() => onSelect({ kind: "cluster", id: focused.c.id })} onKeyDown={onKey(() => onSelect({ kind: "cluster", id: focused.c.id }))}>
               {!reduce && <circle cx={focus.hub.x} cy={focus.hub.y} r={11} fill="none" stroke={focused.color} className="map-pulse" />}
-              <circle cx={focus.hub.x} cy={focus.hub.y} r={24} fill="var(--map-bg-2)" stroke={focused.color} strokeWidth={3} />
-              <circle cx={focus.hub.x} cy={focus.hub.y} r={8} fill={focused.color} />
+              <circle cx={focus.hub.x} cy={focus.hub.y} r={32} fill={focused.color} />
             </g>
             {focus.wfs.length === 0 && (
               <text x={0} y={200} textAnchor="middle" fontSize={15} fill="var(--map-sub)">
