@@ -18,7 +18,7 @@ export const en = {
   "nav.analytics": "Progress and analytics",
   "nav.audit": "Audit trail",
   "nav.graph": "Knowledge graph",
-  "nav.versioning": "Versioning",
+  "nav.versioning": "Knowledge graph's versioning",
   "nav.library": "Library",
   "nav.vault": "Ground truth vault",
   "nav.policies": "Policy registry",
