@@ -260,7 +260,7 @@ function StoryStep({ detail, draft, readOnly, onAsk }: { detail: WorkflowDetail;
       <StoryView
         key={live ? "live" : "saved"}
         story={story}
-        animate={!!live}
+        live={!!live}
         coverageFor={forOther ? undefined : (sc) => coverageOf(sc, detail.items)}
         onBuild={readOnly || live ? undefined : (sc) => onAsk(buildPrompt(sc))}
       />

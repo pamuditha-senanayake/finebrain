@@ -4,6 +4,7 @@ export const ROUTES: { path: string; persona: string; label: string }[] = [
   { path: "/", persona: "h-founder", label: "home" },
   { path: "/l1", persona: "h-founder", label: "l1-overview" },
   { path: "/l1/digest", persona: "h-founder", label: "l1-digest" },
+  { path: "/l1/ask", persona: "h-founder", label: "l1-ask" },
   { path: "/l1/approvals", persona: "h-founder", label: "l1-approvals" },
   { path: "/l1/approvals/apr-sentinel-grant", persona: "h-founder", label: "l1-approval-detail" },
   { path: "/l1/entity", persona: "h-fd", label: "l1-entity" },

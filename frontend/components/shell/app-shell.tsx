@@ -93,11 +93,11 @@ function Sidebar({ area, onNavigate }: { area: Area; onNavigate?: () => void }) 
   );
 }
 
-/** Ask the Brain floats bottom right on every page. Workflow Studio has its own assistant, so it steps aside there. */
+/** Ask the Brain floats bottom right on every page. Workflow Studio has its own assistant and the Ask the Brain page is the full version, so it steps aside on both. */
 function AskFab() {
   const setAsk = useUi((s) => s.setAskOpen);
   const pathname = usePathname();
-  if (pathname.startsWith("/studio")) return null;
+  if (pathname.startsWith("/studio") || pathname.startsWith("/l1/ask")) return null;
   return (
     <button
       type="button"

@@ -1,6 +1,7 @@
 import {
   Activity,
   AlarmClock,
+  AudioLines,
   BarChart3,
   BookOpen,
   Boxes,
@@ -40,13 +41,15 @@ export const NAV: NavArea[] = [
     home: "/l1",
     items: [
       { href: "/l1", label: "nav.overview", icon: LayoutDashboard, exact: true, group: 0 },
+      { href: "/l1/ask", label: "nav.ask", icon: AudioLines, group: 0 },
       { href: "/l1/digest", label: "nav.digest", icon: Sunrise, group: 0 },
-      { href: "/l1/approvals", label: "nav.approvals", icon: Inbox, group: 1 },
+      // Workflow Studio is the main feature, so it gets a section of its own.
       { href: "/studio", label: "nav.studio", icon: Workflow, group: 1 },
-      { href: "/l1/entity", label: "nav.entity", icon: CalendarClock, group: 1 },
-      { href: "/l1/evidence", label: "nav.evidence", icon: FileCheck2, group: 1 },
-      { href: "/l1/analytics", label: "nav.analytics", icon: BarChart3, group: 2 },
-      { href: "/l1/audit", label: "nav.audit", icon: ScrollText, group: 3 },
+      { href: "/l1/approvals", label: "nav.approvals", icon: Inbox, group: 2 },
+      { href: "/l1/entity", label: "nav.entity", icon: CalendarClock, group: 2 },
+      { href: "/l1/evidence", label: "nav.evidence", icon: FileCheck2, group: 2 },
+      { href: "/l1/analytics", label: "nav.analytics", icon: BarChart3, group: 3 },
+      { href: "/l1/audit", label: "nav.audit", icon: ScrollText, group: 4 },
     ],
   },
   {

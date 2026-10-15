@@ -13,6 +13,7 @@ export const en = {
   "nav.studioL2": "L2 workflow studio",
   "nav.overview": "Brain overview",
   "nav.digest": "Morning digest",
+  "nav.ask": "Ask the Brain",
   "nav.approvals": "All approvals",
   "nav.entity": "Entity protection",
   "nav.evidence": "Evidence requests",
