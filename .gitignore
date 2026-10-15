@@ -10,4 +10,5 @@ backend/.env
 # Generated user-guide video output (rebuilt by the guide scripts)
 video/.chrome/
 video/guide/.chrome/
+video/studio/.chrome/
 video/guide/*.mp4

@@ -36,6 +36,34 @@ export const StudioItem = z.object({
 });
 export type StudioItem = z.infer<typeof StudioItem>;
 
+/** One concrete example of the problem, written as a BDD scenario: what happens today, and what should happen instead. */
+export const Scenario = z.object({
+  id: z.string(),
+  title: z.string(),
+  given: z.array(z.string()),
+  when: z.string(),
+  then: z.array(z.string()).describe("What happens today, before the workflow"),
+  goal: z.string().describe("What should happen once the workflow handles this case"),
+  coveredBy: z.array(z.string()).describe("Parts of the workflow that handle this case"),
+});
+export type Scenario = z.infer<typeof Scenario>;
+
+/** Why a workflow exists: the problem, how it is handled today, and the cases it must handle. */
+export const Story = z.object({
+  problem: z.string(),
+  today: z.string(),
+  scenarios: z.array(Scenario),
+});
+export type Story = z.infer<typeof Story>;
+
+/** A story the chat drafted and is waiting for the person to confirm. Null workflowId means it starts a new workflow. */
+export const StoryDraft = z.object({
+  workflowId: z.string().nullable(),
+  name: z.string(),
+  story: Story,
+});
+export type StoryDraft = z.infer<typeof StoryDraft>;
+
 export const Workflow = z.object({
   id: z.string(),
   tenantId: z.string(),
@@ -49,6 +77,7 @@ export const Workflow = z.object({
   editors: z.array(z.string()).describe("People besides the DRI who may confirm low criticality edits"),
   criticality: Criticality,
   members: z.array(z.string()),
+  story: Story.nullable().default(null),
   updatedAt: IsoDate,
   updatedBy: z.string(),
 });
@@ -117,6 +146,7 @@ export const ProposalInput = z.object({
     status: ItemStatus.optional(),
     dri: z.string().optional(),
     fields: ItemFields.optional(),
+    story: Story.optional().describe("Workflows only: the problem and its scenarios"),
   }),
 });
 export type ProposalInput = z.infer<typeof ProposalInput>;
@@ -185,6 +215,7 @@ export const ChatRequest = z.object({
   message: z.string(),
   focus: z.object({ kind: StudioKind, id: z.string() }).nullable(),
   history: z.array(ChatTurn),
+  story: StoryDraft.nullable().default(null).describe("The story under discussion, sent back so the person can confirm or change it"),
 });
 export type ChatRequest = z.infer<typeof ChatRequest>;
 
@@ -196,6 +227,7 @@ export const ChatReply = z.object({
   proposal: Proposal.nullable(),
   focus: z.object({ kind: StudioKind, id: z.string() }).nullable(),
   workflowId: z.string().nullable().describe("Set when the reply moves the conversation to another workflow"),
+  story: StoryDraft.nullable().default(null).describe("Set when the reply drafts a problem and its scenarios for the person to confirm"),
 });
 export type ChatReply = z.infer<typeof ChatReply>;
 

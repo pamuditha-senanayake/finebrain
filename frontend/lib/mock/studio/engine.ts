@@ -20,7 +20,7 @@ import type {
   WorkflowSummary,
 } from "@/contracts";
 import { approverFor } from "@/lib/governance/criticality";
-import { FIELD_SPECS, KIND_LABEL, MEMBER_ORDER, describeCron, fieldLabel, formatValue, isParam, refsOf, validCron } from "@/lib/studio/spec";
+import { FIELD_SPECS, KIND_LABEL, MEMBER_ORDER, TOOL_LEVEL_LABEL, describeCron, fieldLabel, formatValue, isParam, refsOf, validCron } from "@/lib/studio/spec";
 import { iso } from "../prng";
 import type { StudioData, TenantData } from "../types";
 
@@ -122,8 +122,8 @@ function materialize(d: TenantData, h: Human, input: ProposalInput): { before: T
     if (input.intent === "delete") return { before, after: null, wf: before };
     const base: Workflow = before
       ? structuredClone(before)
-      : { id: `wf-${slug(p.name ?? "new-workflow")}`, tenantId: d.tenant.id, name: p.name ?? "New workflow", description: "", topics: [], status: "draft", version: 0, clusterId: d.clusters[0]?.id ?? "", dri: h.id, editors: [], criticality: 2, members: [], updatedAt: "", updatedBy: h.id };
-    const after: Workflow = { ...base, ...(p.name !== undefined && { name: p.name }), ...(p.description !== undefined && { description: p.description }), ...(p.topics && { topics: p.topics }), ...(p.status && { status: p.status }), ...(p.dri && { dri: p.dri }) };
+      : { id: `wf-${slug(p.name ?? "new-workflow")}`, tenantId: d.tenant.id, name: p.name ?? "New workflow", description: "", topics: [], status: "draft", version: 0, clusterId: d.clusters[0]?.id ?? "", dri: h.id, editors: [], criticality: 2, members: [], story: null, updatedAt: "", updatedBy: h.id };
+    const after: Workflow = { ...base, ...(p.story && { story: p.story }), ...(p.name !== undefined && { name: p.name }), ...(p.description !== undefined && { description: p.description }), ...(p.topics && { topics: p.topics }), ...(p.status && { status: p.status }), ...(p.dri && { dri: p.dri }) };
     if (p.fields?.criticality !== undefined) after.criticality = Math.max(0, Math.min(4, Number(p.fields.criticality))) as Criticality;
     return { before, after, wf: before ?? after };
   }
@@ -163,6 +163,9 @@ function diff(s: StudioData, kind: StudioKind, before: Target | null, after: Tar
     if (v === undefined || (Array.isArray(v) && v.length === 0) || v === "") return null;
     if (isRef(key)) return (Array.isArray(v) ? v : [String(v)]).map((id) => nameOf(s, id)).join(", ");
     if (key === "cron") return `${describeCron(String(v))} (${v})`;
+    if (kind === "tool" && key === "level") return TOOL_LEVEL_LABEL[String(v)] ?? String(v);
+    // Code is read in the editor, not in a diff line.
+    if (kind === "tool" && key === "code") return `${String(v).trim().split("\n").length} lines`;
     return formatValue(v, key);
   };
   for (const key of ["name", "description", "topics", "status"] as const) {
@@ -173,6 +176,13 @@ function diff(s: StudioData, kind: StudioKind, before: Target | null, after: Tar
     if (!eq(b?.fields[key], a?.fields[key])) out.push({ field: key, label: fieldLabel(kind, key), before: show(b?.fields[key], key), after: show(a?.fields[key], key) });
   }
   if (before && after && "dri" in before && before.dri !== after.dri) out.push({ field: "dri", label: "DRI", before: before.dri, after: after.dri });
+  if ((before && isWorkflow(before)) || (after && isWorkflow(after))) {
+    const count = (t: Target | null) => (t && isWorkflow(t) && t.story ? `${t.story.scenarios.length} scenario${t.story.scenarios.length === 1 ? "" : "s"}` : null);
+    const sb = before && isWorkflow(before) ? before.story : null;
+    const sa = after && isWorkflow(after) ? after.story : null;
+    if (sa && sb?.problem !== sa.problem) out.push({ field: "story.problem", label: "Problem", before: sb?.problem ?? null, after: sa.problem });
+    if (JSON.stringify(sb?.scenarios ?? []) !== JSON.stringify(sa?.scenarios ?? [])) out.push({ field: "story.scenarios", label: "Scenarios", before: count(before), after: count(after) });
+  }
   return out.filter((c) => c.before !== c.after);
 }
 
@@ -265,6 +275,10 @@ function itemFindings(c: Ctx2, it: StudioItem, scope: StudioItem[]): { findings:
     const learned = scope.some((x) => x.kind === "loop" && x.fields.learning === it.id);
     if (!filled && !learned) findings.push({ severity: "warn", text: `No skill fills ${it.name}, so it will go stale.`, ref });
   }
+  if (it.kind === "tool" && it.fields.level === "custom") {
+    const test = sandboxTest(String(it.fields.code ?? ""));
+    findings.push(test.ok ? { severity: "info", text: `${it.name} passed its sandbox test run.`, ref } : { severity: "break", text: `${it.name} failed its sandbox test run: ${test.reason}`, ref });
+  }
   if (it.kind === "policy" && it.status === "active") {
     const governs = scope.some((x) => (x.kind === "skill" && ((x.fields.policies as string[]) ?? []).includes(it.id)) || (x.kind === "loop" && ((x.fields.guards as string[]) ?? []).includes(it.id)));
     if (!governs) findings.push({ severity: "info", text: `${it.name} does not govern any skill yet.`, ref });
@@ -272,12 +286,28 @@ function itemFindings(c: Ctx2, it: StudioItem, scope: StudioItem[]): { findings:
   return { findings, fixes };
 }
 
+/** Mock sandbox run for a custom tool. A real backend executes the code in isolation; this checks the same contract. */
+export function sandboxTest(code: string): { ok: true } | { ok: false; reason: string } {
+  if (!code.trim()) return { ok: false, reason: "there is no code yet." };
+  if (!/export\s+async\s+function\s+run\s*\(/.test(code)) return { ok: false, reason: "it needs an exported async run(input) function." };
+  const reach = code.match(/process\.env|child_process|require\(|\beval\(|new Function/);
+  if (reach) return { ok: false, reason: `it reaches outside the sandbox (${reach[0]}).` };
+  let depth = 0;
+  for (const ch of code) {
+    depth += ch === "{" ? 1 : ch === "}" ? -1 : 0;
+    if (depth < 0) break;
+  }
+  if (depth !== 0) return { ok: false, reason: "its braces do not balance." };
+  return { ok: true };
+}
+
 export function healthOf(d: TenantData, wf: Workflow) {
   const scope = scopeOf(d.studio, wf);
   const c: Ctx2 = { s: d.studio, d, wf };
   const findings: Finding[] = [];
   const fixes: Suggestion[] = [];
-  for (const it of membersOf(d.studio, wf)) {
+  // Shared tools are checked too, so a custom tool that fails its sandbox test shows up where it is used.
+  for (const it of scope) {
     const r = itemFindings(c, it, scope);
     findings.push(...r.findings);
     fixes.push(...r.fixes);
@@ -306,6 +336,8 @@ function baseLevel(input: ProposalInput, changes: FieldChange[], before: Target 
   if (input.intent === "update" && metaOnly) return { level: 1, reason: "a wording change starts at C1" };
   const k = input.kind;
   if (k === "workflow") return input.intent === "update" && !fields.includes("status") ? { level: 1, reason: "a workflow setting change starts at C1" } : { level: input.intent === "create" ? 2 : 3, reason: `${input.intent === "create" ? "a new workflow starts at C2" : "pausing, retiring or deleting a workflow starts at C3"}` };
+  const custom = (after as StudioItem | null)?.fields?.level === "custom";
+  if (k === "tool" && custom && input.intent !== "delete" && (input.intent === "create" || fields.includes("code") || fields.includes("level"))) return { level: 3, reason: "custom tool code starts at C3, so a person approves it once before agents call it" };
   if (k === "tool") return input.intent === "create" ? { level: 2, reason: "a new shared tool starts at C2" } : { level: 3, reason: "a shared tool change starts at C3, since other workflows depend on it" };
   if (k === "policy") return { level: 3, reason: `a policy ${input.intent === "update" ? "change" : input.intent === "create" ? "addition" : "removal"} starts at C3` };
   if (k === "skill") return input.intent === "update" ? { level: 2, reason: "a skill edit starts at C2" } : { level: 3, reason: `a skill ${input.intent === "create" ? "addition" : "removal"} starts at C3` };
@@ -428,10 +460,11 @@ export function review(d: TenantData, h: Human, input: ProposalInput): Proposal 
           const removed = (((before as StudioItem | null)?.fields.fieldList as string[]) ?? []).filter((x) => !((item.fields.fieldList as string[]) ?? []).includes(x));
           if (removed.length && inbound.length) findings.push({ severity: "warn", text: `${removed.join(", ")} will stop being reported. ${inbound.map((r) => r.item.name).join(", ")} fill this template.`, ref: null });
         }
-        if (item.kind === "tool" && ch.field === "sideEffect" && (ch.after === "money" || ch.after === "public")) findings.push({ severity: "break", text: `${item.name} would start ${ch.after === "money" ? "moving money" : "publishing in public"}. Every skill that uses it needs a fresh review.`, ref: null });
-        if (item.kind === "tool" && ch.field === "capability") findings.push({ severity: "break", text: `Agents holding the old capability lose access to ${item.name} until they are granted the new one.`, ref: null });
+        if (item.kind === "tool" && input.intent === "update" && ch.field === "sideEffect" && (ch.after === "money" || ch.after === "public")) findings.push({ severity: "break", text: `${item.name} would start ${ch.after === "money" ? "moving money" : "publishing in public"}. Every skill that uses it needs a fresh review.`, ref: null });
+        if (item.kind === "tool" && input.intent === "update" && ch.field === "capability") findings.push({ severity: "break", text: `Agents holding the old capability lose access to ${item.name} until they are granted the new one.`, ref: null });
       }
       if (item.kind === "tool" && otherWorkflows.length && input.intent === "update") findings.push({ severity: "warn", text: `${item.name} is shared. ${otherWorkflows.length} other workflow${otherWorkflows.length > 1 ? "s" : ""} change with it: ${otherWorkflows.map((w) => w.name).join(", ")}.`, ref: null });
+      if (item.kind === "tool" && input.intent === "create" && (item.fields.sideEffect === "money" || item.fields.sideEffect === "public")) findings.push({ severity: "warn", text: `${item.name} ${item.fields.sideEffect === "money" ? "moves money" : "publishes in public"}. Attach it only to skills a policy governs.`, ref: null });
       if (input.intent === "create") findings.push({ severity: "info", text: `${item.name} is added to ${wf?.name ?? "the shared tool library"}.`, ref: null });
       if (changes.every((ch) => ["name", "description", "topics"].includes(ch.field))) findings.push({ severity: "info", text: "Only wording and topics change. Agents keep behaving the same way.", ref: null });
     }

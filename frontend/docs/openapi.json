@@ -8537,6 +8537,82 @@
                           "type": "string"
                         }
                       },
+                      "story": {
+                        "default": null,
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "problem": {
+                                "type": "string"
+                              },
+                              "today": {
+                                "type": "string"
+                              },
+                              "scenarios": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "given": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "when": {
+                                      "type": "string"
+                                    },
+                                    "then": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "description": "What happens today, before the workflow"
+                                    },
+                                    "goal": {
+                                      "type": "string",
+                                      "description": "What should happen once the workflow handles this case"
+                                    },
+                                    "coveredBy": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "description": "Parts of the workflow that handle this case"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "title",
+                                    "given",
+                                    "when",
+                                    "then",
+                                    "goal",
+                                    "coveredBy"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "problem",
+                              "today",
+                              "scenarios"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
                       "updatedAt": {
                         "type": "string",
                         "description": "ISO 8601 timestamp, UTC"
@@ -8614,6 +8690,7 @@
                       "editors",
                       "criticality",
                       "members",
+                      "story",
                       "updatedAt",
                       "updatedBy",
                       "counts",
@@ -8736,6 +8813,82 @@
                             "type": "string"
                           }
                         },
+                        "story": {
+                          "default": null,
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "problem": {
+                                  "type": "string"
+                                },
+                                "today": {
+                                  "type": "string"
+                                },
+                                "scenarios": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "given": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "when": {
+                                        "type": "string"
+                                      },
+                                      "then": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        },
+                                        "description": "What happens today, before the workflow"
+                                      },
+                                      "goal": {
+                                        "type": "string",
+                                        "description": "What should happen once the workflow handles this case"
+                                      },
+                                      "coveredBy": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        },
+                                        "description": "Parts of the workflow that handle this case"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "title",
+                                      "given",
+                                      "when",
+                                      "then",
+                                      "goal",
+                                      "coveredBy"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "required": [
+                                "problem",
+                                "today",
+                                "scenarios"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "updatedAt": {
                           "type": "string",
                           "description": "ISO 8601 timestamp, UTC"
@@ -8757,6 +8910,7 @@
                         "editors",
                         "criticality",
                         "members",
+                        "story",
                         "updatedAt",
                         "updatedBy"
                       ],
@@ -9117,6 +9271,75 @@
                                         }
                                       ]
                                     }
+                                  },
+                                  "story": {
+                                    "description": "Workflows only: the problem and its scenarios",
+                                    "type": "object",
+                                    "properties": {
+                                      "problem": {
+                                        "type": "string"
+                                      },
+                                      "today": {
+                                        "type": "string"
+                                      },
+                                      "scenarios": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "id": {
+                                              "type": "string"
+                                            },
+                                            "title": {
+                                              "type": "string"
+                                            },
+                                            "given": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "when": {
+                                              "type": "string"
+                                            },
+                                            "then": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string"
+                                              },
+                                              "description": "What happens today, before the workflow"
+                                            },
+                                            "goal": {
+                                              "type": "string",
+                                              "description": "What should happen once the workflow handles this case"
+                                            },
+                                            "coveredBy": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string"
+                                              },
+                                              "description": "Parts of the workflow that handle this case"
+                                            }
+                                          },
+                                          "required": [
+                                            "id",
+                                            "title",
+                                            "given",
+                                            "when",
+                                            "then",
+                                            "goal",
+                                            "coveredBy"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "problem",
+                                      "today",
+                                      "scenarios"
+                                    ],
+                                    "additionalProperties": false
                                   }
                                 },
                                 "additionalProperties": false
@@ -9620,6 +9843,75 @@
                                     }
                                   ]
                                 }
+                              },
+                              "story": {
+                                "description": "Workflows only: the problem and its scenarios",
+                                "type": "object",
+                                "properties": {
+                                  "problem": {
+                                    "type": "string"
+                                  },
+                                  "today": {
+                                    "type": "string"
+                                  },
+                                  "scenarios": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "title": {
+                                          "type": "string"
+                                        },
+                                        "given": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "when": {
+                                          "type": "string"
+                                        },
+                                        "then": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          },
+                                          "description": "What happens today, before the workflow"
+                                        },
+                                        "goal": {
+                                          "type": "string",
+                                          "description": "What should happen once the workflow handles this case"
+                                        },
+                                        "coveredBy": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          },
+                                          "description": "Parts of the workflow that handle this case"
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "title",
+                                        "given",
+                                        "when",
+                                        "then",
+                                        "goal",
+                                        "coveredBy"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "problem",
+                                  "today",
+                                  "scenarios"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "additionalProperties": false
@@ -11038,13 +11330,111 @@
                       ],
                       "additionalProperties": false
                     }
+                  },
+                  "story": {
+                    "default": null,
+                    "description": "The story under discussion, sent back so the person can confirm or change it",
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "workflowId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "story": {
+                            "type": "object",
+                            "properties": {
+                              "problem": {
+                                "type": "string"
+                              },
+                              "today": {
+                                "type": "string"
+                              },
+                              "scenarios": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "given": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "when": {
+                                      "type": "string"
+                                    },
+                                    "then": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "description": "What happens today, before the workflow"
+                                    },
+                                    "goal": {
+                                      "type": "string",
+                                      "description": "What should happen once the workflow handles this case"
+                                    },
+                                    "coveredBy": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "description": "Parts of the workflow that handle this case"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "title",
+                                    "given",
+                                    "when",
+                                    "then",
+                                    "goal",
+                                    "coveredBy"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "problem",
+                              "today",
+                              "scenarios"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "workflowId",
+                          "name",
+                          "story"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
                   "workflowId",
                   "message",
                   "focus",
-                  "history"
+                  "history",
+                  "story"
                 ],
                 "additionalProperties": false
               }
@@ -11255,6 +11645,75 @@
                                         }
                                       ]
                                     }
+                                  },
+                                  "story": {
+                                    "description": "Workflows only: the problem and its scenarios",
+                                    "type": "object",
+                                    "properties": {
+                                      "problem": {
+                                        "type": "string"
+                                      },
+                                      "today": {
+                                        "type": "string"
+                                      },
+                                      "scenarios": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "id": {
+                                              "type": "string"
+                                            },
+                                            "title": {
+                                              "type": "string"
+                                            },
+                                            "given": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "when": {
+                                              "type": "string"
+                                            },
+                                            "then": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string"
+                                              },
+                                              "description": "What happens today, before the workflow"
+                                            },
+                                            "goal": {
+                                              "type": "string",
+                                              "description": "What should happen once the workflow handles this case"
+                                            },
+                                            "coveredBy": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string"
+                                              },
+                                              "description": "Parts of the workflow that handle this case"
+                                            }
+                                          },
+                                          "required": [
+                                            "id",
+                                            "title",
+                                            "given",
+                                            "when",
+                                            "then",
+                                            "goal",
+                                            "coveredBy"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "problem",
+                                      "today",
+                                      "scenarios"
+                                    ],
+                                    "additionalProperties": false
                                   }
                                 },
                                 "additionalProperties": false
@@ -11371,6 +11830,75 @@
                                           }
                                         ]
                                       }
+                                    },
+                                    "story": {
+                                      "description": "Workflows only: the problem and its scenarios",
+                                      "type": "object",
+                                      "properties": {
+                                        "problem": {
+                                          "type": "string"
+                                        },
+                                        "today": {
+                                          "type": "string"
+                                        },
+                                        "scenarios": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "object",
+                                            "properties": {
+                                              "id": {
+                                                "type": "string"
+                                              },
+                                              "title": {
+                                                "type": "string"
+                                              },
+                                              "given": {
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "when": {
+                                                "type": "string"
+                                              },
+                                              "then": {
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "string"
+                                                },
+                                                "description": "What happens today, before the workflow"
+                                              },
+                                              "goal": {
+                                                "type": "string",
+                                                "description": "What should happen once the workflow handles this case"
+                                              },
+                                              "coveredBy": {
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "string"
+                                                },
+                                                "description": "Parts of the workflow that handle this case"
+                                              }
+                                            },
+                                            "required": [
+                                              "id",
+                                              "title",
+                                              "given",
+                                              "when",
+                                              "then",
+                                              "goal",
+                                              "coveredBy"
+                                            ],
+                                            "additionalProperties": false
+                                          }
+                                        }
+                                      },
+                                      "required": [
+                                        "problem",
+                                        "today",
+                                        "scenarios"
+                                      ],
+                                      "additionalProperties": false
                                     }
                                   },
                                   "additionalProperties": false
@@ -11708,6 +12236,75 @@
                                                     }
                                                   ]
                                                 }
+                                              },
+                                              "story": {
+                                                "description": "Workflows only: the problem and its scenarios",
+                                                "type": "object",
+                                                "properties": {
+                                                  "problem": {
+                                                    "type": "string"
+                                                  },
+                                                  "today": {
+                                                    "type": "string"
+                                                  },
+                                                  "scenarios": {
+                                                    "type": "array",
+                                                    "items": {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "id": {
+                                                          "type": "string"
+                                                        },
+                                                        "title": {
+                                                          "type": "string"
+                                                        },
+                                                        "given": {
+                                                          "type": "array",
+                                                          "items": {
+                                                            "type": "string"
+                                                          }
+                                                        },
+                                                        "when": {
+                                                          "type": "string"
+                                                        },
+                                                        "then": {
+                                                          "type": "array",
+                                                          "items": {
+                                                            "type": "string"
+                                                          },
+                                                          "description": "What happens today, before the workflow"
+                                                        },
+                                                        "goal": {
+                                                          "type": "string",
+                                                          "description": "What should happen once the workflow handles this case"
+                                                        },
+                                                        "coveredBy": {
+                                                          "type": "array",
+                                                          "items": {
+                                                            "type": "string"
+                                                          },
+                                                          "description": "Parts of the workflow that handle this case"
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "id",
+                                                        "title",
+                                                        "given",
+                                                        "when",
+                                                        "then",
+                                                        "goal",
+                                                        "coveredBy"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    }
+                                                  }
+                                                },
+                                                "required": [
+                                                  "problem",
+                                                  "today",
+                                                  "scenarios"
+                                                ],
+                                                "additionalProperties": false
                                               }
                                             },
                                             "additionalProperties": false
@@ -11830,6 +12427,103 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "story": {
+                      "default": null,
+                      "description": "Set when the reply drafts a problem and its scenarios for the person to confirm",
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "workflowId": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "story": {
+                              "type": "object",
+                              "properties": {
+                                "problem": {
+                                  "type": "string"
+                                },
+                                "today": {
+                                  "type": "string"
+                                },
+                                "scenarios": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "given": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "when": {
+                                        "type": "string"
+                                      },
+                                      "then": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        },
+                                        "description": "What happens today, before the workflow"
+                                      },
+                                      "goal": {
+                                        "type": "string",
+                                        "description": "What should happen once the workflow handles this case"
+                                      },
+                                      "coveredBy": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        },
+                                        "description": "Parts of the workflow that handle this case"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "title",
+                                      "given",
+                                      "when",
+                                      "then",
+                                      "goal",
+                                      "coveredBy"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "required": [
+                                "problem",
+                                "today",
+                                "scenarios"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "workflowId",
+                            "name",
+                            "story"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -11839,7 +12533,8 @@
                     "suggestions",
                     "proposal",
                     "focus",
-                    "workflowId"
+                    "workflowId",
+                    "story"
                   ],
                   "additionalProperties": false
                 }
@@ -11963,6 +12658,75 @@
                                 }
                               ]
                             }
+                          },
+                          "story": {
+                            "description": "Workflows only: the problem and its scenarios",
+                            "type": "object",
+                            "properties": {
+                              "problem": {
+                                "type": "string"
+                              },
+                              "today": {
+                                "type": "string"
+                              },
+                              "scenarios": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "given": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "when": {
+                                      "type": "string"
+                                    },
+                                    "then": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "description": "What happens today, before the workflow"
+                                    },
+                                    "goal": {
+                                      "type": "string",
+                                      "description": "What should happen once the workflow handles this case"
+                                    },
+                                    "coveredBy": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "description": "Parts of the workflow that handle this case"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "title",
+                                    "given",
+                                    "when",
+                                    "then",
+                                    "goal",
+                                    "coveredBy"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "problem",
+                              "today",
+                              "scenarios"
+                            ],
+                            "additionalProperties": false
                           }
                         },
                         "additionalProperties": false
@@ -12194,6 +12958,75 @@
                                         }
                                       ]
                                     }
+                                  },
+                                  "story": {
+                                    "description": "Workflows only: the problem and its scenarios",
+                                    "type": "object",
+                                    "properties": {
+                                      "problem": {
+                                        "type": "string"
+                                      },
+                                      "today": {
+                                        "type": "string"
+                                      },
+                                      "scenarios": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "id": {
+                                              "type": "string"
+                                            },
+                                            "title": {
+                                              "type": "string"
+                                            },
+                                            "given": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "when": {
+                                              "type": "string"
+                                            },
+                                            "then": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string"
+                                              },
+                                              "description": "What happens today, before the workflow"
+                                            },
+                                            "goal": {
+                                              "type": "string",
+                                              "description": "What should happen once the workflow handles this case"
+                                            },
+                                            "coveredBy": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string"
+                                              },
+                                              "description": "Parts of the workflow that handle this case"
+                                            }
+                                          },
+                                          "required": [
+                                            "id",
+                                            "title",
+                                            "given",
+                                            "when",
+                                            "then",
+                                            "goal",
+                                            "coveredBy"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "problem",
+                                      "today",
+                                      "scenarios"
+                                    ],
+                                    "additionalProperties": false
                                   }
                                 },
                                 "additionalProperties": false
@@ -12310,6 +13143,75 @@
                                           }
                                         ]
                                       }
+                                    },
+                                    "story": {
+                                      "description": "Workflows only: the problem and its scenarios",
+                                      "type": "object",
+                                      "properties": {
+                                        "problem": {
+                                          "type": "string"
+                                        },
+                                        "today": {
+                                          "type": "string"
+                                        },
+                                        "scenarios": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "object",
+                                            "properties": {
+                                              "id": {
+                                                "type": "string"
+                                              },
+                                              "title": {
+                                                "type": "string"
+                                              },
+                                              "given": {
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "when": {
+                                                "type": "string"
+                                              },
+                                              "then": {
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "string"
+                                                },
+                                                "description": "What happens today, before the workflow"
+                                              },
+                                              "goal": {
+                                                "type": "string",
+                                                "description": "What should happen once the workflow handles this case"
+                                              },
+                                              "coveredBy": {
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "string"
+                                                },
+                                                "description": "Parts of the workflow that handle this case"
+                                              }
+                                            },
+                                            "required": [
+                                              "id",
+                                              "title",
+                                              "given",
+                                              "when",
+                                              "then",
+                                              "goal",
+                                              "coveredBy"
+                                            ],
+                                            "additionalProperties": false
+                                          }
+                                        }
+                                      },
+                                      "required": [
+                                        "problem",
+                                        "today",
+                                        "scenarios"
+                                      ],
+                                      "additionalProperties": false
                                     }
                                   },
                                   "additionalProperties": false
@@ -12647,6 +13549,75 @@
                                                     }
                                                   ]
                                                 }
+                                              },
+                                              "story": {
+                                                "description": "Workflows only: the problem and its scenarios",
+                                                "type": "object",
+                                                "properties": {
+                                                  "problem": {
+                                                    "type": "string"
+                                                  },
+                                                  "today": {
+                                                    "type": "string"
+                                                  },
+                                                  "scenarios": {
+                                                    "type": "array",
+                                                    "items": {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "id": {
+                                                          "type": "string"
+                                                        },
+                                                        "title": {
+                                                          "type": "string"
+                                                        },
+                                                        "given": {
+                                                          "type": "array",
+                                                          "items": {
+                                                            "type": "string"
+                                                          }
+                                                        },
+                                                        "when": {
+                                                          "type": "string"
+                                                        },
+                                                        "then": {
+                                                          "type": "array",
+                                                          "items": {
+                                                            "type": "string"
+                                                          },
+                                                          "description": "What happens today, before the workflow"
+                                                        },
+                                                        "goal": {
+                                                          "type": "string",
+                                                          "description": "What should happen once the workflow handles this case"
+                                                        },
+                                                        "coveredBy": {
+                                                          "type": "array",
+                                                          "items": {
+                                                            "type": "string"
+                                                          },
+                                                          "description": "Parts of the workflow that handle this case"
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "id",
+                                                        "title",
+                                                        "given",
+                                                        "when",
+                                                        "then",
+                                                        "goal",
+                                                        "coveredBy"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    }
+                                                  }
+                                                },
+                                                "required": [
+                                                  "problem",
+                                                  "today",
+                                                  "scenarios"
+                                                ],
+                                                "additionalProperties": false
                                               }
                                             },
                                             "additionalProperties": false
@@ -12769,6 +13740,103 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "story": {
+                      "default": null,
+                      "description": "Set when the reply drafts a problem and its scenarios for the person to confirm",
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "workflowId": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "story": {
+                              "type": "object",
+                              "properties": {
+                                "problem": {
+                                  "type": "string"
+                                },
+                                "today": {
+                                  "type": "string"
+                                },
+                                "scenarios": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "given": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "when": {
+                                        "type": "string"
+                                      },
+                                      "then": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        },
+                                        "description": "What happens today, before the workflow"
+                                      },
+                                      "goal": {
+                                        "type": "string",
+                                        "description": "What should happen once the workflow handles this case"
+                                      },
+                                      "coveredBy": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        },
+                                        "description": "Parts of the workflow that handle this case"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "title",
+                                      "given",
+                                      "when",
+                                      "then",
+                                      "goal",
+                                      "coveredBy"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "required": [
+                                "problem",
+                                "today",
+                                "scenarios"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "workflowId",
+                            "name",
+                            "story"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -12778,7 +13846,8 @@
                     "suggestions",
                     "proposal",
                     "focus",
-                    "workflowId"
+                    "workflowId",
+                    "story"
                   ],
                   "additionalProperties": false
                 }

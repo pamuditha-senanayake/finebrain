@@ -125,13 +125,27 @@ export const FIELD_SPECS: Record<MemberKind, FieldSpec[]> = {
     { key: "reviewCadence", label: "Review cadence", type: "text", synonyms: ["review", "review cadence"] },
   ],
   tool: [
+    { key: "level", label: "Kind of tool", type: "select", options: ["prebuilt", "configured", "custom"], synonyms: ["kind of tool", "tool level", "prebuilt", "ready made"], hint: "Ready-made, set up from a connector, or custom code" },
     { key: "endpoint", label: "Endpoint", type: "text", synonyms: ["endpoint", "url", "api"] },
     { key: "capability", label: "Required capability", type: "text", synonyms: ["capability", "permission"] },
     { key: "sensitivity", label: "Sensitivity", type: "select", options: ["public", "internal", "confidential", "restricted"], synonyms: ["sensitivity"] },
     { key: "sideEffect", label: "Side effect", type: "select", options: ["read", "write", "money", "public"], synonyms: ["side effect", "effect"] },
     { key: "rateLimitPerMin", label: "Rate limit", type: "number", unit: "per minute", synonyms: ["rate limit", "rate", "throttle"] },
+    { key: "code", label: "Code", type: "longtext", synonyms: ["code", "script", "source code"], hint: "Custom tools only. Runs in a sandbox and must pass a test run." },
   ],
 };
+
+/** Tools come in three levels. The assistant always tries the simplest one that does the job. */
+export const TOOL_LEVEL_LABEL: Record<string, string> = {
+  prebuilt: "Ready-made",
+  configured: "Set up",
+  custom: "Custom code",
+};
+
+/** The fields a form or detail view shows for an item. Code only matters for custom tools. */
+export function visibleSpecs(kind: MemberKind, fields: Record<string, FieldValue>): FieldSpec[] {
+  return FIELD_SPECS[kind].filter((s) => !(kind === "tool" && s.key === "code" && fields.level !== "custom"));
+}
 
 /** Policy rule parameters live in fields under "param.<name>". Most are money or time limits. */
 export const POLICY_PARAM_LABEL: Record<string, string> = {

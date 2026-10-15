@@ -2,6 +2,7 @@
 // skills, agents, policies, templates, sensors, schedulers and loops it needs. Tools stay shared.
 import type { Criticality, ItemFields, MemberKind, Revision, Snapshot, StudioItem, Workflow } from "@/contracts";
 import { TOOLS } from "../seed/catalog";
+import { seededStory } from "./stories";
 import { DAY, HOUR, SEED_NOW, hashString, iso } from "../prng";
 import type { StudioData, TenantData } from "../types";
 
@@ -94,7 +95,7 @@ function seedFinebase(d: TenantData): StudioData {
     const item: StudioItem = {
       id: t.id, kind: "tool", workflowId: null, name: t.label, description: `Calls ${t.label} on behalf of an agent. Needs the ${t.capability} capability.`, topics: [t.label.split(".")[0]],
       status: "active", version: 2, dri: "h-aiops",
-      fields: { endpoint: `https://api.finebase.internal/${t.label.replace(".", "/")}`, capability: t.capability, sensitivity: t.sensitivity, sideEffect: sideEffect(t.id), rateLimitPerMin: sideEffect(t.id) === "money" ? 20 : 60 },
+      fields: { level: sideEffect(t.id) === "read" ? "configured" : "prebuilt", endpoint: `https://api.finebase.internal/${t.label.replace(".", "/")}`, capability: t.capability, sensitivity: t.sensitivity, sideEffect: sideEffect(t.id), rateLimitPerMin: sideEffect(t.id) === "money" ? 20 : 60 },
       updatedAt: at(ago(t.id, 20, 40)), updatedBy: "h-aiops",
     };
     s.items.push(item);
@@ -224,7 +225,7 @@ function seedFinebase(d: TenantData): StudioData {
     const wf: Workflow = {
       id: wfId, tenantId, name: def.name, description: def.description, topics: def.topics, status: "active", version: 3, clusterId: cluster, dri,
       editors: def.editors ?? d.humans.filter((h) => h.tier === "L2" && h.driOf.some((x) => def.agents.includes(x) || x === cluster)).map((h) => h.id).filter((h) => h !== dri).slice(0, 2),
-      criticality: def.criticality, members, updatedAt: at(ago(wfId, 2, 14)), updatedBy: dri,
+      criticality: def.criticality, members, story: seededStory(def.key, s.items.filter((i) => members.includes(i.id))), updatedAt: at(ago(wfId, 2, 14)), updatedBy: dri,
     };
     s.workflows.push(wf);
     const wfSnap: Snapshot = { name: wf.name, description: wf.description, topics: wf.topics, status: wf.status, fields: { criticality: String(wf.criticality), dri: wf.dri } };
@@ -240,7 +241,7 @@ function seedScale(d: TenantData): StudioData {
   const s = emptyStudio();
   const active = d.clusters.filter((c) => c.status === "active");
   for (let i = 0; i < 20; i++) {
-    const item: StudioItem = { id: `tool:t${i}`, kind: "tool", workflowId: null, name: `tool ${i}`, description: `Generated tool ${i}.`, topics: ["generated"], status: "active", version: 1, dri: "sh-4", fields: { endpoint: `https://api.scale.internal/t${i}`, capability: `cap:${i}`, sensitivity: i % 3 ? "internal" : "confidential", sideEffect: i % 4 === 0 ? "money" : "write", rateLimitPerMin: 60 }, updatedAt: iso(SEED_NOW - (i + 3) * DAY), updatedBy: "sh-4" };
+    const item: StudioItem = { id: `tool:t${i}`, kind: "tool", workflowId: null, name: `tool ${i}`, description: `Generated tool ${i}.`, topics: ["generated"], status: "active", version: 1, dri: "sh-4", fields: { level: i % 5 === 0 ? "configured" : "prebuilt", endpoint: `https://api.scale.internal/t${i}`, capability: `cap:${i}`, sensitivity: i % 3 ? "internal" : "confidential", sideEffect: i % 4 === 0 ? "money" : "write", rateLimitPerMin: 60 }, updatedAt: iso(SEED_NOW - (i + 3) * DAY), updatedBy: "sh-4" };
     s.items.push(item);
     s.revisions.push({ id: `rev-${item.id}-v1`, targetKind: "tool", targetId: item.id, workflowId: null, version: 1, op: "create", at: item.updatedAt, by: item.dri, summary: "Registered tool", snapshot: snap(item), verdict: null, changeRequestId: null });
   }
@@ -264,7 +265,7 @@ function seedScale(d: TenantData): StudioData {
     const skills = [0, 1, 2, 3].map((n) => mk("skill", n, `${c.name} procedure ${n}`, { trigger: "Event matched by resolver", steps: ["retrieval: Retrieve context", "judgment: Decide", `tool: Act [tool:t${(ci * 3 + n) % 20}]`], agents: [agents[n % 2]], tools: [`tool:t${(ci * 3 + n) % 20}`], policies: [policies[n % 3]], templates: [templates[n % 2]], inputs: [sensors[n % 3]], outputs: ["Result"], evalCases: 30 }));
     [0, 1].forEach((n) => mk("scheduler", n, `${c.name} schedule ${n}`, { cron: n ? "0 8 * * *" : "0 9 * * 1", timezone: "UTC", target: skills[n], agent: agents[n], enabled: true, catchUp: false }));
     mk("loop", 0, `${c.name} loop`, { signal: sensors.slice(0, 2), guards: policies.slice(0, 1), actions: [`tool:t${(ci * 3) % 20}`], gate: "Quality gate", learning: templates[0], reviewCadence: "Weekly" });
-    s.workflows.push({ id: wfId, tenantId: d.tenant.id, name: `${c.name} operations`, description: `Generated workflow for ${c.name}.`, topics: [c.name.toLowerCase(), "generated"], status: "active", version: 1, clusterId: c.id, dri: `sh-${ci % 3}`, editors: ["sh-3", "sh-4"], criticality: 2, members, updatedAt: iso(SEED_NOW - ci * DAY), updatedBy: `sh-${ci % 3}` });
+    s.workflows.push({ id: wfId, tenantId: d.tenant.id, name: `${c.name} operations`, description: `Generated workflow for ${c.name}.`, topics: [c.name.toLowerCase(), "generated"], status: "active", version: 1, clusterId: c.id, dri: `sh-${ci % 3}`, editors: ["sh-3", "sh-4"], criticality: 2, members, story: null, updatedAt: iso(SEED_NOW - ci * DAY), updatedBy: `sh-${ci % 3}` });
   });
   return s;
 }

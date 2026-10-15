@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowRight, ArrowUp, Compass, FileText, Globe2, ListChecks, Lock, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -14,7 +14,12 @@ import { useUi } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 type Scope = "page" | "system";
-type Msg = { id: number; role: "user"; text: string; scope: Scope } | { id: number; role: "brain"; answer: AskAnswer } | { id: number; role: "note"; text: string };
+type Msg =
+  | { id: number; role: "user"; text: string; scope: Scope | null }
+  | { id: number; role: "brain"; answer: AskAnswer }
+  | { id: number; role: "note"; text: string }
+  // The brain asks what a question is about before answering it, once per page.
+  | { id: number; role: "choose"; question: string; picked: Scope | null };
 
 const SYSTEM_SUGGESTIONS = ["What is our refund window?", "When does the finebase.lk domain renew?", "What are support hours?", "What is the VAT registration status?"];
 
@@ -50,7 +55,8 @@ export function AskPanel() {
   const { user } = useCurrentUser();
   const reduce = useReducedMotion();
   const ask = useAsk();
-  const [scope, setScope] = useState<Scope>("page");
+  // Null until the conversation settles it: the brain asks "this page or the whole system?" on the first question.
+  const [scope, setScope] = useState<Scope | null>(null);
   const [q, setQ] = useState("");
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [focused, setFocused] = useState(false);
@@ -58,13 +64,14 @@ export function AskPanel() {
   const lastPath = useRef<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const effective: Scope = hasPage ? scope : "system";
+  const effective: Scope | null = hasPage ? scope : "system";
 
   // Moving to another page leaves a note, so answers always read in the context they were asked in.
   useEffect(() => {
     if (!open) return;
     if (lastPath.current !== null && lastPath.current !== pathname && msgs.length) {
       setMsgs((m) => [...m, { id: ++seq.current, role: "note", text: `Now on ${guide.title}` }]);
+      setScope(null);
     }
     lastPath.current = pathname;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -83,23 +90,42 @@ export function AskPanel() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, setOpen]);
 
-  const submit = useCallback(
-    async (question: string) => {
-      const text = question.trim();
-      if (!text || ask.isPending) return;
-      setQ("");
-      setMsgs((m) => [...m, { id: ++seq.current, role: "user", text, scope: effective }]);
+  const answer = useCallback(
+    async (text: string, sc: Scope) => {
       try {
-        const answer = await ask.mutateAsync({ question: text, page: { path: pathname + (typeof window !== "undefined" ? window.location.search : ""), scope: effective } });
-        setMsgs((m) => [...m, { id: ++seq.current, role: "brain", answer }]);
+        const a = await ask.mutateAsync({ question: text, page: { path: pathname + (typeof window !== "undefined" ? window.location.search : ""), scope: sc } });
+        setMsgs((m) => [...m, { id: ++seq.current, role: "brain", answer: a }]);
       } catch {
         /* the error state below shows ask.error */
       }
     },
-    [ask, effective, pathname],
+    [ask, pathname],
   );
 
-  const suggestions = effective === "page" ? guide.suggestions : SYSTEM_SUGGESTIONS;
+  /** Ask a question. A suggestion knows its scope; a typed question asks for one if the conversation has not settled it. */
+  const submit = useCallback(
+    (question: string, known?: Scope) => {
+      const text = question.trim();
+      if (!text || ask.isPending) return;
+      setQ("");
+      const sc = known ?? effective;
+      if (known && hasPage) setScope(known);
+      setMsgs((m) => [...m, { id: ++seq.current, role: "user", text, scope: sc }, ...(sc ? [] : [{ id: ++seq.current, role: "choose" as const, question: text, picked: null }])]);
+      if (sc) void answer(text, sc);
+    },
+    [ask.isPending, effective, hasPage, answer],
+  );
+
+  const choose = (id: number, question: string, sc: Scope) => {
+    setScope(sc);
+    setMsgs((m) => m.map((x) => (x.id === id && x.role === "choose" ? { ...x, picked: sc } : x)));
+    void answer(question, sc);
+  };
+
+  const suggestions: { text: string; scope: Scope }[] = [
+    ...(hasPage ? guide.suggestions.slice(0, 3).map((t) => ({ text: t, scope: "page" as const })) : []),
+    ...SYSTEM_SUGGESTIONS.slice(0, hasPage ? 2 : 4).map((t) => ({ text: t, scope: "system" as const })),
+  ];
   const lastBrain = [...msgs].reverse().find((m) => m.role === "brain")?.id;
 
   return (
@@ -128,39 +154,19 @@ export function AskPanel() {
             </button>
           </header>
 
-          {/* where am I asking from */}
-          <div className="relative px-5 pb-3">
-            <LayoutGroup id="ask-scope">
-              <div className="relative grid grid-cols-2 rounded-full bg-foreground/6 p-1" role="tablist" aria-label="What to ask about">
-                {([["page", hasPage ? guide.title : "This page", FileText], ["system", "Whole system", Globe2]] as const).map(([k, label, Icon]) => {
-                  const on = effective === k;
-                  return (
-                    <button key={k} type="button" role="tab" aria-selected={on} disabled={k === "page" && !hasPage} onClick={() => setScope(k)} className={cn("relative z-10 flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors disabled:opacity-40", on ? "text-foreground" : "text-muted-foreground hover:text-foreground")}>
-                      {on && <motion.span layoutId="ask-scope-pill" className="absolute inset-0 -z-10 rounded-full bg-card shadow-sm ring-1 ring-border" transition={{ type: "spring", stiffness: 500, damping: 38 }} />}
-                      <Icon className="size-3.5 shrink-0" />
-                      <span className="truncate">{label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </LayoutGroup>
-            <p className="mt-2 px-1 text-[11px] leading-snug text-muted-foreground">
-              {effective === "page" ? <>Reading <strong className="font-semibold text-foreground">{guide.title}</strong> with you: ask what you see, or how to do something here.</> : <>Searching everything {user?.name ?? "you"} can access across the company.</>}
-            </p>
-          </div>
-
           <div className="relative min-h-0 flex-1 space-y-5 overflow-y-auto px-5 pb-4 pt-1" aria-live="polite">
             {msgs.length === 0 && !ask.isPending && (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="pt-4">
-                <div className="mb-5 flex flex-col items-center text-center">
+                <div className="mb-6 flex flex-col items-center text-center">
                   <Orb size={64} />
-                  <p className="mt-4 text-lg font-bold tracking-tight">{effective === "page" ? `What do you want to know about ${guide.title}?` : "What do you want to know?"}</p>
-                  <p className="mt-1 max-w-[320px] text-xs text-muted-foreground">{effective === "page" ? guide.summary : "Plain answers with citations from the company's verified facts and policies."}</p>
+                  <p className="mt-5 text-xl font-bold tracking-tight">What do you want to know?</p>
+                  <p className="mt-1.5 max-w-[340px] text-sm text-muted-foreground">Ask about this page or anything in the company. Answers cite verified facts.</p>
                 </div>
                 <div className="flex flex-col gap-2">
                   {suggestions.map((s, i) => (
-                    <motion.button key={s} type="button" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 * i + 0.1 }} onClick={() => submit(s)} className="group flex items-center justify-between gap-3 rounded-2xl border bg-card/70 px-4 py-2.5 text-left text-[13px] font-medium shadow-xs backdrop-blur transition hover:-translate-y-px hover:border-primary/40 hover:bg-card hover:shadow-sm">
-                      {s}
+                    <motion.button key={s.text} type="button" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 * i + 0.1 }} onClick={() => submit(s.text, s.scope)} className="group flex items-center gap-3 rounded-2xl border bg-card/70 px-4 py-3 text-left text-sm font-medium shadow-xs backdrop-blur transition hover:-translate-y-px hover:border-primary/40 hover:bg-card hover:shadow-sm">
+                      {s.scope === "page" ? <FileText className="size-4 shrink-0 text-muted-foreground" aria-label="About this page" /> : <Globe2 className="size-4 shrink-0 text-muted-foreground" aria-label="Whole system" />}
+                      <span className="flex-1">{s.text}</span>
                       <ArrowRight className="size-3.5 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" />
                     </motion.button>
                   ))}
@@ -176,7 +182,21 @@ export function AskPanel() {
               ) : m.role === "user" ? (
                 <motion.div key={m.id} initial={{ opacity: 0, y: 8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} className="flex flex-col items-end gap-1">
                   <div className="max-w-[88%] rounded-2xl rounded-br-md bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground shadow-sm">{m.text}</div>
-                  <span className="px-1 text-[10px] text-muted-foreground">{m.scope === "page" ? "about this page" : "whole system"}</span>
+                  {m.scope && <span className="px-1 text-[11px] text-muted-foreground">{m.scope === "page" ? `about ${guide.title}` : "whole system"}</span>}
+                </motion.div>
+              ) : m.role === "choose" ? (
+                <motion.div key={m.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex gap-3">
+                  <Orb size={24} />
+                  <div className="min-w-0 flex-1 space-y-3">
+                    <p className="text-sm leading-relaxed">Is this about {guide.title}, or the whole system?</p>
+                    <div className="flex flex-wrap gap-2" role="group" aria-label="What is this about">
+                      {([["page", guide.title, FileText], ["system", "Whole system", Globe2]] as const).map(([k, label, Icon]) => (
+                        <button key={k} type="button" disabled={m.picked !== null || ask.isPending} onClick={() => choose(m.id, m.question, k)} className={cn("inline-flex h-9 items-center gap-2 rounded-full border px-4 text-sm font-medium transition", m.picked === k ? "border-primary bg-primary text-primary-foreground" : "bg-card/70 hover:border-primary/40 hover:bg-card disabled:opacity-50")}>
+                          <Icon className="size-4" /> {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </motion.div>
               ) : (
                 <motion.div key={m.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex gap-3">
@@ -233,7 +253,7 @@ export function AskPanel() {
             {ask.isPending && (
               <div className="flex items-center gap-3" role="status">
                 <Orb busy size={24} />
-                <span className="ask-shimmer text-sm font-medium">{effective === "page" ? `Reading ${guide.title}…` : "Searching what you may see…"}</span>
+                <span className="ask-shimmer text-sm font-medium">{scope === "page" && hasPage ? `Reading ${guide.title}…` : "Searching what you may see…"}</span>
               </div>
             )}
             {ask.error && <p className="text-sm text-risk">{ask.error.message}</p>}
@@ -255,22 +275,23 @@ export function AskPanel() {
                 onFocus={() => setFocused(true)}
                 onBlur={() => setFocused(false)}
                 onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), submit(q))}
-                placeholder={effective === "page" ? `Ask about ${guide.title}…` : "Ask anything about the company…"}
+                placeholder="Ask anything…"
                 aria-label="Question"
                 rows={1}
-                className="block max-h-32 min-h-10 w-full resize-none bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground"
+                className="block max-h-32 min-h-10 w-full resize-none bg-transparent px-2 py-1.5 text-[15px] outline-none placeholder:text-muted-foreground"
               />
               <div className="flex items-center justify-between gap-2 px-1 pt-1">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-foreground/6 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
-                  {effective === "page" ? <FileText className="size-3" /> : <Globe2 className="size-3" />}
-                  {effective === "page" ? guide.title : "Whole system"}
-                </span>
+                {effective ? (
+                  <button type="button" disabled={!hasPage} onClick={() => setScope(effective === "page" ? "system" : "page")} title={hasPage ? "Switch what you are asking about" : undefined} className="inline-flex items-center gap-1.5 rounded-full bg-foreground/6 px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:text-foreground disabled:hover:text-muted-foreground">
+                    {effective === "page" ? <FileText className="size-3.5" /> : <Globe2 className="size-3.5" />}
+                    {effective === "page" ? guide.title : "Whole system"}
+                  </button>
+                ) : <span />}
                 <button type="submit" disabled={!q.trim() || ask.isPending} aria-label="Ask" className="grid size-8 place-items-center rounded-full bg-primary text-primary-foreground shadow-sm transition hover:scale-105 hover:shadow-md disabled:scale-100 disabled:opacity-40 disabled:shadow-none">
                   <ArrowUp className="size-4" />
                 </button>
               </div>
             </div>
-            <p className="mt-2 text-center text-[10px] text-muted-foreground">Enter sends · Shift+Enter adds a line · Esc closes</p>
           </form>
         </motion.aside>
       )}

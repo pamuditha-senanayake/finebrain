@@ -5,7 +5,8 @@ import { OPS, type Ctx } from "@/lib/mock/ops";
 import { SEED_NOW } from "@/lib/mock/prng";
 import { buildFinebase } from "@/lib/mock/seed/build";
 import { chat } from "@/lib/mock/studio/chat";
-import { healthOf, review, workflowsUsingTool } from "@/lib/mock/studio/engine";
+import { commitInput, healthOf, review, workflowsUsingTool } from "@/lib/mock/studio/engine";
+import { buildPrompt } from "@/lib/studio/story";
 import type { TenantData } from "@/lib/mock/types";
 
 const as = (d: TenantData, id: string): Ctx => {
@@ -13,7 +14,7 @@ const as = (d: TenantData, id: string): Ctx => {
   return { now: SEED_NOW, actor: { kind: "human", id: h.id, name: h.name } };
 };
 const human = (d: TenantData, id: string) => d.humans.find((h) => h.id === id)!;
-const say = (d: TenantData, workflowId: string, message: string, persona = "h-founder", focus: ChatReply["focus"] = null) => chat(d, human(d, persona), { workflowId, message, focus, history: [] });
+const say = (d: TenantData, workflowId: string, message: string, persona = "h-founder", focus: ChatReply["focus"] = null) => chat(d, human(d, persona), { workflowId, message, focus, history: [], story: null });
 
 describe("studio seed", () => {
   it("gives each workflow its own members and shares only tools", () => {
@@ -133,5 +134,93 @@ describe("studio routing", () => {
     const d = buildFinebase();
     const wf = d.studio.workflows.find((w) => w.id === "wf-care")!;
     expect(healthOf(d, wf).findings.filter((f) => f.severity === "break")).toHaveLength(0);
+  });
+});
+
+describe("studio tool levels", () => {
+  it("offers a ready-made tool before building a new one", () => {
+    const d = buildFinebase();
+    const r = say(d, "wf-care", "add a tool that replies to the inbox");
+    expect(r.proposal).toBeNull();
+    expect(r.cards[0].targetId).toBe("tool:inbox.reply");
+    expect(r.suggestions.some((s) => /anyway/.test(s.prompt))).toBe(true);
+  });
+
+  it("sets up a connector when nothing ready-made fits, and keeps custom code as the alternative", () => {
+    const d = buildFinebase();
+    const r = say(d, "wf-care", "add a tool called weather.lookup that fetches the forecast");
+    expect(r.proposal?.input.patch.fields?.level).toBe("configured");
+    expect(r.proposal?.input.patch.fields?.code).toBe("");
+    expect(r.suggestions.some((s) => s.input?.patch.fields?.level === "custom")).toBe(true);
+  });
+
+  it("tests custom code in the sandbox and sends it for approval", () => {
+    const d = buildFinebase();
+    const r = say(d, "wf-care", "add a tool called weather.lookup with custom code");
+    const p = r.proposal!;
+    expect(p.input.patch.fields?.level).toBe("custom");
+    expect(p.review.criticality).toBe(3);
+    expect(p.review.findings.some((f) => /passed its sandbox test run/.test(f.text))).toBe(true);
+    const broken = review(d, human(d, "h-founder"), { ...p.input, patch: { ...p.input.patch, fields: { ...p.input.patch.fields, code: "export async function run(input) { return process.env.KEY }" } } });
+    expect(broken.review.findings.some((f) => f.severity === "break" && /outside the sandbox/.test(f.text))).toBe(true);
+  });
+});
+
+describe("studio stories", () => {
+  const sayWith = (d: TenantData, workflowId: string, message: string, story: ChatReply["story"]) => chat(d, human(d, "h-founder"), { workflowId, message, focus: null, history: [], story });
+
+  it("seeds every workflow with a problem and scenarios linked to real parts", () => {
+    const d = buildFinebase();
+    const wf = d.studio.workflows.find((w) => w.id === "wf-refunds")!;
+    expect(wf.story?.problem).toMatch(/Refund requests take days/);
+    expect(wf.story?.scenarios[0].coveredBy).toContain("refunds.skill.refund-standard");
+    expect(d.studio.workflows.every((w) => w.story && w.story.scenarios.length > 0)).toBe(true);
+  });
+
+  it("turns a new problem into BDD cases, then a workflow once confirmed", () => {
+    const d = buildFinebase();
+    const r = say(d, "wf-refunds", "Candidates wait two weeks for a reply when they apply for a job");
+    expect(r.proposal).toBeNull();
+    expect(r.story?.workflowId).toBeNull();
+    expect(r.story?.name).toBe("Hiring pipeline");
+    expect(r.story?.story.scenarios[0].when).toBe("candidates apply for a job");
+    const ok = sayWith(d, "wf-refunds", "Yes, that is right", r.story);
+    expect(ok.proposal?.input).toMatchObject({ intent: "create", kind: "workflow" });
+    expect(ok.proposal?.input.patch.story?.scenarios.length).toBe(r.story!.story.scenarios.length);
+  });
+
+  it("adds cases to an existing workflow's story when the problem belongs there", () => {
+    const d = buildFinebase();
+    const r = say(d, "wf-refunds", "Refunds take three days when the customer paid by bank transfer");
+    expect(r.story?.workflowId).toBe("wf-refunds");
+    const more = sayWith(d, "wf-refunds", "Add another case: refund for a duplicate charge", r.story);
+    expect(more.story!.story.scenarios.length).toBe(r.story!.story.scenarios.length + 1);
+    const ok = sayWith(d, "wf-refunds", "yes", more.story);
+    expect(ok.proposal?.input).toMatchObject({ intent: "update", kind: "workflow", targetId: "wf-refunds" });
+    expect(ok.proposal?.input.patch.story!.scenarios.length).toBe(3 + more.story!.story.scenarios.length);
+    expect(ok.suggestions[0].label).toMatch(/^Build: /);
+  });
+
+  it("explains the story and says which cases are built", () => {
+    const d = buildFinebase();
+    const r = say(d, "wf-refunds", "What problem does this workflow solve?");
+    expect(r.answer).toMatch(/Refund requests take days/);
+    expect(r.bullets[0]).toMatch(/handled by Refund inside policy/);
+  });
+});
+
+describe("studio story building", () => {
+  it("builds a case into a skill named after it, which then counts as handling it", () => {
+    const d = buildFinebase();
+    const wf = d.studio.workflows.find((w) => w.id === "wf-sales")!;
+    const sc = { id: "x", title: "Nobody follows up for days", given: ["it is handled by hand today"], when: "nobody follows up for days", then: ["leads go cold"], goal: "Handled the same day.", coveredBy: [] };
+    wf.story = { problem: "Leads go cold.", today: "By hand.", scenarios: [sc] };
+    const r = say(d, "wf-sales", buildPrompt(sc));
+    expect(r.story).toBeNull();
+    expect(r.proposal?.input).toMatchObject({ intent: "create", kind: "skill" });
+    expect(r.proposal?.input.patch.name).toBe("Nobody follows up for days");
+    // A new skill is C3, so in the app it waits for approval; apply it directly here.
+    commitInput(d, human(d, "h-founder"), r.proposal!.input, SEED_NOW, null);
+    expect(say(d, "wf-sales", "What problem does this workflow solve?").bullets[0]).toMatch(/handled by Nobody follows up for days/);
   });
 });

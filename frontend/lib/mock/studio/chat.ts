@@ -1,7 +1,7 @@
 // The Studio assistant's mock brain: a rule based intent engine. It reads loose requests, finds what they are about,
 // asks when it is unsure, suggests concrete edits, and hands every edit to the Edit Review Agent before anyone confirms.
 // A real LLM endpoint can replace `chat` later; the request and reply contracts stay the same.
-import type { ChatReply, ChatRequest, FieldValue, Human, ItemFields, MemberKind, Proposal, ProposalInput, Revision, StudioCard, StudioItem, StudioKind, Suggestion, Workflow } from "@/contracts";
+import type { ChatReply, ChatRequest, FieldValue, Human, ItemFields, MemberKind, Proposal, ProposalInput, Revision, Story, StoryDraft, StudioCard, StudioItem, StudioKind, Suggestion, Workflow } from "@/contracts";
 import {
   COMMON_FIELDS,
   FIELD_SPECS,
@@ -10,6 +10,7 @@ import {
   KIND_SYNONYMS,
   MEMBER_ORDER,
   PARAM_SYNONYMS,
+  TOOL_LEVEL_LABEL,
   describeCron,
   fieldLabel,
   formatValue,
@@ -19,7 +20,9 @@ import {
   validCron,
   type FieldSpec,
 } from "@/lib/studio/spec";
+import { buildPrompt, coverageOf } from "@/lib/studio/story";
 import type { TenantData } from "../types";
+import { draftStory, extraScenario } from "./stories";
 import { REVIEWER, StudioError, healthOf, itemOf, membersOf, nameOf, review, scopeOf, workflowOf, workflowsUsingTool } from "./engine";
 
 type Target = { kind: StudioKind; item: StudioItem | null; wf: Workflow | null; id: string; name: string };
@@ -67,7 +70,8 @@ function keyFields(it: StudioItem): [string, string][] {
   for (const spec of s) {
     const v = it.fields[spec.key];
     if (v === undefined || v === "" || (Array.isArray(v) && !v.length)) continue;
-    const shown = spec.type === "refs" || spec.type === "ref" ? (Array.isArray(v) ? v : [String(v)]).map((id) => id.startsWith("tool:") ? id.replace("tool:", "") : id).map((id) => id.includes(".") && !id.startsWith("tool") ? id : id).join(", ") : spec.key === "cron" ? `${describeCron(String(v))} (${v})` : formatValue(v, spec.key);
+    if (spec.key === "code") continue;
+    const shown = spec.key === "level" ? TOOL_LEVEL_LABEL[String(v)] ?? String(v) : spec.type === "refs" || spec.type === "ref" ? (Array.isArray(v) ? v : [String(v)]).map((id) => id.startsWith("tool:") ? id.replace("tool:", "") : id).map((id) => id.includes(".") && !id.startsWith("tool") ? id : id).join(", ") : spec.key === "cron" ? `${describeCron(String(v))} (${v})` : formatValue(v, spec.key);
     out.push([spec.label, shown]);
   }
   for (const [k, v] of Object.entries(it.fields)) if (isParam(k)) out.push([fieldLabel(it.kind, k), paramName(k) === "amountMinor" ? money(Number(v), String(it.fields["param.currency"] ?? "LKR")) : formatValue(v, paramName(k))]);
@@ -360,7 +364,7 @@ function guidance(d: TenantData, t: StudioItem | Workflow, dir: Direction = null
 type Ctx = { d: TenantData; h: Human; wf: Workflow; req: ChatRequest; raw: string; text: string };
 
 function base(partial: Partial<ChatReply>): ChatReply {
-  return { answer: "", bullets: [], cards: [], suggestions: [], proposal: null, focus: null, workflowId: null, ...partial };
+  return { answer: "", bullets: [], cards: [], suggestions: [], proposal: null, focus: null, workflowId: null, story: null, ...partial };
 }
 
 function propose(c: Ctx, input: ProposalInput, lead: string, alt: Suggestion[] = []): ChatReply {
@@ -508,7 +512,122 @@ function authorityReply(c: Ctx): ChatReply {
   });
 }
 
+// ---------------------------------------------------------------- stories
+
+const CONFIRM = /^(yes|yep|yeah|correct|right|that'?s (right|it|correct)|exactly|looks (good|right)|confirm(ed)?|this is (what|it)|these are right)\b/;
+const ASKING = /^(what|which|who|why|how|show|list|is|are|does|do|can|any|tell)\b/;
+
+/** A statement of what goes wrong today, as opposed to a question about the workflow. */
+function problemIn(text: string): boolean {
+  // Questions and build requests ("add a skill that ... by hand") are never problem statements.
+  if (ASKING.test(text) || text.endsWith("?") || /^(please\s+)?(add|create|build|make|set up|setup|new|introduce|change|update|edit|remove|delete|rename|move)\b/.test(text)) return false;
+  return /\b(problem|pain|struggl\w*|takes? (too )?(long|ages|forever)|(takes?|wait(s|ing)?)( [\w,]+){0,4} (minutes|days|hours|weeks|long)|too slow|by hand|manual(ly)?|keeps? (missing|forgetting|losing)|we (lose|miss|forget)|complain\w*|bottleneck|backlog|falls? through|slips?|late|delay(s|ed)?|mistakes?|nobody|no one)\b/.test(text);
+}
+
+/** Does the problem belong to the open workflow, or to a new one? */
+function belongsHere(c: Ctx): boolean {
+  const own = new Set([...c.wf.topics.flatMap((t) => tokens(t)), ...tokens(c.wf.name)]);
+  return tokens(c.text).some((t) => t.length > 3 && own.has(t));
+}
+
+function draftReply(c: Ctx, draft: StoryDraft, lead: string): ChatReply {
+  const n = draft.story.scenarios.length;
+  return base({
+    answer: `${lead} ${n} case${n === 1 ? "" : "s"} below. Is this what is happening today?`,
+    story: draft,
+    suggestions: [ask("Yes, that is right", "Yes, that is right"), ask("Add another case", "Add another case: …"), ask("Not quite", "Not quite. What really happens is …")],
+  });
+}
+
+function problemReply(c: Ctx, text: string): ChatReply {
+  const seq = c.d.counter + c.req.history.length;
+  if (belongsHere(c)) {
+    const d = draftStory(text, seq, c.wf.story?.scenarios.map((x) => x.title) ?? []);
+    return draftReply(c, { workflowId: c.wf.id, name: c.wf.name, story: { ...d.story, problem: c.wf.story?.problem ?? d.story.problem, today: c.wf.story?.today ?? d.story.today } }, `This sounds like ${c.wf.name}. Here is what I understand happens today.`);
+  }
+  const d = draftStory(text, seq);
+  return draftReply(c, { workflowId: null, name: d.name, story: d.story }, `This sounds like a new workflow, ${d.name}. Here is the problem and what happens today.`);
+}
+
+/** The person confirmed the cases. A new problem becomes a new workflow; an existing workflow gets the cases added to its story. */
+function confirmStory(c: Ctx, draft: StoryDraft): ChatReply {
+  if (!draft.workflowId) {
+    const name = draft.name;
+    return propose(c, { intent: "create", kind: "workflow", targetId: null, workflowId: null, patch: { name, description: draft.story.problem, topics: tokens(name).slice(0, 2), story: draft.story } }, `Good, the story is set. This creates ${name} with ${draft.story.scenarios.length} cases to handle. Once it exists, we build each case into parts.`);
+  }
+  const wf = workflowOf(c.d.studio, draft.workflowId) ?? c.wf;
+  const known = new Set((wf.story?.scenarios ?? []).map((x) => x.id));
+  const added = draft.story.scenarios.filter((x) => !known.has(x.id));
+  const story: Story = { problem: draft.story.problem, today: draft.story.today, scenarios: [...(wf.story?.scenarios ?? []), ...added] };
+  const r = propose({ ...c, wf }, { intent: "update", kind: "workflow", targetId: wf.id, workflowId: wf.id, patch: { story } }, `Good. Adding ${added.length} case${added.length === 1 ? "" : "s"} to the story of ${wf.name}.`);
+  return { ...r, suggestions: [...added.map((x) => ask(`Build: ${x.title}`, buildPrompt(x))), ...r.suggestions].slice(0, 5) };
+}
+
+function editDraft(c: Ctx, draft: StoryDraft): ChatReply | null {
+  const { text, raw } = c;
+  const seq = c.d.counter + c.req.history.length;
+  if (/^(please\s+)?(add|another)\b.*\b(case|scenario|example)\b/.test(text)) {
+    const story = { ...draft.story, scenarios: [...draft.story.scenarios, extraScenario(raw, seq)] };
+    return draftReply(c, { ...draft, story }, "Added that case.");
+  }
+  const rm = text.match(/^(?:please\s+)?(?:remove|drop|delete)\s+(?:case|scenario)\s+(\d+)/);
+  if (rm) {
+    const i = Number(rm[1]) - 1;
+    const story = { ...draft.story, scenarios: draft.story.scenarios.filter((_, j) => j !== i) };
+    return draftReply(c, { ...draft, story }, `Removed case ${i + 1}.`);
+  }
+  if (/^(no|nope|not quite|not really|wrong)\b/.test(text)) {
+    const rest = raw.replace(/^(no|nope|not quite|not really|wrong)[.,!]?\s*(what really happens is|the real problem is|actually)?[:,]?\s*/i, "").replace(/…$/, "").trim();
+    if (rest.split(/\s+/).length < 4) return base({ answer: "Tell me what really happens, in a sentence or two. For example: \"refunds take three days when the customer paid by bank transfer\".", story: draft });
+    const d = draftStory(rest, seq);
+    return draftReply(c, { ...draft, name: draft.workflowId ? draft.name : d.name, story: draft.workflowId ? { ...draft.story, scenarios: d.story.scenarios } : d.story }, "Thanks, that is clearer.");
+  }
+  return null;
+}
+
+/** "What problem does this solve?": the workflow's story, and which cases are built. */
+function storyReply(c: Ctx): ChatReply {
+  const st = c.wf.story;
+  if (!st) return base({ answer: `${c.wf.name} has no story yet. Describe the problem it solves, and I will write the cases with you.`, suggestions: [ask("Describe the problem", "The problem is …")], focus: { kind: "workflow", id: c.wf.id } });
+  const scope = scopeOf(c.d.studio, c.wf);
+  const open = st.scenarios.filter((x) => coverageOf(x, scope).length === 0);
+  return base({
+    answer: `${st.problem} Today: ${st.today.charAt(0).toLowerCase()}${st.today.slice(1)}`,
+    bullets: st.scenarios.map((x, i) => `Case ${i + 1}, ${x.title}: ${coverageOf(x, scope).length ? `handled by ${coverageOf(x, scope).map((p) => p.name).join(", ")}` : "not built yet"}`),
+    focus: { kind: "workflow", id: c.wf.id },
+    suggestions: [...open.map((x) => ask(`Build: ${x.title}`, buildPrompt(x))), ask("Add another case", "We also have a problem when …")].slice(0, 4),
+  });
+}
+
+/** "What should we build next?": the cases no part handles yet. */
+function nextBuild(c: Ctx): ChatReply {
+  const st = c.wf.story;
+  const scope = scopeOf(c.d.studio, c.wf);
+  const open = (st?.scenarios ?? []).filter((x) => coverageOf(x, scope).length === 0);
+  if (!st) return storyReply(c);
+  if (!open.length) return base({ answer: `Every case in the story of ${c.wf.name} is handled by a part. Add a case when something new goes wrong.`, suggestions: [ask("What is broken in this workflow?"), ask("Add another case", "We also have a problem when …")] });
+  return base({
+    answer: `${open.length} case${open.length === 1 ? " is" : "s are"} not built yet. Start with "${open[0].title}": I draft a skill for it, then we add what wakes it and the rules around it.`,
+    bullets: open.map((x) => `${x.title}: ${x.goal}`),
+    focus: { kind: "workflow", id: c.wf.id },
+    suggestions: open.slice(0, 4).map((x, i) => ({ ...ask(`Build: ${x.title}`, buildPrompt(x)), tone: i === 0 ? ("primary" as const) : ("neutral" as const) })),
+  });
+}
+
 // ---------------------------------------------------------------- intents
+
+/** Starting code for a custom tool. The person, or a later chat turn, fills in the real steps. */
+function codeStub(name: string, what: string): string {
+  return [
+    `// ${name}${what ? `: ${what}` : ""}`,
+    "// Runs in a sandbox with no network except this tool's own endpoint.",
+    "export async function run(input) {",
+    "  // Replace this with the real steps.",
+    "  return { ok: true, input };",
+    "}",
+    "",
+  ].join("\n");
+}
 
 function createIntent(c: Ctx): ChatReply {
   const { text, raw } = c;
@@ -524,9 +643,11 @@ function createIntent(c: Ctx): ChatReply {
   const extra: Suggestion[] = [];
   let finalName = name ? cap(name.trim()) : "";
   if (kind === "workflow") {
-    if (!finalName) return base({ answer: "What is the new workflow called, and what does it do?", suggestions: [ask("Create workflow \"Churn prevention\"", "Create a new workflow called \"Churn prevention\" that reaches out to accounts at risk")] });
-    const desc = raw.match(/\b(?:that|which|to)\s+(.+)$/i)?.[1] ?? "";
-    return propose(c, { intent: "create", kind, targetId: null, workflowId: null, patch: { name: finalName, description: desc ? cap(desc) : "", topics: tokens(finalName).slice(0, 2) } }, `Here is a draft for a new workflow, ${finalName}. Add skills, agents and policies to it once it exists.`);
+    // A workflow starts from its story: the problem first, then the cases, then the parts.
+    const desc = raw.match(/\b(?:that|which|to|for)\s+(.+)$/i)?.[1] ?? "";
+    if (!desc && !finalName) return base({ answer: "What problem should the new workflow solve? Describe what goes wrong today, in your own words.", suggestions: [ask("Describe the problem", "The problem is …")] });
+    const d = draftStory(desc || finalName, c.d.counter + c.req.history.length);
+    return draftReply(c, { workflowId: null, name: finalName || d.name, story: d.story }, `Before building ${finalName || "it"}, here is the problem and what happens today, as I understand it.`);
   }
   const member = kind as MemberKind;
   const scope = scopeOf(c.d.studio, c.wf);
@@ -562,7 +683,8 @@ function createIntent(c: Ctx): ChatReply {
     Object.assign(fields, { trigger: trig ? cap(trig) : "Describe when this skill starts", steps: ["retrieval: Retrieve the facts it needs", "judgment: Decide what to do", "quality_gate: Check against policy before acting"], agents: agent ? [agent.id] : [], tools: [], policies: [], templates: [], inputs: [], outputs: ["Result"], evalCases: 0 });
     if (!finalName) finalName = trig ? `Handle ${trig}` : "New skill";
     const pol = scope.filter((x) => x.kind === "policy").slice(0, 2);
-    return propose(c, { intent: "create", kind: member, targetId: null, workflowId: c.wf.id, patch: { name: finalName, description: trig ? `Runs when ${trig}.` : "", topics: c.wf.topics.slice(0, 1), fields } }, `Drafted a skill with a safe three step shape${agent ? `, run by ${agent.name}` : ""}. It has no tools or policy yet; the review shows what to add.`, pol.map((p) => sug(`Also govern it by ${p.name}`, { intent: "create", kind: "skill", targetId: null, workflowId: c.wf.id, patch: { name: finalName, topics: c.wf.topics.slice(0, 1), fields: { ...fields, policies: [p.id] } } })));
+    const goal = raw.match(/\bgoal:\s*(.+)$/i)?.[1];
+    return propose(c, { intent: "create", kind: member, targetId: null, workflowId: c.wf.id, patch: { name: finalName, description: [trig ? `Runs when ${trig}.` : "", goal ? `Goal: ${goal.replace(/\.$/, "")}.` : ""].filter(Boolean).join(" "), topics: c.wf.topics.slice(0, 1), fields } }, `Drafted a skill with a safe three step shape${agent ? `, run by ${agent.name}` : ""}. It has no tools or policy yet; the review shows what to add.`, pol.map((p) => sug(`Also govern it by ${p.name}`, { intent: "create", kind: "skill", targetId: null, workflowId: c.wf.id, patch: { name: finalName, topics: c.wf.topics.slice(0, 1), fields: { ...fields, policies: [p.id] } } })));
   }
   if (member === "policy") {
     const stmt = raw.match(/\b(?:that|which|saying|so that)\s+(.+)$/i)?.[1];
@@ -586,10 +708,41 @@ function createIntent(c: Ctx): ChatReply {
     if (!finalName) finalName = "New agent";
   }
   if (member === "tool") {
+    // Simplest level first: a ready-made tool from the library, then a set-up connector, and custom code only when asked.
+    const wantsCode = /\b(custom|code|script|function)\b/.test(text);
+    const what = raw.match(/\b(?:that|which)\s+(.+?)(?:\s+(?:anyway|with custom code))?[.?!]?$/i)?.[1] ?? "";
+    if (!wantsCode && !/\banyway\b/.test(text)) {
+      const query = what || text;
+      const qt = new Set(tokens(query).filter((t) => t !== "tool"));
+      const best = c.d.studio.items
+        .filter((t) => t.kind === "tool" && t.status === "active")
+        .map((t) => ({ t, sc: score(query, qt, t.name) }))
+        .sort((a, b) => b.sc - a.sc)[0];
+      if (best && best.sc >= 0.5) {
+        const usedHere = scope.some((x) => x.id === best.t.id);
+        return base({
+          answer: `There is already a ready-made tool for this: ${best.t.name}.${usedHere ? " This workflow uses it already." : ""} A ready-made tool is the safest choice, so I would use it before building a new one.`,
+          bullets: readableFields(c.d, best.t).slice(0, 4),
+          cards: [itemCard(best.t)],
+          focus: usedHere ? { kind: "tool", id: best.t.id } : null,
+          suggestions: [
+            ...(usedHere ? [] : skillsIn.slice(0, 2).map((sk) => ask(`Add ${best.t.name} to ${sk.name}`, `Add tool ${best.t.name} to ${sk.name}`))),
+            ask("Set up a new one anyway", `${raw.replace(/[.?!]$/, "")} anyway`),
+            ask("Write custom code instead", `${raw.replace(/[.?!]$/, "")} with custom code`),
+          ],
+        });
+      }
+    }
     const label = raw.match(/\b([a-z]+(?:[._-][a-z]+)+)\b/)?.[1];
-    if (!finalName) finalName = label ?? "new.tool";
-    Object.assign(fields, { endpoint: `https://api.internal/${finalName.replace(/\./g, "/")}`, capability: raw.match(/\bneeds?\s+([a-z]+:[a-z]+)/i)?.[1] ?? `${finalName.split(".")[0]}:use`, sensitivity: "internal", sideEffect: /\b(refund|charge|pay|credit)\b/.test(text) ? "money" : /\b(post|publish|reply)\b/.test(text) ? "public" : "write", rateLimitPerMin: 60 });
-    return propose(c, { intent: "create", kind: member, targetId: null, workflowId: null, patch: { name: finalName, description: `Shared tool ${finalName}.`, topics: [finalName.split(".")[0]], fields } }, `Drafted a shared tool, ${finalName}. Tools live outside any workflow, so every workflow can use it once it exists.`);
+    if (!finalName) finalName = label ?? (what ? tokens(what).slice(0, 2).join(".") || "new.tool" : "new.tool");
+    Object.assign(fields, { level: wantsCode ? "custom" : "configured", endpoint: `https://api.internal/${finalName.replace(/\./g, "/")}`, capability: raw.match(/\bneeds?\s+([a-z]+:[a-z]+)/i)?.[1] ?? `${finalName.split(".")[0]}:use`, sensitivity: "internal", sideEffect: /\b(refund|charge|pay|credit)\b/.test(text) ? "money" : /\b(post|publish|reply)\b/.test(text) ? "public" : "write", rateLimitPerMin: 60, code: wantsCode ? codeStub(finalName, what) : "" });
+    const patch = { name: finalName, description: what ? cap(what) : `Shared tool ${finalName}.`, topics: [finalName.split(".")[0]], fields };
+    const other = wantsCode
+      ? sug("Use a set-up connector instead", { intent: "create", kind: "tool", targetId: null, workflowId: null, patch: { ...patch, fields: { ...fields, level: "configured", code: "" } } }, "primary")
+      : sug("Write custom code instead", { intent: "create", kind: "tool", targetId: null, workflowId: null, patch: { ...patch, fields: { ...fields, level: "custom", code: codeStub(finalName, what) } } });
+    return propose(c, { intent: "create", kind: member, targetId: null, workflowId: null, patch }, wantsCode
+      ? `No ready-made or set-up tool fits, so I drafted custom code for ${finalName}. It runs in a sandbox, and the review ran a test on it.`
+      : `No ready-made tool fits, so I set up ${finalName} on a connector. No code to maintain. Tools are shared, so every workflow can use it once it exists.`, [other]);
   }
   if (member === "loop") {
     Object.assign(fields, { signal: scope.filter((x) => x.kind === "sensor").slice(0, 2).map((x) => x.id), guards: scope.filter((x) => x.kind === "policy").slice(0, 1).map((x) => x.id), actions: [], gate: "Quality gate", learning: scope.find((x) => x.kind === "template")?.id ?? "", reviewCadence: "Weekly" });
@@ -809,6 +962,15 @@ export function chat(d: TenantData, h: Human, req: ChatRequest): ChatReply {
   const text = raw.toLowerCase();
   const c: Ctx = { d, h, wf, req, raw, text };
   if (!text || /^(help|\?|what can you do|how does this work|hi|hello|hey)\b/.test(text)) return text.startsWith("h") && !text.startsWith("help") && !text.startsWith("how") ? overview(c) : help(c);
+  // The story comes first: confirming or correcting the cases the chat drafted.
+  if (req.story) {
+    if (CONFIRM.test(text)) return confirmStory(c, req.story);
+    const edited = editDraft(c, req.story);
+    if (edited) return edited;
+  }
+  if (/\b(what problems? (does|do|is) (it|this|the workflow)( \w+)? solv\w*|why does (it|this)( workflow)? exist|the story|scenarios|use cases|what cases)\b/.test(text)) return storyReply(c);
+  if (/\b(what (should|do|can) (i|we) build|build (it|the parts|next)|next step|what next)\b/.test(text)) return nextBuild(c);
+  if (problemIn(text)) return problemReply(c, raw);
   if (/^(yes|ok|okay|confirm|apply|do it|go ahead|ship it|approve)\b/.test(text)) return base({ answer: "Use Confirm on the proposal card. It shows who has to approve and runs the review once more, so nothing applies from a chat message alone." });
 
   const sw = text.match(/^(?:switch to|go to|open|jump to|show me)\s+(?:the\s+)?(.+?)(?:\s+workflow)?[.?!]?$/);
@@ -823,9 +985,10 @@ export function chat(d: TenantData, h: Human, req: ChatRequest): ChatReply {
 
   if (/\b(shared|share)\b/.test(text) && /\btools?\b/.test(text)) return sharedTools(c);
   if (/\b(who can|who approves|who owns|authority|permission to edit|can i (edit|change))\b/.test(text)) return authorityReply(c);
-  if (/\b(broken|break|breaks|health|healthy|issues?|problems?|what'?s wrong|wrong with|fix (it|this|the workflow|everything)|diagnose|check (the )?workflow)\b/.test(text) && !/\b(fix|change)\b.*\bto\b/.test(text)) return healthReply(c);
 
+  // "Add a tool that issues refunds" is a create, not a health question, so creates are read first.
   const isCreate = /^(please\s+)?(add|create|new|set up|setup|introduce|make a new|make an?|build)\b/.test(text) && !/\b(add|attach|assign|link|use)\s+.+\s+(to|in|on|into)\s+\w/.test(text.replace(/\b(add|create)\s+(a|an|new)\s+/, "")) && !/\btopics?|tags?\b/.test(text);
+  if (!(isCreate && kindIn(text)) && /\b(broken|break|breaks|health|healthy|issues?|problems?|what'?s wrong|wrong with|fix (it|this|the workflow|everything)|diagnose|check (the )?workflow)\b/.test(text) && !/\b(fix|change)\b.*\bto\b/.test(text)) return healthReply(c);
   if (/^(please\s+)?(delete|remove|drop|get rid of|destroy)\b/.test(text) && !/\s(from|off)\s/.test(text) && !/\btopics?|tags?\b/.test(text)) return deleteIntent(c);
   if (isCreate && kindIn(text)) return createIntent(c);
   if (/^(please\s+)?(add|attach|assign|link|connect|use|give)\b/.test(text) && !/\btopics?|tags?\b/.test(text)) {
@@ -860,5 +1023,5 @@ export function chat(d: TenantData, h: Human, req: ChatRequest): ChatReply {
 /** For forms and one-click suggestions: review an exact input without parsing text. */
 export function reviewReply(d: TenantData, h: Human, input: ProposalInput, workflowId: string): ChatReply {
   const wf = workflowOf(d.studio, workflowId) ?? d.studio.workflows[0];
-  return propose({ d, h, wf, req: { workflowId, message: "", focus: null, history: [] }, raw: "", text: "" }, input, "Here is that change.");
+  return propose({ d, h, wf, req: { workflowId, message: "", focus: null, history: [], story: null }, raw: "", text: "" }, input, "Here is that change.");
 }

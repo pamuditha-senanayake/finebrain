@@ -34,10 +34,11 @@ test("Ask the Brain answers with citations and valid time", async ({ page }) => 
   await setPersona(page, "h-founder");
   await page.goto("/l1");
   await page.getByRole("button", { name: "Ask the Brain" }).click();
-  // The panel opens on the current page; company wide questions live under the whole-system scope.
+  // A typed question on a page makes the brain ask what it is about before answering.
   const panel = page.getByRole("complementary", { name: "Ask the Brain" });
-  await panel.getByRole("tab", { name: "Whole system" }).click();
-  await panel.getByRole("button", { name: "What is our refund window?" }).click();
+  await panel.getByRole("textbox", { name: "Question" }).fill("What is our refund window?");
+  await panel.getByRole("button", { name: "Ask", exact: true }).click();
+  await panel.getByRole("group", { name: "What is this about" }).getByRole("button", { name: "Whole system" }).click();
   await expect(page.getByTestId("ask-answer")).toContainText("30 days");
   await expect(page.getByText(/true from/).first()).toBeVisible();
 });
