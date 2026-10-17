@@ -70,7 +70,7 @@ class MemoryBus:
         """Keep the whole original, so a fix can replay it with the same event_id."""
         letter = DeadLetter(
             original=envelope, consumer_group=group, stage=stage, error_code=type(error).__name__,
-            error_message=str(error)[:200], retryable=False, attempts=1, failed_at=self.now,
+            error_message=str(error)[:200], retryable=getattr(error, "retryable", False), attempts=1, failed_at=self.now,
         )
         self.topics.setdefault(topic + DLQ_SUFFIX, []).append(letter)
 

@@ -256,6 +256,7 @@ Keys: `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY` and the Google OAuth and Pub/Sub key
 | End-to-end | `tests/test_e2e.py` runs on memory and on all real infra together |
 | Shared helpers | `observe.py` (JSON logs, counters), `retry.py` (retry with backoff, DLQ replay) |
 | S1 Capture (done) | `capture_api.py`: connector, grant, size, type and HMAC signature checks; 404, 403, 401, 413, 415, 400, 503 as in section 8 |
+| S2 Normalize (done) | `stages_normalize.py`, `readers.py`, `pii.py`: MIME, chat and upload; masks emails, phones, NIC, cards (Luhn), addresses, names; vault encrypted with pgcrypto; `possible_prompt_injection` flag; atomic dedup claim; parse errors to DLQ (not retryable), store hiccups retried |
 | Still to come | OPA. In Postgres: graph, facts, chunks, outbox, encrypted vault columns |
 | Start all infra | `backend/scripts/dev_up.sh` |
 

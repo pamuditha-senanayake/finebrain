@@ -4,7 +4,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from app.pipeline import run_steps, stages_intake, stages_route
+from app.pipeline import run_steps, stages_intake, stages_normalize, stages_route
 from app.pipeline.adapters import make_memory_adapters
 from app.pipeline.contracts_run import Decision
 from app.pipeline.contracts_signal import Envelope, RawSignalEnvelope, Signal
@@ -71,7 +71,7 @@ def close_lane(lane: Lane) -> None:
 def on_raw(lane: Lane, envelope: Envelope) -> None:
     """S2: normalize, or drop silently when it is a redelivery."""
     k1 = RawSignalEnvelope.model_validate(envelope.payload)
-    signal = stages_intake.normalize(k1, envelope.event_id, lane.seed["tenant_id"], lane.object_store, lane.vault, lane.seen_keys, lane.new_id)
+    signal = stages_normalize.normalize(k1, envelope.event_id, lane.seed["tenant_id"], lane.object_store, lane.vault, lane.seen_keys, lane.new_id)
     if signal is not None:
         lane.bus.publish("signals.normalized", "signal.normalized", signal, "normalizer", envelope)
 

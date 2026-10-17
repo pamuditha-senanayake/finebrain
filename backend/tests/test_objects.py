@@ -5,7 +5,7 @@ import uuid
 
 import pytest
 
-from app.pipeline import fakes, stages_intake
+from app.pipeline import fakes, stages_intake, stages_normalize
 from app.pipeline.store_s3 import S3_BUCKET, S3ObjectStore, connect, s3_is_up
 from tests.golden import NOW, raw_sample
 
@@ -53,7 +53,7 @@ def test_delete_removes(objects, tenant):
 
 def test_s1_stores_and_s2_reads_back(objects, tenant):
     k1 = stages_intake.capture(raw_sample("s2"), tenant, objects, NOW)
-    signal = stages_intake.normalize(k1, "evt_raw", tenant, objects, {}, set(), fakes.make_id_maker())
+    signal = stages_normalize.normalize(k1, "evt_raw", tenant, objects, {}, set(), fakes.make_id_maker())
     assert objects[k1.raw_object_uri] == raw_sample("s2")["raw_body"].encode()
     assert signal.subject.entity_ref == "pay_FB_20261004_0192"
 

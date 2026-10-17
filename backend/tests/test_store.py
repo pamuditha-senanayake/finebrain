@@ -5,7 +5,7 @@ import uuid
 
 import pytest
 
-from app.pipeline import fakes, stages_intake
+from app.pipeline import fakes, stages_intake, stages_normalize
 from app.pipeline.contracts_run import ApprovalRequest, RunRecord
 from app.pipeline.store_memory import MemoryRecords
 from app.pipeline.store_postgres import PostgresRecords, PostgresVault, connect, database_is_up
@@ -64,7 +64,7 @@ def test_vault_missing_token_raises(vault):
 def test_s2_masks_into_the_vault(vault):
     store = {}
     k1 = stages_intake.capture(raw_sample("s2"), "finebase_labs", store, NOW)
-    signal = stages_intake.normalize(k1, "evt_raw", "finebase_labs", store, vault, set(), fakes.make_id_maker())
+    signal = stages_normalize.normalize(k1, "evt_raw", "finebase_labs", store, vault, set(), fakes.make_id_maker())
     assert {vault[token] for token in signal.pii_tokens} == {"Nimal Perera", "nimal.perera@example.lk", "+94 77 123 4567"}
 
 

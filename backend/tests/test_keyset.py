@@ -5,7 +5,7 @@ import uuid
 
 import pytest
 
-from app.pipeline import fakes, stages_intake
+from app.pipeline import fakes, stages_intake, stages_normalize
 from app.pipeline.store_valkey import ValkeyKeySet, connect, valkey_is_up
 from tests.golden import NOW, raw_sample
 
@@ -34,7 +34,7 @@ def seen(request):
 def normalize(key: str, store: dict, seen_keys) -> object:
     """S1 then S2 on one raw sample, sharing a dedup key set."""
     k1 = stages_intake.capture(raw_sample(key), TENANT, store, NOW)
-    return stages_intake.normalize(k1, "evt_raw", TENANT, store, {}, seen_keys, fakes.make_id_maker())
+    return stages_normalize.normalize(k1, "evt_raw", TENANT, store, {}, seen_keys, fakes.make_id_maker())
 
 
 # --- On both

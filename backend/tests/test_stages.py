@@ -2,7 +2,7 @@
 # Uses: app/pipeline/stages_*.py, app/pipeline/fakes.py, tests/golden.py.
 import pytest
 
-from app.pipeline import fakes, stages_govern, stages_intake, stages_reason, stages_record, stages_route
+from app.pipeline import fakes, stages_govern, stages_intake, stages_normalize, stages_reason, stages_record, stages_route
 from app.pipeline.contracts_reason import ContextBundle, ContextQuery, ProposedAction
 from app.pipeline.contracts_run import GovernanceVerdict, RunRecord
 from app.pipeline.contracts_signal import Principal, TaskRequest
@@ -22,7 +22,7 @@ def run_intake(key: str, seen: set[str] | None = None):
     """S1 then S2 on one raw sample. Returns the store, the vault and the signal."""
     store, vault = {}, {}
     k1 = stages_intake.capture(raw_sample(key), SEED["tenant_id"], store, NOW)
-    signal = stages_intake.normalize(k1, "evt_raw", SEED["tenant_id"], store, vault, seen if seen is not None else set(), fakes.make_id_maker())
+    signal = stages_normalize.normalize(k1, "evt_raw", SEED["tenant_id"], store, vault, seen if seen is not None else set(), fakes.make_id_maker())
     return store, vault, signal
 
 

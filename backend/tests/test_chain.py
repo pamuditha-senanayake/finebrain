@@ -76,7 +76,7 @@ def test_broken_chat_body_goes_to_dead_letter():
     orchestrate.capture_signal(lane, {**raw_sample("s4"), "external_id": "chat_bad", "raw_body": "{not json"})
     lane.bus.drain()
     letters = lane.bus.topics["signals.raw.dlq"]
-    assert [(letter.stage, letter.error_code) for letter in letters] == [("S2", "JSONDecodeError")]
+    assert [(letter.stage, letter.error_code, letter.retryable) for letter in letters] == [("S2", "ParseError", False)]
     assert "signals.normalized" not in lane.bus.topics
 
 

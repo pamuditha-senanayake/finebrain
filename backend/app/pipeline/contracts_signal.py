@@ -124,6 +124,7 @@ class Signal(BaseModel):
     pii_tokens: list[PiiToken]
     sensitivity: Sensitivity
     dedup_key: str
+    flags: list[str] = []  # added in S2 step 7, e.g. possible_prompt_injection; optional so old messages validate
 
 
 # --- K3 TaskRequest (S3 to S4, topic tasks.created)
