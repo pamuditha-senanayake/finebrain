@@ -115,3 +115,9 @@ class AccessDecision(BaseModel):
     reason: str
     obligations: list[str] = []
     latency_ms: int
+    # Who asked to do what, so the access log reads on its own. Added in step 9; optional so old messages validate.
+    principal_id: str | None = None
+    on_behalf_of: str | None = None
+    action: str | None = None
+    resource: str | None = None
+    run_id: str | None = None

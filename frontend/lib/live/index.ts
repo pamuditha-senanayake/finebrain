@@ -1,6 +1,6 @@
 "use client";
 
-import { config, flags } from "@/lib/flags";
+import { config, flags, realTenants } from "@/lib/flags";
 
 export type LiveEvent = { type: string; tenantId: string; at: string; resources: string[]; summary: string };
 export type LiveSource = { subscribe: (tenantId: string, onEvent: (e: LiveEvent) => void) => () => void };
@@ -42,4 +42,9 @@ const sseSource: LiveSource = {
   },
 };
 
-export const live: LiveSource = config.liveSource === "sse" && !flags.mocks ? sseSource : mockSource;
+const demoSource: LiveSource = config.liveSource === "sse" && !flags.mocks ? sseSource : mockSource;
+
+/** Real tenants always listen to the backend's stream; demo tenants keep the mock stream. */
+export const live: LiveSource = {
+  subscribe: (tenantId, onEvent) => (realTenants.has(tenantId) ? sseSource : demoSource).subscribe(tenantId, onEvent),
+};

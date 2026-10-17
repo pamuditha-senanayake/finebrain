@@ -6,7 +6,7 @@ from app.pipeline import stages_act, stages_govern, stages_reason, stages_record
 from app.pipeline.retry import call_with_retry
 from app.pipeline.contracts_reason import ContextBundle, ContextQuery, ProposedAction
 from app.pipeline.contracts_run import Decision, GovernanceVerdict, RunStep
-from app.pipeline.contracts_signal import Envelope, Principal, TaskRequest
+from app.pipeline.contracts_signal import Envelope, Principal, Signal, TaskRequest
 from app.pipeline.stages_decide import ApprovalState
 
 # Config
@@ -26,6 +26,14 @@ class RunState(BaseModel):
     bundle: ContextBundle | None = None  # kept so an approver's "request changes" can go back to S6
     approval_id: str | None = None
     approval: ApprovalState | None = None
+
+
+def signal_of(lane, signal_id: str) -> Signal | None:
+    """The masked signal, from this process's memory or from records (when another worker routed it)."""
+    if signal_id in lane.signals:
+        return lane.signals[signal_id]
+    stored = lane.records.load("signal", signal_id)
+    return Signal.model_validate(stored) if stored else None
 
 
 def make_step(lane, step_id: str, kind: str, decision: str, reason: str, refs: list[str]) -> RunStep:
@@ -67,11 +75,12 @@ def failed_gates(verdict: GovernanceVerdict) -> str:
 
 def propose_and_govern(lane, task: TaskRequest, bundle, principal: Principal, run_id: str, cause: Envelope, feedback: str | None = None):
     """S6 then S7. Reference doc section 8 (K7): a failed quality gate goes back to S6 once, then escalates."""
-    signal = lane.signals[task.signal_ids[0]]
+    signal = signal_of(lane, task.signal_ids[0])
+    request_text = (signal.text_masked or "") if signal else ""
     skill = {node["_ref"]["id"]: node for node in lane.graph.latest("skill")}.get(task.skill_ref.id, {})
     for _ in range(2):
-        action = stages_reason.propose(task, bundle, signal.text_masked or "", skill, lane.model, run_id, ACTION_STEP_ID, lane.seed["cluster_id"], feedback, f"{lane.now:%d %B %Y}")
-        decision, verdict = govern_once(lane, task, action, bundle, principal, cause, signal.text_masked or "")
+        action = stages_reason.propose(task, bundle, request_text, skill, lane.model, run_id, ACTION_STEP_ID, lane.seed["cluster_id"], feedback, f"{lane.now:%d %B %Y}")
+        decision, verdict = govern_once(lane, task, action, bundle, principal, cause, request_text)
         feedback = failed_gates(verdict)
         if not feedback or action.action_type == "escalate":
             break
@@ -84,7 +93,8 @@ def start_run(lane, envelope: Envelope) -> RunState | None:
     task = TaskRequest.model_validate(envelope.payload)
     run_id = lane.new_id("run")
     principal = Principal.model_validate(lane.seed["agents"][task.agent_id])
-    refs = [entity.value_or_token for entity in lane.signals[task.signal_ids[0]].entities if entity.type == "payment_ref"]
+    signal = signal_of(lane, task.signal_ids[0])
+    refs = [entity.value_or_token for entity in signal.entities if entity.type == "payment_ref"] if signal else []
     query = ContextQuery(run_id=run_id, principal=principal, on_behalf_of=task.on_behalf_of, query_text=QUERY_TEXT, entity_refs=refs, branch="main", node_types=["policy", "fact"])
     try:
         bundle = retrieve_with_retry(lane, query, envelope)

@@ -111,7 +111,10 @@ def retrieve(query: ContextQuery, chunks, embed, rerank, people: dict, new_id, n
 
     # Step 3: best first, within budget
     kept = fit_budget(rerank_items(query, allowed, rerank), query.top_k, query.max_tokens)
-    decision = AccessDecision(decision_id=new_id("acc"), decision="allow", rule_id=SENSITIVITY_RULE_ID, reason=f"{len(kept)} shown, {denied} withheld", latency_ms=0)
+    decision = AccessDecision(
+        decision_id=new_id("acc"), decision="allow", rule_id=SENSITIVITY_RULE_ID, reason=f"{len(kept)} shown, {denied} withheld", latency_ms=0,
+        principal_id=query.principal.id, on_behalf_of=query.on_behalf_of, action="kb.read", resource="knowledge", run_id=query.run_id,
+    )
     bundle = ContextBundle(
         items=[ContextItem.model_validate({**item, "score": round(score, 4)}) for item, score in kept],
         denied_count=denied, denied_reasons=[DeniedReason(rule_id=SENSITIVITY_RULE_ID, count=denied)] if denied else [],

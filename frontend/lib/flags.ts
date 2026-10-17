@@ -16,3 +16,7 @@ export const config = {
   apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
   liveSource: (process.env.NEXT_PUBLIC_LIVE_SOURCE ?? "mock") as "mock" | "sse",
 } as const;
+
+/** Tenants served by the real backend. Their requests skip the mocks and their live updates come over SSE.
+ *  The demo tenants (demo-fbl, Scale Demo) stay on mock data. */
+export const realTenants = new Set(["finebase-hq"]);

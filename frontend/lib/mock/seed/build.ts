@@ -56,11 +56,11 @@ function emptyData(): Omit<TenantData, "tenant"> {
 
 export function buildFinebase(): TenantData {
   const rng = new Rng("finebase-labs-seed-1");
-  const tenantId = "finebase";
+  const tenantId = "demo-fbl";
   const d: TenantData = {
     tenant: {
       id: tenantId,
-      name: "Finebase Labs",
+      name: "demo-fbl",
       currency: "LKR",
       timezone: "Asia/Colombo",
       locale: "en-LK",

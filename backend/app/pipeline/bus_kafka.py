@@ -1,32 +1,24 @@
 # bus_kafka.py: the event bus on real Kafka (Redpanda locally), with the same methods as MemoryBus.
-# Used by: tests/test_bus.py, orchestrate.py from step 6. Uses: contracts_signal.py (Envelope), contracts_failure.py (DeadLetter).
+# Used by: adapters.py, tests/test_bus.py. Uses: contracts_signal.py (Envelope), contracts_failure.py (DeadLetter), kafka_admin.py.
 import time
 from collections.abc import Callable, MutableSet
 from datetime import datetime
 
 from confluent_kafka import OFFSET_BEGINNING, Consumer, Message, Producer, TopicPartition
-from confluent_kafka.admin import AdminClient, NewTopic
+from confluent_kafka.admin import AdminClient
 from pydantic import BaseModel
 
 from app.pipeline.contracts_failure import DeadLetter
 from app.pipeline.contracts_signal import Envelope
+from app.pipeline.kafka_admin import DEFAULT_BOOTSTRAP, BusUnavailable, create_topics
 
 # Config
-DEFAULT_BOOTSTRAP = "localhost:9092"
 IDLE_SECONDS = 1.5  # drain stops after this long with no new message
 POLL_SECONDS = 0.1
 DLQ_SUFFIX = ".dlq"
+FLUSH_SECONDS = 10  # a broker that will not take messages fails loudly instead of hanging
 
 Handler = Callable[[Envelope], None]
-
-
-def broker_is_up(bootstrap: str = DEFAULT_BOOTSTRAP, timeout: float = 2.0) -> bool:
-    """True when a broker answers, so tests can skip cleanly when Docker is down."""
-    try:
-        AdminClient({"bootstrap.servers": bootstrap}).list_topics(timeout=timeout)
-    except Exception:
-        return False
-    return True
 
 
 class KafkaBus:
@@ -75,9 +67,13 @@ class KafkaBus:
     def ensure_topics(self, topics: list[str]) -> None:
         """Create missing topics with one partition. Real partition counts come with deployment."""
         missing = [self.topic_prefix + topic for topic in topics if topic not in self.topics]
-        futures = self.admin.create_topics([NewTopic(name, num_partitions=1) for name in missing]) if missing else {}
-        for future in futures.values():
-            future.exception()  # wait; "already exists" is fine
+        if missing:
+            create_topics(self.admin, missing)
+
+    def flush(self) -> None:
+        """Wait for sent messages to reach the broker; raise rather than wait forever."""
+        if self.producer.flush(FLUSH_SECONDS) > 0:
+            raise BusUnavailable("messages were not delivered to the broker")
 
     # --- Consuming
 
@@ -91,12 +87,12 @@ class KafkaBus:
 
     def drain(self) -> None:
         """Deliver until no consumer has seen a message for IDLE_SECONDS."""
-        self.producer.flush()
+        self.flush()
         idle_since = time.monotonic()
         while time.monotonic() - idle_since < IDLE_SECONDS:
             if self.poll_once():
                 idle_since = time.monotonic()
-            self.producer.flush()
+            self.flush()
 
     def poll_once(self) -> bool:
         """Give every consumer group one chance to read. True when any message arrived."""
@@ -138,7 +134,7 @@ class KafkaBus:
 
     def dead_letters(self, topic: str) -> list[DeadLetter]:
         """Read every dead letter for a topic back from the broker, not from memory."""
-        self.producer.flush()
+        self.flush()
         reader = Consumer({"bootstrap.servers": self.bootstrap, "group.id": self.topic_prefix + "dlq-reader", "enable.auto.commit": False})
         reader.assign([TopicPartition(self.topic_prefix + topic + DLQ_SUFFIX, 0, OFFSET_BEGINNING)])
         letters, message = [], reader.poll(2.0)

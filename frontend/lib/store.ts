@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { Env } from "@/contracts";
 
-export const DEFAULT_PERSONA: Record<string, string> = { finebase: "h-founder", scale: "sh-0" };
+export const DEFAULT_PERSONA: Record<string, string> = { "demo-fbl": "h-founder", scale: "sh-0", "finebase-hq": "h-pamuditha" };
 
 type UiState = {
   tenantId: string;
@@ -28,7 +28,7 @@ type UiState = {
 export const useUi = create<UiState>()(
   persist(
     (set) => ({
-      tenantId: "finebase",
+      tenantId: "demo-fbl",
       personaByTenant: { ...DEFAULT_PERSONA },
       clusterId: "all",
       env: { kind: "production", branch: "main" },
@@ -47,6 +47,13 @@ export const useUi = create<UiState>()(
     }),
     {
       name: "cb.ui.v1",
+      version: 1,
+      // Version 1 renamed the Finebase Labs demo tenant from "finebase" to "demo-fbl".
+      migrate: (stored) => {
+        const state = (stored ?? {}) as { tenantId?: string; personaByTenant?: Record<string, string> };
+        const { finebase, ...others } = state.personaByTenant ?? {};
+        return { ...state, tenantId: state.tenantId === "finebase" ? "demo-fbl" : state.tenantId, personaByTenant: { ...others, ...(finebase ? { "demo-fbl": finebase } : {}) } };
+      },
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({ tenantId: s.tenantId, personaByTenant: s.personaByTenant, clusterId: s.clusterId, env: s.env, sidebarCollapsed: s.sidebarCollapsed }),
     },

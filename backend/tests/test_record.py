@@ -107,7 +107,7 @@ def test_leaks_are_masked_before_people_see_them():
 def test_console_stream_gets_the_runs_events():
     lane = run_lane(S2_RAW)
     body = TestClient(create_stream_app(lane.broadcaster)).get(f"/api/stream?tenant_id={SEED['tenant_id']}&limit=1").text
-    assert body.startswith("event: run.updated") and '"status": "resolved"' in body
+    assert body.startswith("retry: ") and "event: run.updated" in body and '"status": "resolved"' in body
 
 
 def test_stream_says_delayed_when_the_recorder_is_behind():
@@ -115,7 +115,7 @@ def test_stream_says_delayed_when_the_recorder_is_behind():
     observe.set_flag("recorder_delayed", True)
     body = TestClient(create_stream_app(lane.broadcaster)).get(f"/api/stream?tenant_id={SEED['tenant_id']}&limit=1").text
     observe.reset_counts()  # flags are process-wide; leave none behind
-    assert body.startswith("event: delayed")
+    assert body.split("\n\n")[1].startswith("event: delayed")  # right after the reconnect hint
 
 
 def test_tenants_only_see_their_own_events():

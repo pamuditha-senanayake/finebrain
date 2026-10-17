@@ -8,6 +8,7 @@ from temporalio.common import RetryPolicy
 
 with workflow.unsafe.imports_passed_through():  # these never run inside the workflow sandbox
     import asyncio
+    import concurrent.futures
     import os
 
     from temporalio.client import Client
@@ -24,9 +25,13 @@ NO_AUTO_RETRY = RetryPolicy(maximum_attempts=1)  # steps publish messages; retry
 
 
 def temporal_is_up(address: str = TEMPORAL_ADDRESS) -> bool:
-    """True when the Temporal server answers, so tests can skip cleanly when Docker is down."""
-    try:
+    """True when the Temporal server answers. Runs on its own thread, so it also works inside a running event loop (the API)."""
+    def probe() -> None:
         asyncio.run(asyncio.wait_for(Client.connect(address), timeout=3))
+
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            pool.submit(probe).result(timeout=5)
     except Exception:
         return False
     return True

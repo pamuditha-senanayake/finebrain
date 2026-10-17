@@ -73,8 +73,14 @@ def publish_or_503(lane, raw: dict) -> dict:
 
 
 def create_app(lane) -> FastAPI:
-    """The capture service for one lane."""
+    """The capture service for one lane, on its own (port 8001 in production)."""
     app = FastAPI(title="finebrain capture")
+    register(app, lane)
+    return app
+
+
+def register(app: FastAPI, lane) -> None:
+    """Add POST /capture/{connector_id} to an app. Local development mounts it on the main API."""
 
     @app.post("/capture/{connector_id}", status_code=202)
     async def capture(connector_id: str, request: Request) -> dict:
@@ -84,5 +90,3 @@ def create_app(lane) -> FastAPI:
         content_type = request.headers.get("content-type", "").split(";")[0].strip()
         check_request(connector_id, connector, content_type, body, request.headers)
         return publish_or_503(lane, build_raw(connector_id, connector, content_type, body, request.headers))
-
-    return app

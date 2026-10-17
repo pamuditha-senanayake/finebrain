@@ -1,0 +1,96 @@
+# routes.py: the console API for Finebase HQ: GET /api/t/{tenant}/{resource}, POST ops/decide, the live stream, and
+# capture. Screens not built yet answer [] (lists) or 501 (single objects); they never fall back to demo data.
+# Used by: hq.py, tests/test_api.py. Uses: lists.py, views.py, capture_api.py, ui_stream.py, orchestrate.py.
+from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, StreamingResponse
+
+from app.api import views
+from app.api.lists import clusters_view, list_view, live_event, refusal_for, tenant_view
+from app.pipeline import capture_api, orchestrate
+from app.pipeline.contracts_run import Decision
+from app.pipeline.ui_stream import stream_events
+
+# Config
+CONSOLE_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
+NOT_BUILT_OBJECTS = {"overview", "analytics", "graph", "studio/map"}  # single objects whose screens come in 9b to 9d
+NULLABLE_OBJECTS = {"digest"}
+
+
+# --- The app
+
+def create_api_app(lane, hq: dict) -> FastAPI:
+    app = FastAPI(title="finebrain API")
+    app.add_middleware(CORSMiddleware, allow_origins=CONSOLE_ORIGINS, allow_methods=["*"], allow_headers=["*"])
+    capture_api.register(app, lane)
+    tenant_id = lane.seed["tenant_id"]
+
+    def check(tenant: str, persona: str | None) -> None:
+        if tenant != tenant_id:
+            raise HTTPException(404, "unknown_tenant")
+        if persona is not None and persona not in lane.seed["people"]:
+            raise HTTPException(401, "unknown_persona")
+
+    @app.exception_handler(HTTPException)
+    async def as_error(request: Request, error: HTTPException) -> JSONResponse:
+        return JSONResponse({"error": error.detail}, status_code=error.status_code)
+
+    @app.get("/health")
+    def health() -> dict:
+        return {"status": "ok", "tenant": tenant_id}
+
+    @app.get("/api/tenants")
+    def tenants() -> list[dict]:
+        return [{"id": tenant_id, "name": hq["tenant"]["name"], "isScaleDemo": False}]
+
+    @app.get("/api/t/{tenant}/stream")
+    def stream(tenant: str, limit: int | None = None) -> StreamingResponse:
+        check(tenant, None)  # EventSource cannot send headers; sign-in will guard this in production
+        return StreamingResponse(stream_events(lane.broadcaster, tenant, limit, lambda event: live_event(lane, event), named=False), media_type="text/event-stream")
+
+    @app.get("/api/t/{tenant}/{resource:path}")
+    def resource(tenant: str, resource: str, request: Request, x_persona: str = Header(default="")):
+        check(tenant, x_persona)
+        if resource == "tenant":
+            return tenant_view(lane, hq)
+        if resource == "clusters":
+            return clusters_view(lane, hq)
+        if resource == "humans":
+            return [views.human_view(lane, pid, person).ui() for pid, person in lane.seed["people"].items()]
+        served = list_view(lane, resource, dict(request.query_params))
+        if served is not None:
+            return served
+        return detail_or_fallback(resource)
+
+    def detail_or_fallback(resource: str):
+        if resource in NOT_BUILT_OBJECTS:
+            raise HTTPException(501, "not_connected_yet")
+        kind, _, item_id = resource.partition("/")
+        if kind == "runs" and item_id and (run := lane.records.load("run", item_id)):
+            return views.run_detail(lane, run).ui()
+        if kind == "approvals" and item_id and (approval := lane.records.load("approval", item_id)):
+            return views.approval_view(lane, approval).ui()
+        if item_id:
+            raise HTTPException(404, "not_found")
+        return None if resource in NULLABLE_OBJECTS else []
+
+    @app.post("/api/t/{tenant}/ops/{op}")
+    async def operation(tenant: str, op: str, request: Request, x_persona: str = Header(default="")):
+        check(tenant, x_persona)
+        if op != "decide":
+            raise HTTPException(501, "not_connected_yet")
+        body = await request.json()
+        decision = Decision(approval_id=body["approvalId"], decision=body["decision"], decided_by=[x_persona], decided_at=lane.now,
+                            comment=body.get("comment") or "", delegated_to=body.get("delegateTo"))
+        refused = refusal_for(lane, decision.approval_id, decision)
+        if refused:
+            raise HTTPException(*refused)
+        orchestrate.decide(lane, decision)
+        return {"ok": True}
+
+    @app.post("/api/t/{tenant}/{rest:path}")
+    def not_built(tenant: str, rest: str, x_persona: str = Header(default="")):
+        check(tenant, x_persona)
+        raise HTTPException(501, "not_connected_yet")
+
+    return app

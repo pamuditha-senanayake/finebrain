@@ -7,7 +7,8 @@ import pytest
 from confluent_kafka import OFFSET_BEGINNING, Consumer, TopicPartition
 
 from app.pipeline import fakes
-from app.pipeline.bus_kafka import DEFAULT_BOOTSTRAP, KafkaBus, broker_is_up
+from app.pipeline.bus_kafka import KafkaBus
+from app.pipeline.kafka_admin import DEFAULT_BOOTSTRAP, broker_is_up, delete_prefixed_topics
 from app.pipeline.bus_memory import MemoryBus
 from app.pipeline.contracts_failure import DeadLetter
 from app.pipeline.contracts_signal import Subject
@@ -26,10 +27,13 @@ PAYLOAD = Subject(entity_type="payment", entity_ref="pay_FB_20261004_0192")
 def bus(request):
     """Each test runs once per bus. Kafka gets a fresh topic prefix so earlier runs never leak in."""
     if request.param == "memory":
-        return MemoryBus(BASE, NOW, fakes.make_id_maker())
+        yield MemoryBus(BASE, NOW, fakes.make_id_maker())
+        return
     if not KAFKA_UP:
         pytest.skip("no Kafka broker on localhost:9092")
-    return KafkaBus(BASE, NOW, fakes.make_id_maker(), topic_prefix=f"test{uuid.uuid4().hex[:8]}.")
+    prefix = f"test{uuid.uuid4().hex[:8]}."
+    yield KafkaBus(BASE, NOW, fakes.make_id_maker(), topic_prefix=prefix)
+    delete_prefixed_topics(prefix)  # a test run never leaves topics behind
 
 
 def collect(bus, topic: str, group: str, stage: str = "S2") -> list:
@@ -115,4 +119,5 @@ def test_dead_letter_is_readable_from_the_broker():
     reader.assign([TopicPartition(prefix + "signals.raw.dlq", 0, OFFSET_BEGINNING)])
     message = reader.poll(10)
     reader.close()
+    delete_prefixed_topics(prefix)
     assert DeadLetter.model_validate_json(message.value()).error_code == "ZeroDivisionError"

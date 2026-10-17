@@ -65,7 +65,7 @@ def act_if_still_valid(lane, run: RunState, decision: Decision) -> RunState | No
         count("s9.policy_changed")
         approved_level = run.verdict.criticality
         principal = Principal.model_validate(lane.seed["agents"][run.task.agent_id])
-        signal = lane.signals.get(run.task.signal_ids[0])
+        signal = run_steps.signal_of(lane, run.task.signal_ids[0])
         _, run.verdict = run_steps.govern_once(lane, run.task, run.action, run.bundle, principal, run.cause, signal.text_masked if signal else "")
         if run.verdict.route in ("block", "escalate"):
             return run_steps.close_without_acting(lane, run)

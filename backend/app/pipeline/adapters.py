@@ -7,7 +7,8 @@ import time
 from app.pipeline import access, embeddings, store_postgres, store_s3, store_valkey
 from app.pipeline.audit import MemoryAudit, PostgresAudit
 from app.pipeline.fakes import fake_embed, fake_rerank, make_fake_sender
-from app.pipeline.bus_kafka import KafkaBus, broker_is_up
+from app.pipeline.bus_kafka import KafkaBus
+from app.pipeline.kafka_admin import broker_is_up
 from app.pipeline.bus_memory import MemoryBus
 from app.pipeline.store_chunks import MemoryChunks, PostgresChunks, load_chunks
 from app.pipeline.store_graph import MemoryGraph, PostgresGraph, load_seed

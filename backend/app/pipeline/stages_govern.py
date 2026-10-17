@@ -30,7 +30,10 @@ def check_access(action: ProposedAction, task: TaskRequest, principal: Principal
     resource = Resource(type="payment", id=action.arguments.get("payment_ref", ""), cluster_id=cluster_id, sensitivity="confidential")
     check = AccessCheck(check_id=new_id("chk"), principal=principal, on_behalf_of=task.on_behalf_of, action=CAPABILITY_FOR_ACTION.get(action.action_type, "unknown"), resource=resource)
     answer = checker(check)
-    decision = AccessDecision(decision_id=new_id("acc"), decision="allow" if answer["allow"] else "deny", rule_id=answer["rule_id"], reason=answer["reason"], latency_ms=0)
+    decision = AccessDecision(
+        decision_id=new_id("acc"), decision="allow" if answer["allow"] else "deny", rule_id=answer["rule_id"], reason=answer["reason"], latency_ms=0,
+        principal_id=principal.id, on_behalf_of=task.on_behalf_of, action=check.action, resource=f"{resource.type}:{resource.id}", run_id=action.run_id,
+    )
     return check, decision
 
 

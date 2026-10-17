@@ -42,7 +42,7 @@ export const ROUTES: { path: string; persona: string; label: string }[] = [
 ];
 
 /** Sets tenant and persona in the persisted UI store before the app boots. */
-export async function setPersona(page: Page, persona: string, tenant = "finebase") {
+export async function setPersona(page: Page, persona: string, tenant = "demo-fbl") {
   await page.addInitScript(
     ([p, t]) => {
       // Apply once per tab, so later persona switches in the test survive navigation.
@@ -53,7 +53,7 @@ export async function setPersona(page: Page, persona: string, tenant = "finebase
       const state = current?.state ?? { clusterId: "all", env: { kind: "production", branch: "main" } };
       state.tenantId = t;
       state.personaByTenant = { ...(state.personaByTenant ?? {}), [t]: p };
-      localStorage.setItem(key, JSON.stringify({ state, version: 0 }));
+      localStorage.setItem(key, JSON.stringify({ state, version: 1 }));
     },
     [persona, tenant] as const,
   );

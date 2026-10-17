@@ -9,6 +9,7 @@ import pytest
 from app.pipeline import fakes, orchestrate
 from app.pipeline.adapters import ALL_REAL_PARTS, make_memory_adapters, missing_infra, real_adapters
 from app.pipeline.contracts_run import Decision
+from app.pipeline.kafka_admin import delete_prefixed_topics
 from tests.golden import NOW, RAW, SEED, recorded_answers
 
 # Config: s1 is a policy document for Lane B (S11 ingest), which is not built yet
@@ -23,12 +24,14 @@ REAL_PARTS = ALL_REAL_PARTS  # S3, Postgres, Valkey, Kafka and Temporal
 def setup(request):
     """(seed, adapter builder) per mode. Real runs get a fresh tenant and topic prefix, so runs never mix."""
     if request.param == "memory":
-        return SEED, make_memory_adapters
+        yield SEED, make_memory_adapters
+        return
     missing = missing_infra(REAL_PARTS)
     if missing:
         pytest.skip(f"infra not answering: {', '.join(missing)}")
     run_tag = uuid.uuid4().hex[:8]
-    return {**SEED, "tenant_id": f"test_{run_tag}"}, real_adapters(REAL_PARTS, topic_prefix=f"e2e{run_tag}.")
+    yield {**SEED, "tenant_id": f"test_{run_tag}"}, real_adapters(REAL_PARTS, topic_prefix=f"e2e{run_tag}.")
+    delete_prefixed_topics(f"e2e{run_tag}.")  # a test run never leaves topics behind
 
 
 @pytest.fixture

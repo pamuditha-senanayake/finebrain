@@ -1,6 +1,7 @@
 import type { Actor, Approval, ChangeRequest, Run } from "@/contracts";
 import { OPS, OpError, type Ctx, type OpName } from "./ops";
 import { HOUR, Rng, SEED_NOW, iso } from "./prng";
+import { realTenants } from "@/lib/flags";
 import { buildFinebase, buildScale } from "./seed/build";
 import type { TenantData } from "./types";
 
@@ -9,8 +10,9 @@ type JournalEntry = { tenantId: string; op: OpName; args: unknown; actorId: stri
 
 const JOURNAL_KEY = "cb.mock.journal.v1";
 export const TENANTS = [
-  { id: "finebase", name: "Finebase Labs", isScaleDemo: false },
+  { id: "demo-fbl", name: "demo-fbl", isScaleDemo: false },
   { id: "scale", name: "Scale Demo", isScaleDemo: true },
+  { id: "finebase-hq", name: "Finebase HQ", isScaleDemo: false }, // real backend, never built from mock data
 ];
 
 function readJournal(): JournalEntry[] {
@@ -46,7 +48,7 @@ class MockDb {
   tenant(tenantId: string): TenantData {
     let d = this.tenants.get(tenantId);
     if (!d) {
-      if (!TENANTS.some((t) => t.id === tenantId)) throw new OpError(`Unknown tenant ${tenantId}`, 404);
+      if (!TENANTS.some((t) => t.id === tenantId) || realTenants.has(tenantId)) throw new OpError(`Unknown tenant ${tenantId}`, 404);
       d = tenantId === "scale" ? buildScale() : buildFinebase();
       this.tenants.set(tenantId, d);
       for (const entry of readJournal().filter((e) => e.tenantId === tenantId)) {

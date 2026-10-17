@@ -1,0 +1,20 @@
+{
+  "_about": "Finebase HQ: the tenant the real backend serves to the console (step 9). The demo tenants (demo-fbl, Scale Demo) stay on mock data. Rules, skills, policy, payments and knowledge start from the golden seed until connectors bring real data; this file overrides tenant details, people and clusters.",
+  "tenant": {
+    "id": "finebase-hq",
+    "name": "Finebase HQ",
+    "currency": "LKR",
+    "timezone": "Asia/Colombo",
+    "locale": "en-LK",
+    "brand": {"primary": "#4338ca", "mark": "FH"}
+  },
+  "seed_overrides": {"tenant_id": "finebase-hq", "env": "production"},
+  "people": {
+    "h-pamuditha": {"tier": "L1", "roles": ["founder", "dri", "leader", "head_of_cs"], "delegate": null, "name": "Pamuditha Senanayake", "title": "Founder", "color": "#4338ca"},
+    "h-udayanga": {"tier": "L2", "roles": ["steward"], "delegate": "h-pamuditha", "name": "Udayanga Weerakoon", "title": "Steward", "color": "#0f766e"},
+    "h-imashi": {"tier": "L2", "roles": ["steward"], "delegate": "h-pamuditha", "name": "Imashi Dissanayake", "title": "Steward", "color": "#b45309"}
+  },
+  "clusters": [
+    {"id": "customer_care", "name": "Customer care", "description": "Support inbox, refunds and customer replies.", "dri": "h-pamuditha"}
+  ]
+}

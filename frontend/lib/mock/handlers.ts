@@ -1,4 +1,5 @@
-import { http, HttpResponse, delay } from "msw";
+import { http, HttpResponse, delay, passthrough } from "msw";
+import { realTenants } from "@/lib/flags";
 import type { OpName } from "./ops";
 import { db, OpError, TENANTS } from "./db";
 import { analytics, ask, overview, researchSnapshots, search } from "./queries";
@@ -150,6 +151,8 @@ function studioPost(path: string, fn: (d: TenantData, persona: string, body: unk
 }
 
 export const handlers = [
+  // Real tenants go to the backend untouched; this must stay the first handler so it wins.
+  ...[...realTenants].map((tenantId) => http.all(`*/api/t/${tenantId}/*`, () => passthrough())),
   http.get("*/api/tenants", async () => {
     await delay(LATENCY_MS);
     return HttpResponse.json(TENANTS);

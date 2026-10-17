@@ -17,9 +17,9 @@ from app.pipeline.ui_stream import subscribe_broadcaster
 
 # --- Wiring
 
-def build_lane(seed: dict, model: Model, gateway: Gateway, now: datetime, make_adapters=make_memory_adapters, choose=None, grade=None) -> Lane:
-    """Build the adapters, then subscribe one consumer group per stage."""
-    new_id = make_id_maker()
+def build_lane(seed: dict, model: Model, gateway: Gateway, now: datetime, make_adapters=make_memory_adapters, choose=None, grade=None, new_id=None) -> Lane:
+    """Build the adapters, then subscribe one consumer group per stage. A live tenant passes new_id so ids stay unique across restarts."""
+    new_id = new_id or make_id_maker()
     adapters = make_adapters(seed, now, new_id)
     lane = Lane(seed=seed, model=model, gateway=gateway, now=now, new_id=new_id, choose=choose or no_tie_break, grade=grade or pass_grader, **adapters)
     lane.bus.subscribe("signals.raw", "normalizer", "S2", lambda envelope: on_raw(lane, envelope))
@@ -67,10 +67,20 @@ def no_tie_break(text: str, options: dict) -> None:
     return None
 
 
+def keep_signal(lane: Lane, signal: Signal) -> None:
+    """Save the masked signal so another worker process can read it. Best effort: this worker already holds it."""
+    try:
+        lane.records.save("signal", signal.signal_id, signal)
+    except Exception as error:
+        count("s3.signal_not_saved")
+        log_event("S3", "signal_not_saved", signal_id=signal.signal_id, error=type(error).__name__)
+
+
 def on_signal(lane: Lane, envelope: Envelope) -> None:
     """S3: route to a task, to tasks.unrouted for the Escalations queue, or leave documents to Lane B."""
     signal = Signal.model_validate(envelope.payload)
     lane.signals[signal.signal_id] = signal
+    keep_signal(lane, signal)
     task, reason = stages_route.route(signal, stages_route.read_routing(lane.graph), lane.choose, lane.new_id, lane.now)
     if reason == "lane_b":
         return

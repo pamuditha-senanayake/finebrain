@@ -87,4 +87,9 @@ class PostgresAudit:
 def subscribe_audit(bus, audit) -> None:
     """The audit writer: one consumer group over every topic worth keeping for seven years."""
     for topic in AUDITED_TOPICS:
-        bus.subscribe(topic, "audit", "S10", lambda envelope, topic=topic: audit.append(envelope.event_id, topic, envelope.payload))
+        bus.subscribe(topic, "audit", "S10", lambda envelope, topic=topic: audit.append(envelope.event_id, topic, audit_body(envelope)))
+
+
+def audit_body(envelope) -> dict:
+    """The payload plus the envelope details an auditor needs: when, who produced it, and which case it belongs to."""
+    return {"payload": envelope.payload, "occurred_at": envelope.occurred_at.isoformat(), "producer": envelope.producer, "correlation_id": envelope.correlation_id}
