@@ -20,4 +20,6 @@ Local infra is up:
   Schema registry     localhost:8081
   Valkey              localhost:6379
   S3 (SeaweedFS)      http://localhost:9000
+  Temporal            localhost:7233
+  Temporal UI         http://localhost:8233
 PORTS

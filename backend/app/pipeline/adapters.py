@@ -1,18 +1,21 @@
 # adapters.py: one place that builds what a pipeline runs on: bus, object store, vault, key sets, records.
-# Used by: orchestrate.py, tests/test_e2e.py. Uses: bus_*.py, store_*.py.
+# Used by: orchestrate.py, tests/test_e2e.py. Uses: bus_*.py, store_*.py, temporal_*.py.
 # Each real part can be switched on alone, so connectors are plugged in one at a time (step 6).
 from app.pipeline import store_postgres, store_s3, store_valkey
 from app.pipeline.bus_kafka import KafkaBus, broker_is_up
 from app.pipeline.bus_memory import MemoryBus
 from app.pipeline.store_memory import MemoryRecords
+from app.pipeline.temporal_flow import temporal_is_up
+from app.pipeline.temporal_runner import TemporalRunner
 
 # Config
-ALL_REAL_PARTS = frozenset({"s3", "postgres", "valkey", "kafka"})
+ALL_REAL_PARTS = frozenset({"s3", "postgres", "valkey", "kafka", "temporal"})
 UP_CHECKS = {
     "s3": store_s3.s3_is_up,
     "postgres": store_postgres.database_is_up,
     "valkey": store_valkey.valkey_is_up,
     "kafka": broker_is_up,
+    "temporal": temporal_is_up,
 }
 
 
@@ -60,6 +63,8 @@ def real_adapters(parts: frozenset[str] = ALL_REAL_PARTS, topic_prefix: str = ""
         bus_class = KafkaBus if "kafka" in parts else MemoryBus
         options = {"topic_prefix": topic_prefix} if "kafka" in parts else {}
         adapters["bus"] = bus_class(bus_base(seed), now, new_id, handled=handled, **options)
+        if "temporal" in parts:
+            adapters["runner"] = TemporalRunner()  # build_lane starts it once the lane exists
         return adapters
 
     return make_adapters

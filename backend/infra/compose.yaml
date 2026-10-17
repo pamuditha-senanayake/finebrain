@@ -4,9 +4,21 @@
 # Postgres is on localhost:5433, because 5432 is often taken by a Postgres installed on the Mac.
 # Valkey (Redis compatible) is on localhost:6379.
 # SeaweedFS (S3 compatible, stands in for AWS S3) is on localhost:9000. MinIO no longer publishes images.
+# Temporal dev server is on localhost:7233, its UI on http://localhost:8233. Its history is not kept on restart.
 name: finebrain
 
 services:
+  temporal:
+    image: temporalio/temporal:1.4.1
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--ui-port", "8233"]
+    ports:
+      - "7233:7233"
+      - "8233:8233"
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "127.0.0.1:7233"]
+      interval: 5s
+      retries: 12
+
   seaweedfs:
     image: chrislusf/seaweedfs:3.97
     command: server -dir=/data -ip.bind=0.0.0.0 -s3 -s3.port=8333

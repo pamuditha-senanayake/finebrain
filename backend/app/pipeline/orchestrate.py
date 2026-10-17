@@ -1,5 +1,5 @@
 # orchestrate.py: S4 Orchestrate. Wires S2, S3 and the task consumers onto a bus, given its adapters.
-# Used by: tests/test_chain.py, tests/test_e2e.py. Uses: adapters.py, run_steps.py, recorder.py, stages_*.py, temporal_flow.py.
+# Used by: tests/test_chain.py, tests/test_e2e.py. Uses: adapters.py, run_steps.py, recorder.py, stages_*.py, temporal_runner.py (via adapters).
 # Each task runs in-process, or as a Temporal workflow when the adapters include a Temporal runner.
 from dataclasses import dataclass, field
 from datetime import datetime
