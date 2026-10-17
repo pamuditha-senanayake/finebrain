@@ -1,59 +1,15 @@
-# stages_record.py: S9 Act (cleared K5 to K9) and S10 Record (run to K10 and K11).
-# Used by: tests/test_stages.py. Uses: contracts_*.py, stages_decide.py (format_money), fakes.py (Gateway type).
-import hashlib
-import json
+# stages_record.py: S10 Record (a run to K10 and K11). S9 Act lives in stages_act.py.
+# Used by: run_steps.py, tests. Uses: contracts_*.py, stages_decide.py (format_money).
 from datetime import datetime
 
 from app.pipeline.contracts_reason import ProposedAction
-from app.pipeline.contracts_run import (
-    ActionError, ActionResult, Cost, Decision, GovernanceVerdict, RunOutcome, RunRecord, RunStep, UiEvent,
-)
+from app.pipeline.contracts_run import Cost, RunOutcome, RunRecord, RunStep, UiEvent
 from app.pipeline.contracts_signal import TaskRequest
-from app.pipeline.fakes import Gateway
 from app.pipeline.stages_decide import format_money
 
 # Config: Sonnet price in US micro-dollars per token (USD 3 and 15 per million)
 INPUT_USD_MICRO_PER_TOKEN = 3
 OUTPUT_USD_MICRO_PER_TOKEN = 15
-
-
-class NotCleared(Exception):
-    """S9 was asked to act on something governance did not clear."""
-
-
-# --- S9 Act
-
-def is_cleared(verdict: GovernanceVerdict, decision: Decision | None) -> bool:
-    """Nothing acts before governance: either the route is execute, or a human approved."""
-    if verdict.route == "execute":
-        return True
-    return decision is not None and decision.decision == "approve"
-
-
-def act(
-    action: ProposedAction, verdict: GovernanceVerdict, decision: Decision | None,
-    tenant_id: str, gateway: Gateway, new_id, now: datetime,
-) -> ActionResult:
-    """S9: call the tool with a stable idempotency key, so a retry can never pay twice."""
-    # Step 1: refuse anything governance did not clear
-    if not is_cleared(verdict, decision):
-        raise NotCleared(f"{action.run_id}:{action.step_id} route is {verdict.route}")
-
-    # Step 2: a human edit wins over the agent's arguments
-    arguments = decision.final_arguments if decision and decision.final_arguments else action.arguments
-    key = f"{tenant_id}:{action.run_id}:{action.step_id}"
-    response = gateway(action.tool_id, arguments, key)
-
-    # Step 3: describe the result as K9
-    error = response.get("error")
-    return ActionResult(
-        action_id=new_id("actn"), run_id=action.run_id, tool_id=action.tool_id, idempotency_key=key,
-        status=response["status"], external_ref=response.get("external_ref"),
-        request_hash=hashlib.sha256(json.dumps(arguments, sort_keys=True).encode()).hexdigest(),
-        response_summary=response.get("summary", ""), attempted_at=now,
-        completed_at=now if response["status"] == "succeeded" else None,
-        error=ActionError(**error) if error else None,
-    )
 
 
 # --- S10 Record

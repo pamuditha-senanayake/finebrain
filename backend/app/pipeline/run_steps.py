@@ -2,7 +2,7 @@
 # Used by: orchestrate.py, temporal_flow.py, run_approvals.py (the S8 part). Uses: stages_*.py, contracts_*.py.
 from pydantic import BaseModel
 
-from app.pipeline import stages_govern, stages_reason, stages_record, stages_retrieve
+from app.pipeline import stages_act, stages_govern, stages_reason, stages_record, stages_retrieve
 from app.pipeline.retry import call_with_retry
 from app.pipeline.contracts_reason import ContextBundle, ContextQuery, ProposedAction
 from app.pipeline.contracts_run import Decision, GovernanceVerdict, RunStep
@@ -108,9 +108,15 @@ def finish_run(lane, run: RunState, outcome: str) -> None:
     lane.bus.publish("ui.events", "ui.event", event, "recorder", run.cause)
 
 
+def tooling(lane) -> dict:
+    """What S9 needs from the lane: rate limiter, finished results, one runner per tool, and how to wait."""
+    return {**lane.tooling, "runners": {"payment_gateway": lane.gateway, "email": lane.tooling["send_email"]}}
+
+
 def act_and_finish(lane, run: RunState, decision: Decision | None) -> None:
-    """S9 then S10, once governance or a human has cleared the action."""
-    result = stages_record.act(run.action, run.verdict, decision, lane.seed["tenant_id"], lane.gateway, lane.new_id, lane.now)
+    """S9 then S10, once governance or a human has cleared the action. A failure closes the run as failed,
+    which the console shows live, so a human is told (reference doc section 8, K9)."""
+    result = stages_act.act(run.action, run.verdict, decision, lane.seed["tenant_id"], tooling(lane), lane.new_id, lane.now)
     run.cause = lane.bus.publish("actions.executed", "action.executed", result, "worker", run.cause)
     run.steps.append(make_step(lane, ACTION_STEP_ID, "tool", result.status, run.verdict.route, [result.action_id]))
     finish_run(lane, run, "resolved" if result.status == "succeeded" else "failed")

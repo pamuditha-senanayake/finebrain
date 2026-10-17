@@ -65,8 +65,8 @@ class RunActivities:
         return run_approvals.expire(self.lane, run)
 
     @activity.defn(name="release_after_cooling")
-    async def release(self, run: RunState) -> None:
-        run_approvals.release(self.lane, run)
+    async def release(self, run: RunState) -> RunState | None:
+        return run_approvals.release(self.lane, run)
 
 
 async def step(method, *args, timeout: timedelta = STEP_TIMEOUT):
@@ -105,8 +105,7 @@ class TaskWorkflow:
         if state.final_decision is not None:
             self.phase = "cooling"
             await asyncio.sleep(state.cooling_seconds)  # a durable Temporal timer
-            await step(RunActivities.release, paused)
-            return None
+            return await step(RunActivities.release, paused)  # a new approval if the policy changed meanwhile
         if state.round != self.round_seen:  # each round (first approver, then delegate) gets its own clock
             self.deadline, self.round_seen = workflow.now() + timedelta(seconds=state.expires_after_seconds), state.round
         self.phase = "awaiting_approval"

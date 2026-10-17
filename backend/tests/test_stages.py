@@ -2,13 +2,14 @@
 # Uses: app/pipeline/stages_*.py, app/pipeline/fakes.py, tests/golden.py.
 import pytest
 
-from app.pipeline import access, fakes, stages_decide, stages_govern, stages_intake, stages_normalize, stages_reason, stages_record, stages_retrieve, stages_route
+from app.pipeline import access, fakes, stages_act, stages_decide, stages_govern, stages_intake, stages_normalize, stages_reason, stages_record, stages_retrieve, stages_route
 from app.pipeline.contracts_reason import ContextBundle, ContextQuery, ProposedAction
 from app.pipeline.contracts_run import GovernanceVerdict, RunRecord
 from app.pipeline.adapters import seeded
 from app.pipeline.contracts_signal import Principal, TaskRequest
 from app.pipeline.store_chunks import MemoryChunks
 from app.pipeline.store_graph import MemoryGraph
+from app.pipeline.tool_runners import MemoryRateLimiter, MemoryResults
 from tests.golden import NOW, SEED, golden, raw_sample, recorded_answer, released_policies
 
 # Config
@@ -164,19 +165,24 @@ def test_s8_opens_one_approval_for_s3():
 
 # --- S9 and S10
 
+def s9_tooling(gateway) -> dict:
+    return {"limiter": MemoryRateLimiter(), "results": MemoryResults(), "sleep": lambda seconds: None, "runners": {"payment_gateway": gateway, "email": fakes.make_fake_sender()[0]}}
+
+
 def test_s9_pays_once_on_retry():
     gateway, seen = fakes.make_fake_gateway()
     action = ProposedAction.model_validate(golden("s2", "ProposedAction"))
     verdict = GovernanceVerdict.model_validate(golden("s2", "GovernanceVerdict"))
-    first, second = (stages_record.act(action, verdict, None, SEED["tenant_id"], gateway, fakes.make_id_maker(), NOW) for _ in range(2))
+    tooling = s9_tooling(gateway)
+    first, second = (stages_act.act(action, verdict, None, SEED["tenant_id"], tooling, fakes.make_id_maker(), NOW) for _ in range(2))
     assert first.status == "succeeded" and first.external_ref == second.external_ref and len(seen) == 1
     assert first.idempotency_key == golden("s2", "ActionResult")["idempotency_key"]
 
 
 def test_s9_refuses_an_unapproved_action():
     gateway, seen = fakes.make_fake_gateway()
-    with pytest.raises(stages_record.NotCleared):
-        stages_record.act(ProposedAction.model_validate(golden("s3", "ProposedAction")), GovernanceVerdict.model_validate(golden("s3", "GovernanceVerdict")), None, SEED["tenant_id"], gateway, fakes.make_id_maker(), NOW)
+    with pytest.raises(stages_act.NotCleared):
+        stages_act.act(ProposedAction.model_validate(golden("s3", "ProposedAction")), GovernanceVerdict.model_validate(golden("s3", "GovernanceVerdict")), None, SEED["tenant_id"], s9_tooling(gateway), fakes.make_id_maker(), NOW)
     assert seen == {}
 
 

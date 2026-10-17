@@ -61,19 +61,33 @@ def pass_grader(rationale: str, documents: list[str], context: str = "") -> tupl
 
 # --- Payment gateway
 
-def make_fake_gateway(fail_with: str | None = None) -> tuple[Gateway, dict[str, dict]]:
-    """A refund gateway that answers once per idempotency key, like a real one."""
+def make_fake_gateway(fail_with: str | None = None, failures: int | None = None, retryable: bool = True) -> tuple[Gateway, dict[str, dict]]:
+    """A refund gateway that answers once per idempotency key, like a real one.
+    fail_with makes it fail: every call, or only the first `failures` calls."""
     seen: dict[str, dict] = {}
+    calls = {"count": 0}
 
     def gateway(tool_id: str, arguments: dict, idempotency_key: str) -> dict:
-        if fail_with:
-            return {"status": "failed", "error": {"code": fail_with, "retryable": True}}
+        calls["count"] += 1
+        if fail_with and (failures is None or calls["count"] <= failures):
+            return {"status": "failed", "error": {"code": fail_with, "retryable": retryable}}
         if idempotency_key not in seen:
             external_ref = "rf_" + hashlib.sha256(idempotency_key.encode()).hexdigest()[:8]
             seen[idempotency_key] = {"status": "succeeded", "external_ref": external_ref, "summary": f"{tool_id} accepted", "arguments": arguments}
         return seen[idempotency_key]
 
     return gateway, seen
+
+
+def make_fake_sender() -> tuple[Gateway, list[dict]]:
+    """An email sender stand-in for reply_customer: records what would be sent."""
+    sent: list[dict] = []
+
+    def send(tool_id: str, arguments: dict, idempotency_key: str) -> dict:
+        sent.append({"key": idempotency_key, **arguments})
+        return {"status": "succeeded", "external_ref": f"msg_{len(sent):04d}", "summary": "reply sent"}
+
+    return send, sent
 
 
 # --- Embeddings and rerank (Voyage in production)

@@ -2,14 +2,16 @@
 # Used by: orchestrate.py, tests/test_e2e.py. Uses: bus_*.py, store_*.py, temporal_*.py.
 # Each real part can be switched on alone, so connectors are plugged in one at a time (step 6).
 import os
+import time
 
 from app.pipeline import access, embeddings, store_postgres, store_s3, store_valkey
-from app.pipeline.fakes import fake_embed, fake_rerank
+from app.pipeline.fakes import fake_embed, fake_rerank, make_fake_sender
 from app.pipeline.bus_kafka import KafkaBus, broker_is_up
 from app.pipeline.bus_memory import MemoryBus
 from app.pipeline.store_chunks import MemoryChunks, PostgresChunks, load_chunks
 from app.pipeline.store_graph import MemoryGraph, PostgresGraph, load_seed
 from app.pipeline.store_memory import MemoryRecords
+from app.pipeline.tool_runners import MemoryRateLimiter, MemoryResults, ValkeyRateLimiter, ValkeyResults
 from app.pipeline.temporal_flow import temporal_is_up
 from app.pipeline.temporal_runner import TemporalRunner
 
@@ -44,6 +46,8 @@ def make_memory_adapters(seed: dict, now, new_id) -> dict:
         "rerank": fake_rerank,
         "chunks": MemoryChunks(),
         "check_access": access.make_memory_checker(seed["people"]),
+        "tooling": {"limiter": MemoryRateLimiter(), "results": MemoryResults(), "sleep": time.sleep,
+                    "send_email": make_fake_sender()[0]},  # real Gmail sending comes with connector OAuth
     }
     load_chunks(adapters["chunks"], adapters["graph"], adapters["embed"])
     return adapters
@@ -82,6 +86,7 @@ def real_adapters(parts: frozenset[str] = ALL_REAL_PARTS, topic_prefix: str = ""
             keys = store_valkey.connect()
             adapters["seen_keys"] = store_valkey.ValkeyKeySet(keys, f"{tenant}:s2_dedup")
             handled = store_valkey.ValkeyKeySet(keys, f"{tenant}:handled")
+            adapters["tooling"].update(limiter=ValkeyRateLimiter(keys), results=ValkeyResults(keys, f"{tenant}:results"))
         bus_class = KafkaBus if "kafka" in parts else MemoryBus
         options = {"topic_prefix": topic_prefix} if "kafka" in parts else {}
         adapters["bus"] = bus_class(bus_base(seed), now, new_id, handled=handled, **options)

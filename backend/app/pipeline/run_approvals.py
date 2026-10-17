@@ -2,7 +2,7 @@
 # Shared by the in-process runner and Temporal. Used by: orchestrate.py, temporal_flow.py. Uses: run_steps.py, stages_decide.py.
 from datetime import timedelta
 
-from app.pipeline import run_steps, stages_decide
+from app.pipeline import run_steps, stages_act, stages_decide
 from app.pipeline.contracts_run import Decision, UiEvent
 from app.pipeline.contracts_signal import Envelope, Principal
 from app.pipeline.observe import count, log_event
@@ -54,6 +54,24 @@ def approve(lane, run: RunState, decision: Decision) -> RunState | None:
         state.cooling_until = lane.now + timedelta(seconds=state.cooling_seconds)
         tell_console(lane, run, "approved, cooling")
         return run
+    return act_if_still_valid(lane, run, decision)
+
+
+def act_if_still_valid(lane, run: RunState, decision: Decision) -> RunState | None:
+    """Before acting on an approval, check the policy has not been released anew meanwhile. If it has, govern again:
+    act if the new verdict is no stricter, open a new approval if it needs more, close if it now blocks."""
+    policies = {node["_ref"]["id"]: node for node in lane.graph.latest("policy")}
+    if stages_act.policy_is_stale(run.verdict, policies):
+        count("s9.policy_changed")
+        approved_level = run.verdict.criticality
+        principal = Principal.model_validate(lane.seed["agents"][run.task.agent_id])
+        signal = lane.signals.get(run.task.signal_ids[0])
+        _, run.verdict = run_steps.govern_once(lane, run.task, run.action, run.bundle, principal, run.cause, signal.text_masked if signal else "")
+        if run.verdict.route in ("block", "escalate"):
+            return run_steps.close_without_acting(lane, run)
+        if run.verdict.route == "approval_required" and run.verdict.criticality > approved_level:
+            return open_approval(lane, run)
+        run.verdict = run.verdict.model_copy(update={"route": "approval_required"})  # still covered by the approval given
     run_steps.act_and_finish(lane, run, decision)
     return None
 
@@ -106,6 +124,6 @@ def expire(lane, run: RunState) -> RunState | None:
     return None
 
 
-def release(lane, run: RunState) -> None:
-    """The cooling period is over: act on the approved decision."""
-    run_steps.act_and_finish(lane, run, run.approval.final_decision)
+def release(lane, run: RunState) -> RunState | None:
+    """The cooling period is over: act on the approved decision, if the policy still allows it."""
+    return act_if_still_valid(lane, run, run.approval.final_decision)

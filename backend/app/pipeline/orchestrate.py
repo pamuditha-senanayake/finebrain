@@ -31,6 +31,7 @@ class Lane:
     embed: object
     rerank: object
     check_access: object
+    tooling: dict  # S9: rate limiter, finished results, email sender, how to wait between retries
     grade: object = None  # S7 grader (llm.make_grader); defaults to the fake that passes cited rationales
     choose: object = None  # S3 tie-break (llm.make_chooser); None means close calls go unrouted
     runner: object = None  # TemporalRunner, or None to run tasks in-process
@@ -144,7 +145,6 @@ def sweep_expired(lane: Lane, now) -> None:
     for approval_id, run in list(lane.pending.items()):
         state = run.approval
         if state.cooling_until is not None and state.cooling_until <= now:
-            del lane.pending[approval_id]
-            run_approvals.release(lane, run)
+            keep(lane, run_approvals.release(lane, lane.pending.pop(approval_id)))
         elif state.final_decision is None and state.request.expires_at <= now:
             keep(lane, run_approvals.expire(lane, lane.pending.pop(approval_id)))
