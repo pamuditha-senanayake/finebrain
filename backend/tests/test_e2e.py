@@ -14,7 +14,7 @@ from tests.golden import NOW, RAW, SEED, golden, recorded_answer
 # Config: s1 is a policy document for Lane B (S11 ingest), which is not built yet
 LANE_A_SAMPLES = [sample_id for sample_id in RAW if not sample_id.startswith("s1_")]
 ACTION_STEP_ID = "step_04"
-REAL_PARTS = frozenset({"s3", "postgres"})  # grows one connector at a time in step 6
+REAL_PARTS = frozenset({"s3", "postgres", "valkey"})  # grows one connector at a time in step 6
 
 
 # --- Helpers
