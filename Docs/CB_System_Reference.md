@@ -52,6 +52,8 @@ Higher tiers can look down, never up.
 
 Touching money, personal data, public content, legal or tax, or more than one cluster moves a change up one level.
 
+One exception: when the skill's policy explicitly allows that action within its limits, there is no bump. A refund of LKR 12,000 under a policy that auto-approves up to LKR 50,000 inside 30 days stays C0 (reason `policy_auto_approval`). Outside those limits the bump applies as normal.
+
 ## 3. What is new since the 8 October design
 
 These features live in the frontend today with mock data. The backend must serve them.
