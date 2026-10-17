@@ -1,0 +1,220 @@
+<mxfile host="drawio">
+<diagram id="pipe" name="Pipeline, contracts, lanes">
+<mxGraphModel adaptiveColors="auto" dx="1600" dy="1000" grid="1" gridSize="10" page="1" pageWidth="2000" pageHeight="1250">
+<root>
+<mxCell id="0"/>
+<mxCell id="1" parent="0"/>
+<mxCell id="title" value="&lt;b&gt;Company Brain · core pipeline: 15 stages, 15 contracts, 4 lanes&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;Every arrow between stages is a written contract (K1 to K15). Nothing acts before governance. Nothing is overwritten.&lt;/font&gt;" style="text;html=1;fontSize=20;align=left;verticalAlign=top;" vertex="1" parent="1">
+<mxGeometry x="40" y="0" width="1400" height="50" as="geometry"/>
+</mxCell>
+<mxCell id="L0" value="&lt;b&gt;Around the pipeline&lt;/b&gt;&lt;br&gt;screens people use" style="swimlane;horizontal=0;startSize=110;fillColor=#f5f5f5;strokeColor=#666666;html=1;" vertex="1" parent="1">
+<mxGeometry x="0" y="60" width="1940" height="150" as="geometry"/>
+</mxCell>
+<mxCell id="r1" value="&lt;b&gt;Connect&lt;/b&gt;&lt;br&gt;setup interview, connectors, MCP in" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;" vertex="1" parent="L0">
+<mxGeometry x="140" y="40" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="r2" value="&lt;b&gt;Workflow Studio&lt;/b&gt;&lt;br&gt;story, parts, review, propose" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="L0">
+<mxGeometry x="740" y="40" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="r3" value="&lt;b&gt;Ask the Brain · Claude MCP&lt;/b&gt;&lt;br&gt;read as the person" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="L0">
+<mxGeometry x="960" y="40" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="r4" value="&lt;b&gt;To review&lt;/b&gt;&lt;br&gt;approvals, evidence, takeover" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;" vertex="1" parent="L0">
+<mxGeometry x="1340" y="40" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="r5" value="&lt;b&gt;Live console&lt;/b&gt;&lt;br&gt;every live list, SSE" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;" vertex="1" parent="L0">
+<mxGeometry x="1740" y="40" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="LA" value="&lt;b&gt;Lane A&lt;/b&gt;&lt;br&gt;signal to governed action&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;A01 to A32&lt;/font&gt;" style="swimlane;horizontal=0;startSize=110;fillColor=#dae8fc;strokeColor=#6c8ebf;html=1;" vertex="1" parent="1">
+<mxGeometry x="0" y="210" width="1940" height="300" as="geometry"/>
+</mxCell>
+<mxCell id="S1" value="&lt;b&gt;S1 Capture&lt;/b&gt;&lt;br&gt;verify, check grant, store raw once" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="LA">
+<mxGeometry x="140" y="40" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="S2" value="&lt;b&gt;S2 Normalize&lt;/b&gt;&lt;br&gt;canonical Signal, mask PII, dedup" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="LA">
+<mxGeometry x="340" y="40" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="S3" value="&lt;b&gt;S3 Route&lt;/b&gt;&lt;br&gt;activity, skill version, agent" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="LA">
+<mxGeometry x="540" y="40" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="S4" value="&lt;b&gt;S4 Orchestrate&lt;/b&gt;&lt;br&gt;Temporal task workflow, run row" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="LA">
+<mxGeometry x="740" y="40" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="S6" value="&lt;b&gt;S6 Reason&lt;/b&gt;&lt;br&gt;Claude plans, drafts, proposes" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="LA">
+<mxGeometry x="940" y="40" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="S7" value="&lt;b&gt;S7 Govern&lt;/b&gt;&lt;br&gt;access, policy, gates, criticality" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="LA">
+<mxGeometry x="1140" y="40" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="S8" value="&lt;b&gt;S8 Decide&lt;/b&gt;&lt;br&gt;approvals, escalation, expiry" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="LA">
+<mxGeometry x="1340" y="40" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="S9" value="&lt;b&gt;S9 Act&lt;/b&gt;&lt;br&gt;shared tools, idempotency key" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="LA">
+<mxGeometry x="1540" y="40" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="S10" value="&lt;b&gt;S10 Record&lt;/b&gt;&lt;br&gt;templates, trace, audit chain" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="LA">
+<mxGeometry x="1740" y="40" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="S5" value="&lt;b&gt;S5 Retrieve&lt;/b&gt;&lt;br&gt;access filtered, bitemporal, hybrid" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="LA">
+<mxGeometry x="940" y="200" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="OPA" value="&lt;b&gt;OPA access service&lt;/b&gt;&lt;br&gt;allow or deny, fail closed" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;dashed=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="LA">
+<mxGeometry x="1140" y="200" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="UNR" value="no route above 0.72 → tasks.unrouted → Escalations" style="text;html=1;fontSize=10;align=left;fontColor=#b85450;" vertex="1" parent="LA">
+<mxGeometry x="540" y="130" width="190" height="40" as="geometry"/>
+</mxCell>
+<mxCell id="LB" value="&lt;b&gt;Lane B&lt;/b&gt;&lt;br&gt;document to ground truth&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;B01 to B12&lt;/font&gt;" style="swimlane;horizontal=0;startSize=110;fillColor=#d5e8d4;strokeColor=#82b366;html=1;" vertex="1" parent="1">
+<mxGeometry x="0" y="510" width="1940" height="150" as="geometry"/>
+</mxCell>
+<mxCell id="S11" value="&lt;b&gt;S11 Ingest&lt;/b&gt;&lt;br&gt;file, parse, embed, extract" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="LB">
+<mxGeometry x="340" y="40" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="S12" value="&lt;b&gt;S12 Librarian&lt;/b&gt;&lt;br&gt;new, duplicate, conflict, stale" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="LB">
+<mxGeometry x="540" y="40" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="LC" value="&lt;b&gt;Lane C&lt;/b&gt;&lt;br&gt;learning and versioned change&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;C01 to C15&lt;/font&gt;" style="swimlane;horizontal=0;startSize=110;fillColor=#ffe6cc;strokeColor=#d79b00;html=1;" vertex="1" parent="1">
+<mxGeometry x="0" y="660" width="1940" height="150" as="geometry"/>
+</mxCell>
+<mxCell id="S14" value="&lt;b&gt;S14 Version&lt;/b&gt;&lt;br&gt;git for the graph, merge, release" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="LC">
+<mxGeometry x="740" y="40" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="S13" value="&lt;b&gt;S13 Learn&lt;/b&gt;&lt;br&gt;nightly review, Skillify, evals, replay" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="LC">
+<mxGeometry x="1740" y="40" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="LD" value="&lt;b&gt;Lane D&lt;/b&gt;&lt;br&gt;readiness and evidence&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;D01 to D07&lt;/font&gt;" style="swimlane;horizontal=0;startSize=110;fillColor=#e1d5e7;strokeColor=#9673a6;html=1;" vertex="1" parent="1">
+<mxGeometry x="0" y="810" width="1940" height="150" as="geometry"/>
+</mxCell>
+<mxCell id="S15" value="&lt;b&gt;S15 Readiness&lt;/b&gt;&lt;br&gt;hourly gap check, Entity protection" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="LD">
+<mxGeometry x="1340" y="40" width="150" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="a1" value="grant + sensor" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;" edge="1" parent="1" source="r1" target="S1">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a2" value="K1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;fontStyle=1;" edge="1" parent="LA" source="S1" target="S2">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a3" value="K2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;fontStyle=1;" edge="1" parent="LA" source="S2" target="S3">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a4" value="K3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;fontStyle=1;" edge="1" parent="LA" source="S3" target="S4">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a5" value="agent step" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;" edge="1" parent="LA" source="S4" target="S6">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a6" value="K4 query" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;fontStyle=1;dashed=1;exitX=0.3;exitY=1;entryX=0.3;entryY=0;" edge="1" parent="LA" source="S6" target="S5">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a7" value="K4 bundle" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;fontStyle=1;dashed=1;exitX=0.7;exitY=0;entryX=0.7;entryY=1;" edge="1" parent="LA" source="S5" target="S6">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a8" value="K5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;fontStyle=1;dashed=1;" edge="1" parent="LA" source="S6" target="S7">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a9" value="K6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;fontStyle=1;dashed=1;" edge="1" parent="LA" source="S7" target="OPA">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a10" value="K6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;fontStyle=1;dashed=1;" edge="1" parent="LA" source="S5" target="OPA">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a11" value="K7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;fontStyle=1;dashed=1;" edge="1" parent="LA" source="S7" target="S8">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a12" value="K8 decision" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;fontStyle=1;" edge="1" parent="LA" source="S8" target="S9">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a13" value="K9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;fontStyle=1;" edge="1" parent="LA" source="S9" target="S10">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a14" value="K11 SSE" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;fontStyle=1;" edge="1" parent="1" source="S10" target="r5">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a15" value="K8 request / decision" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;startArrow=classic;" edge="1" parent="1" source="S8" target="r4">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a16" value="K4 · human principal" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;dashed=1;strokeColor=#9673a6;" edge="1" parent="1" source="r3" target="S5">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a17" value="K2 documents" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;fontStyle=1;" edge="1" parent="1" source="S2" target="S11">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a18" value="K12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;fontStyle=1;" edge="1" parent="LB" source="S11" target="S12">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a19" value="K13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;fontStyle=1;" edge="1" parent="1" source="S12" target="S14">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a20" value="K10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;fontStyle=1;" edge="1" parent="1" source="S10" target="S13">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a21" value="K13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;fontStyle=1;" edge="1" parent="LC" source="S13" target="S14">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a22" value="K13 via Studio" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;strokeColor=#d79b00;" edge="1" parent="1" source="r2" target="S14">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a23" value="K8 change approval" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;startArrow=classic;" edge="1" parent="1" source="S14" target="S8">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a24" value="K14 release → S3, S5, S6, S11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;fontStyle=1;strokeColor=#d79b00;" edge="1" parent="1" source="S14" target="S3">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a25" value="K15" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;fontStyle=1;strokeColor=#9673a6;" edge="1" parent="1" source="S15" target="S8">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="a26" value="K15 dispatch agent" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;strokeColor=#9673a6;" edge="1" parent="1" source="S15" target="S3">
+<mxGeometry relative="1" as="geometry"/>
+</mxCell>
+<mxCell id="k1" value="&lt;b&gt;K1 RawSignalEnvelope&lt;/b&gt; · S1→S2 · Kafka signals.raw" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;align=left;spacingLeft=8;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+<mxGeometry x="40" y="990" width="360" height="44" as="geometry"/>
+</mxCell>
+<mxCell id="k2" value="&lt;b&gt;K2 Signal&lt;/b&gt; · S2→S3, S11 · Kafka signals.normalized" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;align=left;spacingLeft=8;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+<mxGeometry x="420" y="990" width="360" height="44" as="geometry"/>
+</mxCell>
+<mxCell id="k3" value="&lt;b&gt;K3 TaskRequest&lt;/b&gt; · S3→S4 · Kafka tasks.created" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;align=left;spacingLeft=8;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+<mxGeometry x="800" y="990" width="360" height="44" as="geometry"/>
+</mxCell>
+<mxCell id="k4" value="&lt;b&gt;K4 ContextQuery → Bundle&lt;/b&gt; · S6↔S5 · sync HTTP, 2 s" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;align=left;spacingLeft=8;fillColor=#dae8fc;strokeColor=#6c8ebf;dashed=1;" vertex="1" parent="1">
+<mxGeometry x="1180" y="990" width="360" height="44" as="geometry"/>
+</mxCell>
+<mxCell id="k5" value="&lt;b&gt;K5 ProposedAction&lt;/b&gt; · S6→S7 · Temporal activity" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;align=left;spacingLeft=8;fillColor=#dae8fc;strokeColor=#6c8ebf;dashed=1;" vertex="1" parent="1">
+<mxGeometry x="1560" y="990" width="360" height="44" as="geometry"/>
+</mxCell>
+<mxCell id="k6" value="&lt;b&gt;K6 AccessCheck&lt;/b&gt; · S5, S7→OPA · sync HTTP, 10 ms" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;align=left;spacingLeft=8;fillColor=#f8cecc;strokeColor=#b85450;dashed=1;" vertex="1" parent="1">
+<mxGeometry x="40" y="1044" width="360" height="44" as="geometry"/>
+</mxCell>
+<mxCell id="k7" value="&lt;b&gt;K7 GovernanceVerdict&lt;/b&gt; · S7→S8 · Temporal activity" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;align=left;spacingLeft=8;fillColor=#dae8fc;strokeColor=#6c8ebf;dashed=1;" vertex="1" parent="1">
+<mxGeometry x="420" y="1044" width="360" height="44" as="geometry"/>
+</mxCell>
+<mxCell id="k8" value="&lt;b&gt;K8 ApprovalRequest, Decision&lt;/b&gt; · S7/S14→S8→S9/S14 · outbox" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;align=left;spacingLeft=8;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+<mxGeometry x="800" y="1044" width="360" height="44" as="geometry"/>
+</mxCell>
+<mxCell id="k9" value="&lt;b&gt;K9 ActionResult&lt;/b&gt; · S9→S10 · Kafka actions.executed" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;align=left;spacingLeft=8;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+<mxGeometry x="1180" y="1044" width="360" height="44" as="geometry"/>
+</mxCell>
+<mxCell id="k10" value="&lt;b&gt;K10 RunRecord&lt;/b&gt; · S10→S13 · Kafka runs.completed" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;align=left;spacingLeft=8;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+<mxGeometry x="1560" y="1044" width="360" height="44" as="geometry"/>
+</mxCell>
+<mxCell id="k11" value="&lt;b&gt;K11 UiEvent&lt;/b&gt; · S10→console · SSE /api/stream" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;align=left;spacingLeft=8;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+<mxGeometry x="40" y="1098" width="360" height="44" as="geometry"/>
+</mxCell>
+<mxCell id="k12" value="&lt;b&gt;K12 FactCandidate&lt;/b&gt; · S11→S12 · Kafka facts.candidates" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;align=left;spacingLeft=8;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+<mxGeometry x="420" y="1098" width="360" height="44" as="geometry"/>
+</mxCell>
+<mxCell id="k13" value="&lt;b&gt;K13 Commit + ChangeRequest&lt;/b&gt; · S12, S13, Studio→S14" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;align=left;spacingLeft=8;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+<mxGeometry x="800" y="1098" width="360" height="44" as="geometry"/>
+</mxCell>
+<mxCell id="k14" value="&lt;b&gt;K14 ReleaseEvent&lt;/b&gt; · S14→S3, S5, S6, S11 · compacted" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;align=left;spacingLeft=8;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+<mxGeometry x="1180" y="1098" width="360" height="44" as="geometry"/>
+</mxCell>
+<mxCell id="k15" value="&lt;b&gt;K15 GapDetected&lt;/b&gt; · S15→S3, S8 · Kafka evidence.gaps" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;align=left;spacingLeft=8;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+<mxGeometry x="1560" y="1098" width="360" height="44" as="geometry"/>
+</mxCell>
+<mxCell id="legend" value="&lt;b&gt;Legend&lt;/b&gt; · solid arrow = Kafka event (or outbox to Kafka) · dashed = sync HTTP or Temporal activity · two-headed = request and reply · approval: C0 auto, C1 L2 agent, C2 L2 steward, C3 L1 DRI, C4 two L1 leaders + cooling period" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="1">
+<mxGeometry x="40" y="1150" width="1880" height="30" as="geometry"/>
+</mxCell>
+</root>
+</mxGraphModel>
+</diagram>
+</mxfile>
