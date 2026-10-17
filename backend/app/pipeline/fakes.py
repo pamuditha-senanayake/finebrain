@@ -1,8 +1,9 @@
 # fakes.py: in-memory stand-ins for outside services, so stage tests are fast and repeatable.
-# Used by: tests/test_stages.py, which passes them into stages_*.py. Uses: nothing local.
-# Object store, PII vault and dedup set need no fake: a plain dict or set is enough.
+# Used by: tests/test_stages.py, tests/test_chain.py, which pass them into stages_*.py and orchestrate.py.
+# Uses: nothing local. Object store, PII vault and dedup set need no fake: a plain dict or set is enough.
 import hashlib
 import itertools
+import json
 from collections.abc import Callable
 
 Model = Callable[[str, dict], dict]
@@ -33,6 +34,16 @@ def make_recorded_model(answer: dict) -> tuple[Model, list[tuple[str, dict]]]:
         return answer
 
     return model, calls
+
+
+def make_model_by_ref(answers: dict[str, dict]) -> Model:
+    """One model for many runs: it gives the answer whose payment ref appears in the context."""
+
+    def model(prompt_name: str, context: dict) -> dict:
+        text = json.dumps(context)
+        return next(answer for ref, answer in answers.items() if ref in text)
+
+    return model
 
 
 # --- Payment gateway

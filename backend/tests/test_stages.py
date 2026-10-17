@@ -1,23 +1,14 @@
 # test_stages.py: one contract test per Lane A stage, fed from the golden refund runs s2 and s3.
-# Uses: app/pipeline/stages_*.py, app/pipeline/fakes.py, samples/golden_refund_run.json, samples/pipeline_samples.json.
-import json
-from datetime import datetime
-from pathlib import Path
-
+# Uses: app/pipeline/stages_*.py, app/pipeline/fakes.py, tests/golden.py.
 import pytest
 
 from app.pipeline import fakes, stages_govern, stages_intake, stages_reason, stages_record, stages_route
 from app.pipeline.contracts_reason import ContextBundle, ContextQuery, ProposedAction
 from app.pipeline.contracts_run import GovernanceVerdict, RunRecord
 from app.pipeline.contracts_signal import Principal, TaskRequest
+from tests.golden import NOW, SEED, golden, raw_sample, recorded_answer
 
-# Config: golden data, loaded once
-SAMPLES = Path(__file__).resolve().parent.parent / "samples"
-GOLDEN = json.loads((SAMPLES / "golden_refund_run.json").read_text())
-RAW = {item["sample_id"]: item for item in json.loads((SAMPLES / "pipeline_samples.json").read_text())["items"]}
-SEED = GOLDEN["seed"]
-NOW = datetime.fromisoformat(GOLDEN["frozen_now"])
-RUNS = {run["sample_id"][:2]: run for run in GOLDEN["runs"]}
+# Config
 AGENT = Principal.model_validate(SEED["agents"]["agent_refund_worker"])
 PERSONAL_VALUES = {
     "s2": ["Nimal Perera", "nimal.perera@example.lk", "+94 77 123 4567"],
@@ -26,16 +17,6 @@ PERSONAL_VALUES = {
 
 
 # --- Helpers
-
-def golden(run_key: str, model_name: str) -> dict:
-    """Data of the first step in a golden run that uses this contract."""
-    return next(step["data"] for step in RUNS[run_key]["steps"] if step["model"] == model_name)
-
-
-def raw_sample(key: str) -> dict:
-    """Raw signal for a run key like s2, or a sample key like s4."""
-    return next(item for sample_id, item in RAW.items() if sample_id.startswith(key + "_"))
-
 
 def run_intake(key: str, seen: set[str] | None = None):
     """S1 then S2 on one raw sample. Returns the store, the vault and the signal."""
@@ -129,8 +110,7 @@ def test_s5_counts_restricted_items_as_denied():
 @pytest.mark.parametrize("run_key", ["s2", "s3"])
 def test_s6_wraps_the_model_answer(run_key):
     expected = golden(run_key, "ProposedAction")
-    answer = {**{key: expected[key] for key in ("action_type", "tool_id", "tool_version", "arguments", "rationale_summary", "citations", "confidence")}, "usage": expected["model"]}
-    model, calls = fakes.make_recorded_model(answer)
+    model, calls = fakes.make_recorded_model(recorded_answer(run_key))
     bundle = ContextBundle.model_validate(golden(run_key, "ContextBundle"))
     action = stages_reason.propose(TaskRequest.model_validate(golden(run_key, "TaskRequest")), bundle, model, expected["run_id"], expected["step_id"], SEED["cluster_id"])
     assert action.model_dump(mode="json") == expected
