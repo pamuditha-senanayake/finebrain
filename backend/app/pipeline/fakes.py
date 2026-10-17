@@ -54,6 +54,11 @@ def make_recorded_caller(answers: dict[str, dict]):
     return call, calls
 
 
+def pass_grader(rationale: str, documents: list[str], context: str = "") -> tuple[bool, str]:
+    """An S7 grader stand-in that passes anything with at least one cited document."""
+    return bool(documents), "fake grader" if documents else "no documents cited"
+
+
 # --- Payment gateway
 
 def make_fake_gateway(fail_with: str | None = None) -> tuple[Gateway, dict[str, dict]]:

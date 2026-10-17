@@ -20,19 +20,21 @@ If information is missing or unclear, use escalate."""
 
 # --- Building the request
 
-def system_prompt(task: TaskRequest, skill: dict) -> str:
+def system_prompt(task: TaskRequest, skill: dict, today: str) -> str:
     steps = "\n".join(f"{number}. {step}" for number, step in enumerate(skill.get("steps", []), start=1))
-    return f"You are {task.agent_id}, handling activity {task.activity_id}.\nSkill: {skill.get('name', task.skill_ref.id)}\n{steps}\n\n{SYSTEM_RULES}"
+    when = f"Today is {today} and the request arrived today.\n" if today else ""
+    return f"You are {task.agent_id}, handling activity {task.activity_id}.\n{when}Skill: {skill.get('name', task.skill_ref.id)}\n{steps}\n\n{SYSTEM_RULES}"
 
 
-def user_prompt(task: TaskRequest, request_text: str, bundle: ContextBundle) -> str:
+def user_prompt(task: TaskRequest, request_text: str, bundle: ContextBundle, feedback: str | None = None) -> str:
     """Task, the customer's masked words and each document in tags, so data never reads as instructions."""
     documents = "\n".join(
         f'<document id="{item.item_id}" kind="{item.kind}" valid_from="{item.valid_from}">\n{item.text}\n</document>'
         for item in bundle.items
     )
     flags = ", ".join(task.flags) or "none"
-    return f'<task id="{task.task_id}" flags="{flags}" />\n<customer_request>\n{request_text}\n</customer_request>\n{documents}\n\nChoose one tool.'
+    retry = f"\n<previous_attempt_failed_checks>\n{feedback}\n</previous_attempt_failed_checks>" if feedback else ""
+    return f'<task id="{task.task_id}" flags="{flags}" />\n<customer_request>\n{request_text}\n</customer_request>\n{documents}{retry}\n\nChoose one tool.'
 
 
 def block_dict(block) -> dict:
@@ -90,11 +92,13 @@ def escalation(reason: str, usage: ModelUsage, run_id: str, step_id: str, cluste
 
 def propose(
     task: TaskRequest, bundle: ContextBundle, request_text: str, skill: dict, call, run_id: str, step_id: str, cluster_id: str,
+    feedback: str | None = None, today: str = "",
 ) -> ProposedAction:
-    """S6: one tool call from Claude, checked; bad calls get feedback twice, then the case escalates."""
+    """S6: one tool call from Claude, checked; bad calls get feedback twice, then the case escalates.
+    feedback carries S7's failed quality gates when S4 sends the case back once."""
     allowed = skill.get("allowed_tools", ["escalate"])
-    system, tools = system_prompt(task, skill), tool_schemas(allowed)
-    messages, responses = [{"role": "user", "content": user_prompt(task, request_text, bundle)}], []
+    system, tools = system_prompt(task, skill, today), tool_schemas(allowed)
+    messages, responses = [{"role": "user", "content": user_prompt(task, request_text, bundle, feedback)}], []
     for _ in range(1 + FEEDBACK_RETRIES):
         # Step 1: ask; a model outage (after llm.py's own retries) escalates
         try:

@@ -8,7 +8,7 @@ from app.pipeline import run_steps, stages_intake, stages_normalize, stages_rout
 from app.pipeline.adapters import make_memory_adapters
 from app.pipeline.contracts_run import Decision
 from app.pipeline.contracts_signal import Envelope, RawSignalEnvelope, Signal
-from app.pipeline.fakes import Gateway, Model, make_id_maker
+from app.pipeline.fakes import Gateway, Model, make_id_maker, pass_grader
 from app.pipeline.recorder import subscribe_recorder
 
 
@@ -29,6 +29,8 @@ class Lane:
     chunks: object
     embed: object
     rerank: object
+    check_access: object
+    grade: object = None  # S7 grader (llm.make_grader); defaults to the fake that passes cited rationales
     choose: object = None  # S3 tie-break (llm.make_chooser); None means close calls go unrouted
     runner: object = None  # TemporalRunner, or None to run tasks in-process
     signals: dict = field(default_factory=dict)  # signal_id to K2, so S4 can read entities
@@ -38,11 +40,11 @@ class Lane:
 
 # --- Wiring
 
-def build_lane(seed: dict, model: Model, gateway: Gateway, now: datetime, make_adapters=make_memory_adapters, choose=None) -> Lane:
+def build_lane(seed: dict, model: Model, gateway: Gateway, now: datetime, make_adapters=make_memory_adapters, choose=None, grade=None) -> Lane:
     """Build the adapters, then subscribe one consumer group per stage."""
     new_id = make_id_maker()
     adapters = make_adapters(seed, now, new_id)
-    lane = Lane(seed=seed, model=model, gateway=gateway, now=now, new_id=new_id, choose=choose or no_tie_break, **adapters)
+    lane = Lane(seed=seed, model=model, gateway=gateway, now=now, new_id=new_id, choose=choose or no_tie_break, grade=grade or pass_grader, **adapters)
     lane.bus.subscribe("signals.raw", "normalizer", "S2", lambda envelope: on_raw(lane, envelope))
     lane.bus.subscribe("signals.normalized", "resolver", "S3", lambda envelope: on_signal(lane, envelope))
     lane.bus.subscribe("tasks.created", "worker", "S4", lambda envelope: on_task(lane, envelope))

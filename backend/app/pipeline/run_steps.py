@@ -2,7 +2,7 @@
 # Used by: orchestrate.py (in-process), temporal_flow.py (activities). Uses: stages_*.py, contracts_*.py.
 from pydantic import BaseModel
 
-from app.pipeline import stages_govern, stages_reason, stages_record, stages_retrieve
+from app.pipeline import stages_decide, stages_govern, stages_reason, stages_record, stages_retrieve
 from app.pipeline.retry import call_with_retry
 from app.pipeline.contracts_reason import ContextQuery, ProposedAction
 from app.pipeline.contracts_run import Decision, GovernanceVerdict, RunStep
@@ -49,6 +49,33 @@ def close_unavailable(lane, envelope: Envelope, task: TaskRequest, run_id: str) 
     lane.bus.publish("ui.events", "ui.event", event, "recorder", envelope)
 
 
+def govern_once(lane, task, action, bundle, principal, cause: Envelope, request_text: str):
+    """S7 with the lane's policies, access checker and grader. Publishes the access decision."""
+    policies = {node["_ref"]["id"]: node for node in lane.graph.latest("policy")}
+    _, decision, verdict = stages_govern.govern(task, action, bundle, principal, policies, lane.seed["payments"], lane.seed["cluster_id"], lane.now, lane.new_id, lane.check_access, lane.grade, request_text)
+    lane.bus.publish("access.decisions", "access.decided", decision, "governance", cause)
+    return decision, verdict
+
+
+def failed_gates(verdict: GovernanceVerdict) -> str:
+    """The failed quality gates as feedback for S6, or "" when none failed."""
+    return "; ".join(f"{gate.gate_id}: {gate.detail}" for gate in verdict.quality_gates if not gate.passed)
+
+
+def propose_and_govern(lane, task: TaskRequest, bundle, principal: Principal, run_id: str, cause: Envelope):
+    """S6 then S7. Reference doc section 8 (K7): a failed quality gate goes back to S6 once, then escalates."""
+    signal = lane.signals[task.signal_ids[0]]
+    skill = {node["_ref"]["id"]: node for node in lane.graph.latest("skill")}.get(task.skill_ref.id, {})
+    feedback = None
+    for _ in range(2):
+        action = stages_reason.propose(task, bundle, signal.text_masked or "", skill, lane.model, run_id, ACTION_STEP_ID, lane.seed["cluster_id"], feedback, f"{lane.now:%d %B %Y}")
+        decision, verdict = govern_once(lane, task, action, bundle, principal, cause, signal.text_masked or "")
+        feedback = failed_gates(verdict)
+        if not feedback or action.action_type == "escalate":
+            break
+    return action, decision, verdict
+
+
 def start_run(lane, envelope: Envelope) -> RunState | None:
     """S5, S6 and S7 for the task in this envelope. None when the run already closed (context unavailable)."""
     # Step 1: retrieve what the agent may read about this payment
@@ -63,11 +90,8 @@ def start_run(lane, envelope: Envelope) -> RunState | None:
         close_unavailable(lane, envelope, task, run_id)
         return None
 
-    # Step 2: propose, then govern
-    signal = lane.signals[task.signal_ids[0]]
-    skill = {node["_ref"]["id"]: node for node in lane.graph.latest("skill")}.get(task.skill_ref.id, {})
-    action = stages_reason.propose(task, bundle, signal.text_masked or "", skill, lane.model, run_id, ACTION_STEP_ID, lane.seed["cluster_id"])
-    _, decision, verdict = stages_govern.govern(task, action, bundle, principal, lane.seed["refund_policy"], lane.seed["payments"], lane.seed["cluster_id"], lane.now, lane.new_id)
+    # Step 2: propose, then govern; a failed gate gets one more try with the reason
+    action, decision, verdict = propose_and_govern(lane, task, bundle, principal, run_id, envelope)
     steps = [
         make_step(lane, "step_01", "retrieval", f"{len(bundle.items)} items", f"{bundle.denied_count} withheld", bundle.access_decision_ids),
         make_step(lane, "step_02", "judgment", action.action_type, action.rationale_summary, action.citations),
@@ -98,7 +122,7 @@ def close_without_acting(lane, run: RunState) -> None:
 
 def open_approval(lane, run: RunState) -> RunState:
     """S8: publish the approval, record the run as waiting, and return it paused."""
-    approval = stages_govern.request_approval(run.action, run.verdict, lane.new_id, lane.now)
+    approval = stages_decide.request_approval(run.action, run.verdict, lane.new_id, lane.now)
     run.cause = lane.bus.publish("approvals.requested", "approval.requested", approval, "approvals", run.cause)
     run.approval_id = approval.approval_id
     lane.approvals[approval.approval_id] = {"cause": run.cause, "task_id": run.task.task_id}

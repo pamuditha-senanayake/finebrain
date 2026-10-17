@@ -5,9 +5,18 @@
 # Valkey (Redis compatible) is on localhost:6379.
 # SeaweedFS (S3 compatible, stands in for AWS S3) is on localhost:9000. MinIO no longer publishes images.
 # Temporal dev server is on localhost:7233, its UI on http://localhost:8233. Its history is not kept on restart.
+# OPA is on localhost:8181 and loads the Rego rules in backend/infra/opa/.
 name: finebrain
 
 services:
+  opa:
+    image: openpolicyagent/opa:1.9.0
+    command: ["run", "--server", "--addr", "0.0.0.0:8181", "/policies"]
+    volumes:
+      - ./opa:/policies:ro
+    ports:
+      - "8181:8181"
+
   temporal:
     image: temporalio/temporal:1.4.1
     command: ["server", "start-dev", "--ip", "0.0.0.0", "--ui-port", "8233"]

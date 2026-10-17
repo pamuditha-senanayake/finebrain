@@ -3,7 +3,7 @@
 # Each real part can be switched on alone, so connectors are plugged in one at a time (step 6).
 import os
 
-from app.pipeline import embeddings, store_postgres, store_s3, store_valkey
+from app.pipeline import access, embeddings, store_postgres, store_s3, store_valkey
 from app.pipeline.fakes import fake_embed, fake_rerank
 from app.pipeline.bus_kafka import KafkaBus, broker_is_up
 from app.pipeline.bus_memory import MemoryBus
@@ -14,7 +14,7 @@ from app.pipeline.temporal_flow import temporal_is_up
 from app.pipeline.temporal_runner import TemporalRunner
 
 # Config
-ALL_REAL_PARTS = frozenset({"s3", "postgres", "valkey", "kafka", "temporal"})  # "voyage" is opt-in: it costs money
+ALL_REAL_PARTS = frozenset({"s3", "postgres", "valkey", "kafka", "temporal", "opa"})  # "voyage" is opt-in: it costs money
 UP_CHECKS = {
     "s3": store_s3.s3_is_up,
     "postgres": store_postgres.database_is_up,
@@ -22,6 +22,7 @@ UP_CHECKS = {
     "kafka": broker_is_up,
     "temporal": temporal_is_up,
     "voyage": lambda: "VOYAGE_API_KEY" in os.environ,
+    "opa": access.opa_is_up,
 }
 
 
@@ -42,6 +43,7 @@ def make_memory_adapters(seed: dict, now, new_id) -> dict:
         "embed": fake_embed,  # tests never pay for API calls; the "voyage" part switches to the real service
         "rerank": fake_rerank,
         "chunks": MemoryChunks(),
+        "check_access": access.make_memory_checker(seed["people"]),
     }
     load_chunks(adapters["chunks"], adapters["graph"], adapters["embed"])
     return adapters
@@ -83,6 +85,8 @@ def real_adapters(parts: frozenset[str] = ALL_REAL_PARTS, topic_prefix: str = ""
         bus_class = KafkaBus if "kafka" in parts else MemoryBus
         options = {"topic_prefix": topic_prefix} if "kafka" in parts else {}
         adapters["bus"] = bus_class(bus_base(seed), now, new_id, handled=handled, **options)
+        if "opa" in parts:
+            adapters["check_access"] = access.make_opa_checker(seed["people"])
         if "voyage" in parts:
             adapters["embed"], adapters["rerank"] = embeddings.voyage_embed, embeddings.voyage_rerank
         load_chunks(adapters["chunks"], adapters["graph"], adapters["embed"])

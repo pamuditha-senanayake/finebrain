@@ -4,10 +4,10 @@ import anthropic
 import httpx
 import pytest
 
-from app.pipeline import fakes, llm, orchestrate, stages_govern, stages_reason
+from app.pipeline import access, fakes, llm, orchestrate, stages_govern, stages_reason
 from app.pipeline.contracts_reason import ContextBundle
 from app.pipeline.contracts_signal import Principal, TaskRequest
-from tests.golden import NOW, RAW, SEED, golden, recorded_answer
+from tests.golden import NOW, RAW, SEED, golden, recorded_answer, released_policies
 
 # Config
 TASK = TaskRequest.model_validate(golden("s2", "TaskRequest"))
@@ -15,6 +15,7 @@ BUNDLE = ContextBundle.model_validate(golden("s2", "ContextBundle"))
 REQUEST = golden("s2", "Signal")["text_masked"]
 REFUND_SKILL, BILLING_SKILL = SEED["skills"]
 GOOD = recorded_answer("s2")
+CHECKER = access.make_memory_checker(SEED["people"])
 
 
 # --- Helpers
@@ -109,14 +110,14 @@ def test_escalate_proposal_routes_to_escalate_without_payment_checks():
     call, _ = scripted(fakes.text_response("no"))
     action = propose(call)
     agent = Principal.model_validate(SEED["agents"]["agent_refund_worker"])
-    _, decision, verdict = stages_govern.govern(TASK, action, BUNDLE, agent, SEED["refund_policy"], {}, SEED["cluster_id"], NOW, fakes.make_id_maker())
+    _, decision, verdict = stages_govern.govern(TASK, action, BUNDLE, agent, released_policies(), {}, SEED["cluster_id"], NOW, fakes.make_id_maker(), CHECKER, fakes.pass_grader)
     assert (decision.decision, verdict.route, verdict.criticality_reasons) == ("allow", "escalate", ["no_action"])
 
 
 def test_refund_for_an_unknown_payment_escalates():
     call, _ = scripted(good_reply())
     agent = Principal.model_validate(SEED["agents"]["agent_refund_worker"])
-    _, _, verdict = stages_govern.govern(TASK, propose(call), BUNDLE, agent, SEED["refund_policy"], {}, SEED["cluster_id"], NOW, fakes.make_id_maker())
+    _, _, verdict = stages_govern.govern(TASK, propose(call), BUNDLE, agent, released_policies(), {}, SEED["cluster_id"], NOW, fakes.make_id_maker(), CHECKER, fakes.pass_grader)
     assert verdict.route == "escalate"
 
 

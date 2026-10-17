@@ -2,14 +2,14 @@
 # Uses: app/pipeline/stages_*.py, app/pipeline/fakes.py, tests/golden.py.
 import pytest
 
-from app.pipeline import fakes, stages_govern, stages_intake, stages_normalize, stages_reason, stages_record, stages_retrieve, stages_route
+from app.pipeline import access, fakes, stages_decide, stages_govern, stages_intake, stages_normalize, stages_reason, stages_record, stages_retrieve, stages_route
 from app.pipeline.contracts_reason import ContextBundle, ContextQuery, ProposedAction
 from app.pipeline.contracts_run import GovernanceVerdict, RunRecord
 from app.pipeline.adapters import seeded
 from app.pipeline.contracts_signal import Principal, TaskRequest
 from app.pipeline.store_chunks import MemoryChunks
 from app.pipeline.store_graph import MemoryGraph
-from tests.golden import NOW, SEED, golden, raw_sample, recorded_answer
+from tests.golden import NOW, SEED, golden, raw_sample, recorded_answer, released_policies
 
 # Config
 AGENT = Principal.model_validate(SEED["agents"]["agent_refund_worker"])
@@ -46,7 +46,7 @@ def run_govern(run_key: str, principal: Principal = AGENT, citations: list[str] 
     return stages_govern.govern(
         TaskRequest.model_validate(golden(run_key, "TaskRequest")), action,
         ContextBundle.model_validate(golden(run_key, "ContextBundle")), principal,
-        SEED["refund_policy"], SEED["payments"], SEED["cluster_id"], NOW, fakes.make_id_maker(),
+        released_policies(), SEED["payments"], SEED["cluster_id"], NOW, fakes.make_id_maker(), access.make_memory_checker(SEED["people"]), fakes.pass_grader,
     )
 
 
@@ -156,7 +156,7 @@ def test_s7_escalates_when_a_citation_is_made_up():
 
 def test_s8_opens_one_approval_for_s3():
     _, _, verdict = run_govern("s3")
-    approval = stages_govern.request_approval(ProposedAction.model_validate(golden("s3", "ProposedAction")), verdict, fakes.make_id_maker(), NOW)
+    approval = stages_decide.request_approval(ProposedAction.model_validate(golden("s3", "ProposedAction")), verdict, fakes.make_id_maker(), NOW)
     expected = golden("s3", "ApprovalRequest")
     assert (approval.criticality, approval.dri_id, approval.evidence_refs) == (expected["criticality"], expected["dri_id"], expected["evidence_refs"])
     assert approval.expires_at > approval.due_at

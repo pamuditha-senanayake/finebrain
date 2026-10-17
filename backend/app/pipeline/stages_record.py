@@ -1,5 +1,5 @@
 # stages_record.py: S9 Act (cleared K5 to K9) and S10 Record (run to K10 and K11).
-# Used by: tests/test_stages.py. Uses: contracts_*.py, stages_govern.py (format_money), fakes.py (Gateway type).
+# Used by: tests/test_stages.py. Uses: contracts_*.py, stages_decide.py (format_money), fakes.py (Gateway type).
 import hashlib
 import json
 from datetime import datetime
@@ -10,7 +10,7 @@ from app.pipeline.contracts_run import (
 )
 from app.pipeline.contracts_signal import TaskRequest
 from app.pipeline.fakes import Gateway
-from app.pipeline.stages_govern import format_money
+from app.pipeline.stages_decide import format_money
 
 # Config: Sonnet price in US micro-dollars per token (USD 3 and 15 per million)
 INPUT_USD_MICRO_PER_TOKEN = 3

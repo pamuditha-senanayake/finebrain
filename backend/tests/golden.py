@@ -35,3 +35,11 @@ def recorded_answer(run_key: str) -> dict:
 def recorded_answers() -> dict[str, dict]:
     """Payment ref to recorded tool call, for s2 and s3."""
     return {golden(key, "ProposedAction")["arguments"]["payment_ref"]: recorded_answer(key) for key in ("s2", "s3")}
+
+
+def released_policies() -> dict[str, dict]:
+    """Policy id to its released node, as S7 reads them from the graph."""
+    from app.pipeline.adapters import seeded
+    from app.pipeline.store_graph import MemoryGraph
+
+    return {node["_ref"]["id"]: node for node in seeded(MemoryGraph(SEED["tenant_id"]), SEED).latest("policy")}

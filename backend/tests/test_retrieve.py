@@ -108,12 +108,13 @@ def test_s4_retries_once_then_escalates_without_acting():
     assert paid == {} and "actions.executed" not in lane.bus.topics
 
 
-def test_every_retrieval_is_logged_as_an_access_decision():
+def test_retrieval_and_governance_both_log_access_decisions():
     lane = orchestrate.build_lane(SEED, fakes.make_recorded_caller(recorded_answers())[0], fakes.make_fake_gateway()[0], NOW)
     first = orchestrate.capture_signal(lane, RAW["s2_refund_monthly_in_policy"])
     lane.bus.drain()
     decisions = lane.bus.topics["access.decisions"]
-    assert len(decisions) == 1 and decisions[0].correlation_id == first.correlation_id
+    assert [envelope.producer for envelope in decisions] == ["internal", "governance"]  # S5 read, then S7 act
+    assert {envelope.correlation_id for envelope in decisions} == {first.correlation_id}
 
 
 @pytest.mark.skipif(not database_is_up(), reason="no Postgres on localhost:5433")
