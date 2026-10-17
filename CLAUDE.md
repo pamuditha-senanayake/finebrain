@@ -12,6 +12,11 @@ This is a core value of the product. Every screen must feel calm and be understo
 
 When a design choice trades clarity for density, choose clarity.
 
+## Coding style
+
+- Every time you write code, use the skills `/anthropic-skills:zed-coding` and `/anthropic-skills:zed-coding-files`.
+- Files stay at 150 lines or less. If going over is truly the best way, ask first and give the reason in 30 words or less.
+
 ## File organization
 
 Every file lives in a folder that matches its job. No loose files at the repo root or the top of `backend/` or `frontend/`.
