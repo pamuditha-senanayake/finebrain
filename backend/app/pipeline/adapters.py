@@ -1,22 +1,27 @@
 # adapters.py: one place that builds what a pipeline runs on: bus, object store, vault, key sets, records, graph.
 # Used by: orchestrate.py, tests/test_e2e.py. Uses: bus_*.py, store_*.py, temporal_*.py.
 # Each real part can be switched on alone, so connectors are plugged in one at a time (step 6).
-from app.pipeline import store_postgres, store_s3, store_valkey
+import os
+
+from app.pipeline import embeddings, store_postgres, store_s3, store_valkey
+from app.pipeline.fakes import fake_embed, fake_rerank
 from app.pipeline.bus_kafka import KafkaBus, broker_is_up
 from app.pipeline.bus_memory import MemoryBus
+from app.pipeline.store_chunks import MemoryChunks, PostgresChunks, load_chunks
 from app.pipeline.store_graph import MemoryGraph, PostgresGraph, load_seed
 from app.pipeline.store_memory import MemoryRecords
 from app.pipeline.temporal_flow import temporal_is_up
 from app.pipeline.temporal_runner import TemporalRunner
 
 # Config
-ALL_REAL_PARTS = frozenset({"s3", "postgres", "valkey", "kafka", "temporal"})
+ALL_REAL_PARTS = frozenset({"s3", "postgres", "valkey", "kafka", "temporal"})  # "voyage" is opt-in: it costs money
 UP_CHECKS = {
     "s3": store_s3.s3_is_up,
     "postgres": store_postgres.database_is_up,
     "valkey": store_valkey.valkey_is_up,
     "kafka": broker_is_up,
     "temporal": temporal_is_up,
+    "voyage": lambda: "VOYAGE_API_KEY" in os.environ,
 }
 
 
@@ -27,14 +32,19 @@ def bus_base(seed: dict) -> dict:
 
 def make_memory_adapters(seed: dict, now, new_id) -> dict:
     """Everything in memory: fast, no Docker needed."""
-    return {
+    adapters = {
         "bus": MemoryBus(bus_base(seed), now, new_id),
         "object_store": {},
         "vault": {},
         "seen_keys": set(),
         "records": MemoryRecords(seed["tenant_id"]),
         "graph": seeded(MemoryGraph(seed["tenant_id"]), seed),
+        "embed": fake_embed,  # tests never pay for API calls; the "voyage" part switches to the real service
+        "rerank": fake_rerank,
+        "chunks": MemoryChunks(),
     }
+    load_chunks(adapters["chunks"], adapters["graph"], adapters["embed"])
+    return adapters
 
 
 def seeded(graph, seed: dict):
@@ -64,6 +74,7 @@ def real_adapters(parts: frozenset[str] = ALL_REAL_PARTS, topic_prefix: str = ""
             adapters["vault"] = store_postgres.PostgresVault(connection, tenant)
             adapters["records"] = store_postgres.PostgresRecords(connection, tenant)
             adapters["graph"] = seeded(PostgresGraph(connection, tenant), seed)
+            adapters["chunks"] = PostgresChunks(connection, tenant)
         handled = None
         if "valkey" in parts:
             keys = store_valkey.connect()
@@ -72,6 +83,9 @@ def real_adapters(parts: frozenset[str] = ALL_REAL_PARTS, topic_prefix: str = ""
         bus_class = KafkaBus if "kafka" in parts else MemoryBus
         options = {"topic_prefix": topic_prefix} if "kafka" in parts else {}
         adapters["bus"] = bus_class(bus_base(seed), now, new_id, handled=handled, **options)
+        if "voyage" in parts:
+            adapters["embed"], adapters["rerank"] = embeddings.voyage_embed, embeddings.voyage_rerank
+        load_chunks(adapters["chunks"], adapters["graph"], adapters["embed"])
         if "temporal" in parts:
             adapters["runner"] = TemporalRunner()  # build_lane starts it once the lane exists
         return adapters

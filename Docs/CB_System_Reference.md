@@ -258,6 +258,7 @@ Keys: `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY` and the Google OAuth and Pub/Sub key
 | S1 Capture (done) | `capture_api.py`: connector, grant, size, type and HMAC signature checks; 404, 403, 401, 413, 415, 400, 503 as in section 8 |
 | S2 Normalize (done) | `stages_normalize.py`, `readers.py`, `pii.py`: MIME, chat and upload; masks emails, phones, NIC, cards (Luhn), addresses, names; vault encrypted with pgcrypto; `possible_prompt_injection` flag; atomic dedup claim; parse errors to DLQ (not retryable), store hiccups retried |
 | S3 Route (done) | `stages_route.py`, `store_graph.py`, `llm.py`: rules, skills and agents from `graph_nodes` (append-only versions); kind, channel and required-entity gates; documents left to Lane B; ties within 0.1 settled by Claude Haiku from a fixed list; skill version pinned; flags carried to K3; below 0.72 or unsettled ties to `tasks.unrouted` |
+| S5 Retrieve (done) | `stages_retrieve.py`, `store_chunks.py`, `embeddings.py`: chunks in Postgres (pgvector + full text) loaded from graph knowledge; hybrid search merged by reciprocal rank fusion, Voyage rerank; as-of valid and recorded time; tier and on_behalf_of access, withheld items counted; token budget; access decisions on `access.decisions`. Embedding outage falls back to full text, rerank outage keeps fused order; store outage gets one retry in S4, then the run escalates `context_unavailable` |
 | Still to come | OPA. In Postgres: graph, facts, chunks, outbox, encrypted vault columns |
 | Start all infra | `backend/scripts/dev_up.sh` |
 

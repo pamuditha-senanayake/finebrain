@@ -2,11 +2,12 @@
 # Uses: app/pipeline/stages_*.py, app/pipeline/fakes.py, tests/golden.py.
 import pytest
 
-from app.pipeline import fakes, stages_govern, stages_intake, stages_normalize, stages_reason, stages_record, stages_route
+from app.pipeline import fakes, stages_govern, stages_intake, stages_normalize, stages_reason, stages_record, stages_retrieve, stages_route
 from app.pipeline.contracts_reason import ContextBundle, ContextQuery, ProposedAction
 from app.pipeline.contracts_run import GovernanceVerdict, RunRecord
 from app.pipeline.adapters import seeded
 from app.pipeline.contracts_signal import Principal, TaskRequest
+from app.pipeline.store_chunks import MemoryChunks
 from app.pipeline.store_graph import MemoryGraph
 from tests.golden import NOW, SEED, golden, raw_sample, recorded_answer
 
@@ -20,6 +21,14 @@ PERSONAL_VALUES = {
 
 
 # --- Helpers
+
+def retrieve(query: ContextQuery, knowledge: list[dict]):
+    """S5 over these knowledge items, with fake embeddings and rerank."""
+    chunks = MemoryChunks()
+    for item, vector in zip(knowledge, fakes.fake_embed([item["text"] for item in knowledge])):
+        chunks.add(item, vector)
+    return stages_retrieve.retrieve(query, chunks, fakes.fake_embed, fakes.fake_rerank, SEED["people"], fakes.make_id_maker(), NOW)
+
 
 def run_intake(key: str, seen: set[str] | None = None):
     """S1 then S2 on one raw sample. Returns the store, the vault and the signal."""
@@ -97,7 +106,7 @@ def test_s3_leaves_invoice_chat_unrouted():
 @pytest.mark.parametrize("run_key", ["s2", "s3"])
 def test_s5_bundle_holds_what_s6_cites(run_key):
     query = ContextQuery.model_validate(golden(run_key, "ContextQuery"))
-    bundle = stages_reason.retrieve(query, SEED["knowledge"], fakes.make_id_maker())
+    bundle, _ = retrieve(query, SEED["knowledge"])
     item_ids = {item.item_id for item in bundle.items}
     assert set(golden(run_key, "ProposedAction")["citations"]) <= item_ids
     assert len([item_id for item_id in item_ids if item_id.startswith("item_payment")]) == 1
@@ -105,8 +114,9 @@ def test_s5_bundle_holds_what_s6_cites(run_key):
 
 def test_s5_counts_restricted_items_as_denied():
     query = ContextQuery.model_validate(golden("s2", "ContextQuery"))
-    secret = {**SEED["knowledge"][0], "item_id": "item_secret", "sensitivity": "restricted"}
-    bundle = stages_reason.retrieve(query, SEED["knowledge"] + [secret], fakes.make_id_maker())
+    current = next(item for item in SEED["knowledge"] if item["item_id"] == "item_policy_window")
+    secret = {**current, "item_id": "item_secret", "sensitivity": "restricted"}
+    bundle, _ = retrieve(query, SEED["knowledge"] + [secret])
     assert bundle.denied_count == 1 and "item_secret" not in {item.item_id for item in bundle.items}
 
 

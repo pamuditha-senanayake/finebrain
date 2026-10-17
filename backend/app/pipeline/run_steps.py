@@ -2,7 +2,8 @@
 # Used by: orchestrate.py (in-process), temporal_flow.py (activities). Uses: stages_*.py, contracts_*.py.
 from pydantic import BaseModel
 
-from app.pipeline import stages_govern, stages_reason, stages_record
+from app.pipeline import stages_govern, stages_reason, stages_record, stages_retrieve
+from app.pipeline.retry import call_with_retry
 from app.pipeline.contracts_reason import ContextQuery, ProposedAction
 from app.pipeline.contracts_run import Decision, GovernanceVerdict, RunStep
 from app.pipeline.contracts_signal import Envelope, Principal, TaskRequest
@@ -12,6 +13,7 @@ ACTION_STEP_ID = "step_04"
 QUERY_TEXT = "refund window and automatic approval limit"
 OUTCOME_FOR_ROUTE = {"block": "blocked", "escalate": "escalated"}
 OUTCOME_FOR_DECISION = {"reject": "blocked", "expired": "escalated", "request_changes": "escalated"}
+RETRIEVE_ATTEMPTS = 2  # reference doc section 8 (K4): one retry, then escalate context_unavailable
 
 
 class RunState(BaseModel):
@@ -29,21 +31,43 @@ def make_step(lane, step_id: str, kind: str, decision: str, reason: str, refs: l
     return RunStep(step_id=step_id, kind=kind, started_at=lane.now, duration_ms=0, decision=decision, reason=reason, refs=refs)
 
 
-def start_run(lane, envelope: Envelope) -> RunState:
-    """S5, S6 and S7 for the task in this envelope."""
+def retrieve_with_retry(lane, query: ContextQuery, cause: Envelope):
+    """S5 with one retry. Publishes the access decision so the audit log sees every read."""
+    bundle, decision = call_with_retry(
+        lambda: stages_retrieve.retrieve(query, lane.chunks, lane.embed, lane.rerank, lane.seed["people"], lane.new_id, lane.now),
+        lambda error: isinstance(error, stages_retrieve.ContextUnavailable), attempts=RETRIEVE_ATTEMPTS, base_delay=0.2,
+    )
+    lane.bus.publish("access.decisions", "access.decided", decision, "internal", cause)
+    return bundle
+
+
+def close_unavailable(lane, envelope: Envelope, task: TaskRequest, run_id: str) -> None:
+    """Context could not be read even after a retry: escalate to a human, act on nothing."""
+    step = make_step(lane, "step_01", "retrieval", "context_unavailable", "knowledge store unreachable after one retry", [])
+    record, event = stages_record.record(task, None, [step], "escalated", None, lane.seed, lane.now, lane.now, run_id=run_id)
+    lane.bus.publish("runs.completed", "run.completed", record, "recorder", envelope)
+    lane.bus.publish("ui.events", "ui.event", event, "recorder", envelope)
+
+
+def start_run(lane, envelope: Envelope) -> RunState | None:
+    """S5, S6 and S7 for the task in this envelope. None when the run already closed (context unavailable)."""
     # Step 1: retrieve what the agent may read about this payment
     task = TaskRequest.model_validate(envelope.payload)
     run_id = lane.new_id("run")
     principal = Principal.model_validate(lane.seed["agents"][task.agent_id])
     refs = [entity.value_or_token for entity in lane.signals[task.signal_ids[0]].entities if entity.type == "payment_ref"]
-    query = ContextQuery(run_id=run_id, principal=principal, on_behalf_of=None, query_text=QUERY_TEXT, entity_refs=refs, branch="main", node_types=["policy", "fact"])
-    bundle = stages_reason.retrieve(query, lane.seed["knowledge"], lane.new_id)
+    query = ContextQuery(run_id=run_id, principal=principal, on_behalf_of=task.on_behalf_of, query_text=QUERY_TEXT, entity_refs=refs, branch="main", node_types=["policy", "fact"])
+    try:
+        bundle = retrieve_with_retry(lane, query, envelope)
+    except stages_retrieve.ContextUnavailable:
+        close_unavailable(lane, envelope, task, run_id)
+        return None
 
     # Step 2: propose, then govern
     action = stages_reason.propose(task, bundle, lane.model, run_id, ACTION_STEP_ID, lane.seed["cluster_id"])
     _, decision, verdict = stages_govern.govern(task, action, bundle, principal, lane.seed["refund_policy"], lane.seed["payments"], lane.seed["cluster_id"], lane.now, lane.new_id)
     steps = [
-        make_step(lane, "step_01", "retrieval", f"{len(bundle.items)} items", "context for the task", bundle.access_decision_ids),
+        make_step(lane, "step_01", "retrieval", f"{len(bundle.items)} items", f"{bundle.denied_count} withheld", bundle.access_decision_ids),
         make_step(lane, "step_02", "judgment", action.action_type, action.rationale_summary, action.citations),
         make_step(lane, "step_03", "access_check", decision.decision, decision.rule_id, [decision.decision_id]),
     ]

@@ -26,6 +26,9 @@ class Lane:
     seen_keys: object
     records: object
     graph: object
+    chunks: object
+    embed: object
+    rerank: object
     choose: object = None  # S3 tie-break (llm.make_chooser); None means close calls go unrouted
     runner: object = None  # TemporalRunner, or None to run tasks in-process
     signals: dict = field(default_factory=dict)  # signal_id to K2, so S4 can read entities
@@ -103,6 +106,8 @@ def on_task(lane: Lane, envelope: Envelope) -> None:
     if lane.runner is not None:
         return lane.runner.start_task(envelope)
     run = run_steps.start_run(lane, envelope)
+    if run is None:  # closed early: context unavailable, already escalated
+        return None
     if run.verdict.route == "execute":
         return run_steps.act_and_finish(lane, run, None)
     if run.verdict.route != "approval_required":

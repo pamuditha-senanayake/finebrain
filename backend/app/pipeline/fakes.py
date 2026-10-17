@@ -4,6 +4,8 @@
 import hashlib
 import itertools
 import json
+import math
+import re
 from collections.abc import Callable
 
 Model = Callable[[str, dict], dict]
@@ -61,3 +63,30 @@ def make_fake_gateway(fail_with: str | None = None) -> tuple[Gateway, dict[str, 
         return seen[idempotency_key]
 
     return gateway, seen
+
+
+# --- Embeddings and rerank (Voyage in production)
+
+EMBEDDING_SIZE = 1024
+
+
+def words(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", text.lower())
+
+
+def fake_embed(texts: list[str], input_type: str = "document") -> list[list[float]]:
+    """Hashed bag of words: texts sharing words get similar vectors, and the same text always gets the same one."""
+    vectors = []
+    for text in texts:
+        vector = [0.0] * EMBEDDING_SIZE
+        for word in words(text):
+            vector[int(hashlib.sha256(word.encode()).hexdigest(), 16) % EMBEDDING_SIZE] += 1.0
+        length = math.sqrt(sum(value * value for value in vector)) or 1.0
+        vectors.append([value / length for value in vector])
+    return vectors
+
+
+def fake_rerank(query: str, documents: list[str]) -> list[float]:
+    """Share of the query's words found in each document."""
+    asked = set(words(query)) or {""}
+    return [len(asked & set(words(document))) / len(asked) for document in documents]

@@ -51,6 +51,10 @@
       "agent_refund_worker": {"type": "agent", "id": "agent_refund_worker", "capabilities": ["kb.read", "refund.propose"], "tier": "L3"},
       "agent_billing_helper": {"type": "agent", "id": "agent_billing_helper", "capabilities": ["kb.read", "reply.draft"], "tier": "L3"}
     },
+    "people": {
+      "head_of_cs": {"tier": "L1"},
+      "support_operator_1": {"tier": "L3"}
+    },
     "refund_policy": {
       "policy_ref": {"id": "policy_refund", "version": 3, "branch": "main", "commit_id": "cmt_0005"},
       "window_days": 30,
@@ -62,6 +66,14 @@
       "pay_FB_20260830_0047": {"amount_minor": 8500000, "paid_at": "2026-08-30T00:00:00+05:30"}
     },
     "knowledge": [
+      {
+        "item_id": "item_policy_window_v2", "kind": "policy",
+        "text": "Customers may request a refund within 14 days of the purchase date.",
+        "source": {"document_id": "doc_refund_policy_v2", "uri": "s3://brain/finebase_labs/documents/Finebase_Refund_Policy_v2.txt", "span": "88:157"},
+        "valid_from": "2025-01-01T00:00:00+05:30", "valid_to": "2026-01-01T00:00:00+05:30", "recorded_at": "2025-01-01T10:00:00+05:30",
+        "verified_by": "head_of_cs", "version_ref": {"id": "policy_refund", "version": 2, "branch": "main", "commit_id": "cmt_0002"},
+        "score": 0.9, "sensitivity": "internal"
+      },
       {
         "item_id": "item_policy_window", "kind": "policy",
         "text": "Customers may request a refund within 30 days of the purchase date.",

@@ -37,7 +37,7 @@ class RunActivities:
         self.lane = lane
 
     @activity.defn(name="start_run")
-    async def start(self, envelope: Envelope) -> RunState:
+    async def start(self, envelope: Envelope) -> RunState | None:
         return run_steps.start_run(self.lane, envelope)
 
     @activity.defn(name="act_and_finish")
@@ -70,8 +70,10 @@ class TaskWorkflow:
         # Step 1: S5, S6 and S7
         run = await workflow.execute_activity_method(RunActivities.start, envelope, start_to_close_timeout=STEP_TIMEOUT)
 
-        # Step 2: act now, close, or wait for a human
-        if run.verdict.route == "execute":
+        # Step 2: act now, close, or wait for a human (None: closed early, context unavailable)
+        if run is None:
+            pass
+        elif run.verdict.route == "execute":
             await workflow.execute_activity_method(RunActivities.act, run, start_to_close_timeout=STEP_TIMEOUT)
         elif run.verdict.route != "approval_required":
             await workflow.execute_activity_method(RunActivities.close, run, start_to_close_timeout=STEP_TIMEOUT)
