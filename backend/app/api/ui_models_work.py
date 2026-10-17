@@ -1,4 +1,5 @@
-# ui_models_work.py: Pydantic copies of the console's work.ts shapes: runs, their steps, escalations, access decisions.
+# ui_models_work.py: Pydantic copies of the console's work.ts shapes (runs, their steps, escalations, access decisions),
+# plus Sensor (knowledge.ts) and AskAnswer (ops.ts), the 9b screens.
 # Used by: views.py (re-exported through ui_models). Uses: ui_models.py (UiModel, VersionRef, Env).
 from typing import Literal
 
@@ -71,3 +72,37 @@ class AccessDecision(UiModel):
     reason: str
     latency_ms: float
     run_id: str | None
+
+
+class Sensor(UiModel):
+    id: str
+    tenant_id: str
+    cluster_id: str
+    name: str
+    source: str
+    kind: Literal["website", "clarity", "analytics", "inbox", "chat", "payments", "calendar", "crm", "documents", "monitor", "repository"]
+    events: list[str]
+    subscribers: list[str]
+    health: Literal["ok", "degraded", "down"]
+    scopes: list[str]
+    retention_days: int
+    personal_data: bool
+    last_event_at: str
+    events_per_hour: float
+
+
+class Citation(UiModel):
+    id: str
+    kind: str
+    label: str
+    valid_from: str
+    valid_to: str | None
+    href: str
+
+
+class AskAnswer(UiModel):
+    question: str
+    answer: str
+    citations: list[Citation]
+    withheld: int
+    scope: Literal["page", "system"] | None = None

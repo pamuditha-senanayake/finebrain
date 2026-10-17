@@ -7,7 +7,7 @@ import hmac
 from fastapi import FastAPI, HTTPException, Request
 
 from app.pipeline import orchestrate
-from app.pipeline.observe import count, log_event
+from app.pipeline.observe import count, log_event, touch
 from app.pipeline.stages_intake import SAFE_HEADERS
 
 # Config
@@ -68,6 +68,8 @@ def publish_or_503(lane, raw: dict) -> dict:
         log_event("S1", "unavailable", connector_id=raw["connector_id"], error=type(error).__name__)
         raise HTTPException(status_code=503, detail="unavailable", headers={"Retry-After": RETRY_AFTER_SECONDS}) from None
     count("s1.captured")
+    count(f"s1.captured.{raw['connector_id']}")
+    touch(f"s1.last_event.{raw['connector_id']}", envelope.occurred_at.isoformat())
     log_event("S1", "captured", connector_id=raw["connector_id"], event_id=envelope.event_id, correlation_id=envelope.correlation_id)
     return {"event_id": envelope.event_id, "correlation_id": envelope.correlation_id}
 

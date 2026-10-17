@@ -11,6 +11,7 @@ LOGGER_NAME = "finebrain"
 logger = logging.getLogger(LOGGER_NAME)
 counters: Counter[str] = Counter()
 flags: dict[str, bool] = {}  # health flags, like recorder_delayed, read by the live stream
+last_seen: dict[str, str] = {}  # when something last happened, like a connector's last event
 
 
 def log_event(stage: str, event: str, **fields) -> None:
@@ -31,6 +32,7 @@ def reset_counts() -> None:
     """Tests start from zero."""
     counters.clear()
     flags.clear()
+    last_seen.clear()
 
 
 def set_flag(name: str, value: bool) -> None:
@@ -39,3 +41,11 @@ def set_flag(name: str, value: bool) -> None:
 
 def read_flag(name: str) -> bool:
     return flags.get(name, False)
+
+
+def touch(name: str, at: str) -> None:
+    last_seen[name] = at
+
+
+def read_last_seen(name: str) -> str | None:
+    return last_seen.get(name)
