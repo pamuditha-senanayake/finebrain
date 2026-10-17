@@ -141,6 +141,7 @@ class TaskRequest(BaseModel):
     base_criticality: Criticality
     due_at: datetime
     priority: int = Field(ge=1, le=5)
+    flags: list[str] = []  # carried from K2 (e.g. possible_prompt_injection) so S7 can weigh them; optional
 
 
 # --- K12 FactCandidate (S11 to S12, topic facts.candidates)

@@ -1,34 +1,101 @@
-# stages_route.py: S3 Route, matching a K2 signal to an activity, pinned skill version and agent (K3).
-# Used by: tests/test_stages.py. Uses: contracts_signal.py.
-# Step 2 is keyword scoring only. The Haiku tie-break comes when stages get thicker (step 7).
+# stages_route.py: S3 Route. Matches a K2 signal to a resolver rule, pins the skill version, and builds K3.
+# Rules, skills and agents come from the graph. Close calls go to a Claude tie-break that can only pick a listed rule.
+# Used by: orchestrate.py, tests. Uses: contracts_signal.py, observe.py, a graph (store_graph.py), a chooser (llm.py).
 from datetime import datetime, timedelta
 
 from app.pipeline.contracts_signal import Signal, TaskRequest, VersionRef
+from app.pipeline.observe import count, log_event
 
 # Config
 MATCH_THRESHOLD = 0.72  # below this the signal goes to tasks.unrouted (reference doc section 8)
+TIE_MARGIN = 0.1  # rules this close to the best are a tie for Claude to settle
+SKIP_KINDS = {"document_arrived"}  # Lane B (S11) takes documents
+
+
+class GraphUnavailable(Exception):
+    """The graph could not be read. A replay later may work."""
+    retryable = True
+
+
+class RouteConfigError(Exception):
+    """A rule points at a skill or agent that does not exist. Someone must fix the rule."""
+    retryable = False
+
+
+# --- Reading and scoring
+
+def read_routing(graph) -> dict:
+    """Latest rules, skills and agents from the graph, in one place."""
+    try:
+        return {
+            "rules": graph.latest("resolver_rule"),
+            "skills": {node["_ref"]["id"]: node for node in graph.latest("skill")},
+            "agents": {node["_ref"]["id"]: node for node in graph.latest("agent")},
+        }
+    except Exception as error:
+        raise GraphUnavailable(type(error).__name__) from None
+
+
+def rule_applies(rule: dict, signal: Signal) -> bool:
+    """Kind, channel and required entities are gates: miss one and the rule does not apply."""
+    entity_types = {entity.type for entity in signal.entities}
+    return signal.kind in rule["kinds"] and signal.channel in rule["channels"] and set(rule["required_entities"]) <= entity_types
 
 
 def score_rule(rule: dict, signal: Signal) -> float:
-    """Share of the rule's keywords found in the masked text."""
+    """Share of the rule's keywords in the masked text, or 0 when a gate fails."""
+    if not rule_applies(rule, signal):
+        return 0.0
     text = (signal.text_masked or "").lower()
-    hits = sum(1 for word in rule["keywords"] if word in text)
-    return hits / len(rule["keywords"])
+    return sum(1 for word in rule["keywords"] if word in text) / len(rule["keywords"])
 
 
-def route(signal: Signal, rules: list[dict], new_id, now: datetime) -> TaskRequest | None:
-    """S3: pick the best rule, or None so the caller sends the signal to tasks.unrouted."""
-    # Step 1: score every rule and keep the best
-    best = max(rules, key=lambda rule: score_rule(rule, signal), default=None)
-    score = score_rule(best, signal) if best else 0.0
-    if score < MATCH_THRESHOLD:
+# --- Choosing
+
+def settle_tie(signal: Signal, contenders: list[dict], choose) -> dict | None:
+    """Ask Claude to pick among close rules. A failure or an answer off the list means unresolved."""
+    options = {rule["rule_id"]: rule["description"] for rule in contenders}
+    try:
+        picked = choose(signal.text_masked or "", options)
+    except Exception as error:  # the tie-break is optional help, never a reason to crash the stage
+        log_event("S3", "tie_break_failed", signal_id=signal.signal_id, error=type(error).__name__)
         return None
+    return next((rule for rule in contenders if rule["rule_id"] == picked), None)
 
-    # Step 2: pin the skill version now, so a release mid run cannot change it
+
+def pick_rule(signal: Signal, rules: list[dict], choose) -> tuple[dict | None, float, str]:
+    """The winning rule, its score, and why, when there is no winner."""
+    scored = sorted(((score_rule(rule, signal), rule) for rule in rules), key=lambda pair: pair[0], reverse=True)
+    best_score = scored[0][0] if scored else 0.0
+    if best_score < MATCH_THRESHOLD:
+        return None, best_score, "below_threshold"
+    contenders = [rule for score, rule in scored if score >= MATCH_THRESHOLD and best_score - score <= TIE_MARGIN]
+    winner = contenders[0] if len(contenders) == 1 else settle_tie(signal, contenders, choose)
+    return winner, best_score, "routed" if winner else "tie_unresolved"
+
+
+def make_task(signal: Signal, rule: dict, score: float, routing: dict, new_id, now: datetime) -> TaskRequest:
+    """Build K3, pinning the skill's released version so a release mid run cannot change it."""
+    skill = routing["skills"].get(rule["skill_id"])
+    if skill is None or rule["agent_id"] not in routing["agents"]:
+        raise RouteConfigError(f"rule {rule['rule_id']} points at a missing skill or agent")
     return TaskRequest(
-        task_id=new_id("task"), signal_ids=[signal.signal_id], activity_id=best["activity_id"],
-        skill_ref=VersionRef(**best["skill_ref"]), agent_id=best["agent_id"], on_behalf_of=None,
-        resolver_rule_id=best["rule_id"], match_score=round(score, 2),
-        base_criticality=best["base_criticality"],
-        due_at=now + timedelta(hours=best["due_hours"]), priority=best["priority"],
+        task_id=new_id("task"), signal_ids=[signal.signal_id], activity_id=rule["activity_id"],
+        skill_ref=VersionRef(**skill["_ref"]), agent_id=rule["agent_id"], on_behalf_of=None,
+        resolver_rule_id=rule["rule_id"], match_score=round(score, 2), base_criticality=rule["base_criticality"],
+        due_at=now + timedelta(hours=rule["due_hours"]), priority=rule["priority"], flags=signal.flags,
     )
+
+
+# --- S3 Route
+
+def route(signal: Signal, routing: dict, choose, new_id, now: datetime) -> tuple[TaskRequest | None, str]:
+    """S3: (task, "routed"), or (None, reason) with reason lane_b, below_threshold or tie_unresolved."""
+    if signal.kind in SKIP_KINDS:
+        return None, "lane_b"
+    rule, score, reason = pick_rule(signal, routing["rules"], choose)
+    count(f"s3.{reason}")
+    log_event("S3", reason, signal_id=signal.signal_id, best_score=round(score, 2), rule_id=rule["rule_id"] if rule else None)
+    if rule is None:
+        return None, reason
+    return make_task(signal, rule, score, routing, new_id, now), reason

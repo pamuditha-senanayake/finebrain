@@ -25,6 +25,8 @@ class Lane:
     vault: object
     seen_keys: object
     records: object
+    graph: object
+    choose: object = None  # S3 tie-break (llm.make_chooser); None means close calls go unrouted
     runner: object = None  # TemporalRunner, or None to run tasks in-process
     signals: dict = field(default_factory=dict)  # signal_id to K2, so S4 can read entities
     approvals: dict = field(default_factory=dict)  # approval_id to its cause and task
@@ -33,11 +35,11 @@ class Lane:
 
 # --- Wiring
 
-def build_lane(seed: dict, model: Model, gateway: Gateway, now: datetime, make_adapters=make_memory_adapters) -> Lane:
+def build_lane(seed: dict, model: Model, gateway: Gateway, now: datetime, make_adapters=make_memory_adapters, choose=None) -> Lane:
     """Build the adapters, then subscribe one consumer group per stage."""
     new_id = make_id_maker()
     adapters = make_adapters(seed, now, new_id)
-    lane = Lane(seed=seed, model=model, gateway=gateway, now=now, new_id=new_id, **adapters)
+    lane = Lane(seed=seed, model=model, gateway=gateway, now=now, new_id=new_id, choose=choose or no_tie_break, **adapters)
     lane.bus.subscribe("signals.raw", "normalizer", "S2", lambda envelope: on_raw(lane, envelope))
     lane.bus.subscribe("signals.normalized", "resolver", "S3", lambda envelope: on_signal(lane, envelope))
     lane.bus.subscribe("tasks.created", "worker", "S4", lambda envelope: on_task(lane, envelope))
@@ -76,11 +78,18 @@ def on_raw(lane: Lane, envelope: Envelope) -> None:
         lane.bus.publish("signals.normalized", "signal.normalized", signal, "normalizer", envelope)
 
 
+def no_tie_break(text: str, options: dict) -> None:
+    """Default chooser: no model call, so a close call goes to a human."""
+    return None
+
+
 def on_signal(lane: Lane, envelope: Envelope) -> None:
-    """S3: route to a task, or to tasks.unrouted for the Escalations queue."""
+    """S3: route to a task, to tasks.unrouted for the Escalations queue, or leave documents to Lane B."""
     signal = Signal.model_validate(envelope.payload)
     lane.signals[signal.signal_id] = signal
-    task = stages_route.route(signal, lane.seed["resolver_rules"], lane.new_id, lane.now)
+    task, reason = stages_route.route(signal, stages_route.read_routing(lane.graph), lane.choose, lane.new_id, lane.now)
+    if reason == "lane_b":
+        return
     if task is None:
         lane.bus.publish("tasks.unrouted", "task.unrouted", signal, "resolver", envelope)
         return

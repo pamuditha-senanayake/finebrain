@@ -1,9 +1,10 @@
-# adapters.py: one place that builds what a pipeline runs on: bus, object store, vault, key sets, records.
+# adapters.py: one place that builds what a pipeline runs on: bus, object store, vault, key sets, records, graph.
 # Used by: orchestrate.py, tests/test_e2e.py. Uses: bus_*.py, store_*.py, temporal_*.py.
 # Each real part can be switched on alone, so connectors are plugged in one at a time (step 6).
 from app.pipeline import store_postgres, store_s3, store_valkey
 from app.pipeline.bus_kafka import KafkaBus, broker_is_up
 from app.pipeline.bus_memory import MemoryBus
+from app.pipeline.store_graph import MemoryGraph, PostgresGraph, load_seed
 from app.pipeline.store_memory import MemoryRecords
 from app.pipeline.temporal_flow import temporal_is_up
 from app.pipeline.temporal_runner import TemporalRunner
@@ -32,7 +33,14 @@ def make_memory_adapters(seed: dict, now, new_id) -> dict:
         "vault": {},
         "seen_keys": set(),
         "records": MemoryRecords(seed["tenant_id"]),
+        "graph": seeded(MemoryGraph(seed["tenant_id"]), seed),
     }
+
+
+def seeded(graph, seed: dict):
+    """A graph with the seed loaded, until S14 and Workflow Studio write to it."""
+    load_seed(graph, seed)
+    return graph
 
 
 def missing_infra(parts: frozenset[str]) -> list[str]:
@@ -55,6 +63,7 @@ def real_adapters(parts: frozenset[str] = ALL_REAL_PARTS, topic_prefix: str = ""
             connection = store_postgres.connect()
             adapters["vault"] = store_postgres.PostgresVault(connection, tenant)
             adapters["records"] = store_postgres.PostgresRecords(connection, tenant)
+            adapters["graph"] = seeded(PostgresGraph(connection, tenant), seed)
         handled = None
         if "valkey" in parts:
             keys = store_valkey.connect()

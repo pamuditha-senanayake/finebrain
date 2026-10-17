@@ -16,17 +16,40 @@
     "resolver_rules": [
       {
         "rule_id": "rr_refund_email",
+        "description": "Customer asks for money back on a payment",
         "activity_id": "act_refund_request",
+        "kinds": ["customer_message"],
+        "channels": ["email", "chat"],
+        "required_entities": ["payment_ref"],
         "keywords": ["refund", "payment"],
-        "skill_ref": {"id": "skill_refund_handling", "version": 3, "branch": "main", "commit_id": "cmt_0007"},
+        "skill_id": "skill_refund_handling",
         "agent_id": "agent_refund_worker",
         "base_criticality": 0,
         "due_hours": 4,
         "priority": 3
+      },
+      {
+        "rule_id": "rr_billing_question",
+        "description": "Customer asks about an invoice, a charge or billing details",
+        "activity_id": "act_billing_question",
+        "kinds": ["customer_message"],
+        "channels": ["email", "chat"],
+        "required_entities": [],
+        "keywords": ["invoice", "charge", "billing"],
+        "skill_id": "skill_billing_answers",
+        "agent_id": "agent_billing_helper",
+        "base_criticality": 0,
+        "due_hours": 8,
+        "priority": 4
       }
     ],
+    "skills": [
+      {"id": "skill_refund_handling", "version": 3, "commit_id": "cmt_0007", "name": "Refund handling"},
+      {"id": "skill_billing_answers", "version": 1, "commit_id": "cmt_0003", "name": "Billing answers"}
+    ],
     "agents": {
-      "agent_refund_worker": {"type": "agent", "id": "agent_refund_worker", "capabilities": ["kb.read", "refund.propose"], "tier": "L3"}
+      "agent_refund_worker": {"type": "agent", "id": "agent_refund_worker", "capabilities": ["kb.read", "refund.propose"], "tier": "L3"},
+      "agent_billing_helper": {"type": "agent", "id": "agent_billing_helper", "capabilities": ["kb.read", "reply.draft"], "tier": "L3"}
     },
     "refund_policy": {
       "policy_ref": {"id": "policy_refund", "version": 3, "branch": "main", "commit_id": "cmt_0005"},

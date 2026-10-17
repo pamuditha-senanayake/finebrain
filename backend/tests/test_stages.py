@@ -5,11 +5,14 @@ import pytest
 from app.pipeline import fakes, stages_govern, stages_intake, stages_normalize, stages_reason, stages_record, stages_route
 from app.pipeline.contracts_reason import ContextBundle, ContextQuery, ProposedAction
 from app.pipeline.contracts_run import GovernanceVerdict, RunRecord
+from app.pipeline.adapters import seeded
 from app.pipeline.contracts_signal import Principal, TaskRequest
+from app.pipeline.store_graph import MemoryGraph
 from tests.golden import NOW, SEED, golden, raw_sample, recorded_answer
 
 # Config
 AGENT = Principal.model_validate(SEED["agents"]["agent_refund_worker"])
+ROUTING = stages_route.read_routing(seeded(MemoryGraph(SEED["tenant_id"]), SEED))
 PERSONAL_VALUES = {
     "s2": ["Nimal Perera", "nimal.perera@example.lk", "+94 77 123 4567"],
     "s3": ["Dilani Fernando", "dilani.f@example.lk", "199012345678", "+94 71 987 6543"],
@@ -80,7 +83,7 @@ def test_s2_drops_redelivery():
 @pytest.mark.parametrize("run_key", ["s2", "s3"])
 def test_s3_routes_refunds(run_key):
     _, _, signal = run_intake(run_key)
-    task = stages_route.route(signal, SEED["resolver_rules"], fakes.make_id_maker(), NOW)
+    task, _ = stages_route.route(signal, ROUTING, None, fakes.make_id_maker(), NOW)
     expected = golden(run_key, "TaskRequest")
     assert (task.activity_id, task.agent_id, task.base_criticality) == (expected["activity_id"], expected["agent_id"], expected["base_criticality"])
     assert task.skill_ref.model_dump() == expected["skill_ref"]
@@ -88,7 +91,7 @@ def test_s3_routes_refunds(run_key):
 
 def test_s3_leaves_invoice_chat_unrouted():
     _, _, signal = run_intake("s4")
-    assert stages_route.route(signal, SEED["resolver_rules"], fakes.make_id_maker(), NOW) is None
+    assert stages_route.route(signal, ROUTING, None, fakes.make_id_maker(), NOW) == (None, "below_threshold")
 
 
 @pytest.mark.parametrize("run_key", ["s2", "s3"])
