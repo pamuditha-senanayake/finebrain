@@ -44,8 +44,21 @@
       }
     ],
     "skills": [
-      {"id": "skill_refund_handling", "version": 3, "commit_id": "cmt_0007", "name": "Refund handling"},
-      {"id": "skill_billing_answers", "version": 1, "commit_id": "cmt_0003", "name": "Billing answers"}
+      {
+        "id": "skill_refund_handling", "version": 3, "commit_id": "cmt_0007", "name": "Refund handling",
+        "allowed_tools": ["issue_refund", "reply_customer", "escalate"],
+        "steps": [
+          "Find the payment the customer names and its purchase date and amount in the documents.",
+          "Check the refund window and the automatic refund limit in the refund policy.",
+          "Propose issue_refund for the amount actually paid, citing the policy and the payment. Governance decides if it needs approval.",
+          "If the payment cannot be found, or the request is unclear, use escalate."
+        ]
+      },
+      {
+        "id": "skill_billing_answers", "version": 1, "commit_id": "cmt_0003", "name": "Billing answers",
+        "allowed_tools": ["reply_customer", "escalate"],
+        "steps": ["Answer the billing question from the documents, citing them.", "If the documents do not answer it, use escalate."]
+      }
     ],
     "agents": {
       "agent_refund_worker": {"type": "agent", "id": "agent_refund_worker", "capabilities": ["kb.read", "refund.propose"], "tier": "L3"},

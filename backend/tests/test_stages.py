@@ -123,11 +123,13 @@ def test_s5_counts_restricted_items_as_denied():
 @pytest.mark.parametrize("run_key", ["s2", "s3"])
 def test_s6_wraps_the_model_answer(run_key):
     expected = golden(run_key, "ProposedAction")
-    model, calls = fakes.make_recorded_model(recorded_answer(run_key))
+    call, calls = fakes.make_recorded_caller({expected["arguments"]["payment_ref"]: recorded_answer(run_key)})
     bundle = ContextBundle.model_validate(golden(run_key, "ContextBundle"))
-    action = stages_reason.propose(TaskRequest.model_validate(golden(run_key, "TaskRequest")), bundle, model, expected["run_id"], expected["step_id"], SEED["cluster_id"])
+    task, request = TaskRequest.model_validate(golden(run_key, "TaskRequest")), golden(run_key, "Signal")["text_masked"]
+    action = stages_reason.propose(task, bundle, request, SEED["skills"][0], call, expected["run_id"], expected["step_id"], SEED["cluster_id"])
     assert action.model_dump(mode="json") == expected
-    assert len(calls) == 1 and len(calls[0][1]["items"]) == len(bundle.items)
+    prompt = calls[0]["messages"][0]["content"]
+    assert len(calls) == 1 and all(f'id="{item.item_id}"' in prompt for item in bundle.items)
 
 
 # --- S7 and S8

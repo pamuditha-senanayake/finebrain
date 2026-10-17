@@ -18,7 +18,7 @@ S2_BODY = raw_sample("s2")["raw_body"].encode()
 @pytest.fixture
 def lane():
     observe.reset_counts()
-    return orchestrate.build_lane(SEED, fakes.make_recorded_model({})[0], fakes.make_fake_gateway()[0], NOW)
+    return orchestrate.build_lane(SEED, fakes.make_recorded_caller({})[0], fakes.make_fake_gateway()[0], NOW)
 
 
 @pytest.fixture

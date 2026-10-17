@@ -24,7 +24,7 @@ Thanks, Nimal
 
 def build_s1_s2_only():
     """A memory pipeline wired for S1 and S2 only, so nothing downstream runs."""
-    lane = orchestrate.build_lane(SEED, fakes.make_recorded_model({})[0], fakes.make_fake_gateway()[0], NOW)
+    lane = orchestrate.build_lane(SEED, fakes.make_recorded_caller({})[0], fakes.make_fake_gateway()[0], NOW)
     lane.bus.subscribers = {"signals.raw": lane.bus.subscribers["signals.raw"]}
     return lane
 

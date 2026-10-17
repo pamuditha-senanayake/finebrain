@@ -11,7 +11,7 @@ RAW = {item["sample_id"]: item for item in json.loads((SAMPLES / "pipeline_sampl
 SEED = GOLDEN["seed"]
 NOW = datetime.fromisoformat(GOLDEN["frozen_now"])
 RUNS = {run["sample_id"][:2]: run for run in GOLDEN["runs"]}
-ANSWER_FIELDS = ("action_type", "tool_id", "tool_version", "arguments", "rationale_summary", "citations", "confidence")
+ANSWER_FIELDS = ("rationale_summary", "citations", "confidence")
 
 
 def golden(run_key: str, model_name: str) -> dict:
@@ -25,6 +25,13 @@ def raw_sample(key: str) -> dict:
 
 
 def recorded_answer(run_key: str) -> dict:
-    """What the model said in a golden run, in the shape S6 expects from the model."""
+    """The tool call Claude made in a golden run, ready for fakes.tool_response."""
     action = golden(run_key, "ProposedAction")
-    return {**{key: action[key] for key in ANSWER_FIELDS}, "usage": action["model"]}
+    tool_input = {**action["arguments"], **{key: action[key] for key in ANSWER_FIELDS}}
+    usage = action["model"]
+    return {"tool": action["action_type"], "tool_input": tool_input, "model": usage["model_id"], "input_tokens": usage["input_tokens"], "output_tokens": usage["output_tokens"]}
+
+
+def recorded_answers() -> dict[str, dict]:
+    """Payment ref to recorded tool call, for s2 and s3."""
+    return {golden(key, "ProposedAction")["arguments"]["payment_ref"]: recorded_answer(key) for key in ("s2", "s3")}

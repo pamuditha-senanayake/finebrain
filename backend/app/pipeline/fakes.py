@@ -1,5 +1,5 @@
 # fakes.py: in-memory stand-ins for outside services, so stage tests are fast and repeatable.
-# Used by: tests/test_stages.py, tests/test_chain.py, which pass them into stages_*.py and orchestrate.py.
+# Used by: tests and demos, which pass them into stages_*.py and orchestrate.py.
 # Uses: nothing local. Object store, PII vault and dedup set need no fake: a plain dict or set is enough.
 import hashlib
 import itertools
@@ -7,8 +7,9 @@ import json
 import math
 import re
 from collections.abc import Callable
+from types import SimpleNamespace
 
-Model = Callable[[str, dict], dict]
+Model = Callable[[str, list, list], object]  # call(system, messages, tools) -> a Claude reply
 Gateway = Callable[[str, dict, str], dict]
 
 
@@ -25,27 +26,32 @@ def make_id_maker() -> Callable[[str], str]:
     return new_id
 
 
-# --- Model (Anthropic in production)
+# --- Claude (Anthropic in production)
 
-def make_recorded_model(answer: dict) -> tuple[Model, list[tuple[str, dict]]]:
-    """A model that always gives the recorded answer, plus the list of calls it saw."""
-    calls: list[tuple[str, dict]] = []
-
-    def model(prompt_name: str, context: dict) -> dict:
-        calls.append((prompt_name, context))
-        return answer
-
-    return model, calls
+def tool_response(tool: str, tool_input: dict, model: str = "claude-sonnet-5-5", input_tokens: int = 0, output_tokens: int = 0):
+    """A reply shaped like the Claude API's, holding one tool call."""
+    usage = SimpleNamespace(input_tokens=input_tokens, output_tokens=output_tokens)
+    return SimpleNamespace(model=model, stop_reason="tool_use", usage=usage, content=[SimpleNamespace(type="tool_use", id="toolu_fake", name=tool, input=tool_input)])
 
 
-def make_model_by_ref(answers: dict[str, dict]) -> Model:
-    """One model for many runs: it gives the answer whose payment ref appears in the context."""
+def text_response(text: str):
+    """A reply with no tool call, like a refusal."""
+    usage = SimpleNamespace(input_tokens=0, output_tokens=0)
+    return SimpleNamespace(model="claude-sonnet-5-5", stop_reason="end_turn", usage=usage, content=[SimpleNamespace(type="text", text=text)])
 
-    def model(prompt_name: str, context: dict) -> dict:
-        text = json.dumps(context)
-        return next(answer for ref, answer in answers.items() if ref in text)
 
-    return model
+def make_recorded_caller(answers: dict[str, dict]):
+    """A Claude stand-in for S6: answers with the recorded tool call whose payment ref appears in the request.
+    Returns the caller and the list of requests it saw."""
+    calls: list[dict] = []
+
+    def call(system: str, messages: list[dict], tools: list[dict]):
+        calls.append({"system": system, "messages": messages, "tools": tools})
+        text = json.dumps(messages)
+        answer = next((answer for ref, answer in answers.items() if ref in text), None)
+        return tool_response(**answer) if answer else text_response("I cannot help with that.")
+
+    return call, calls
 
 
 # --- Payment gateway

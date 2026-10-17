@@ -2,16 +2,15 @@
 # Uses: app/pipeline/orchestrate.py, app/pipeline/fakes.py, tests/golden.py.
 from app.pipeline import fakes, orchestrate
 from app.pipeline.contracts_run import Decision
-from tests.golden import NOW, SEED, golden, raw_sample, recorded_answer
+from tests.golden import NOW, SEED, golden, raw_sample, recorded_answers
 
 
 # --- Helpers
 
 def make_lane():
     """A fresh pipeline whose model answers s2 and s3 as in the golden runs. Returns it and the payments made."""
-    answers = {golden(key, "ProposedAction")["arguments"]["payment_ref"]: recorded_answer(key) for key in ("s2", "s3")}
     gateway, paid = fakes.make_fake_gateway()
-    return orchestrate.build_lane(SEED, fakes.make_model_by_ref(answers), gateway, NOW), paid
+    return orchestrate.build_lane(SEED, fakes.make_recorded_caller(recorded_answers())[0], gateway, NOW), paid
 
 
 def run_sample(key: str):

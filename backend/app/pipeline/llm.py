@@ -1,5 +1,5 @@
-# llm.py: small Claude calls. Today: pick one option id from a fixed list (the S3 tie-break). S6 adds its call here.
-# Used by: orchestrate.py callers that want real routing, scripts/smoke_tiebreak.py, tests. Uses: retry.py.
+# llm.py: Claude calls: pick one option id from a fixed list (S3 tie-break), and a tool-use call (S6 reasoning).
+# Used by: pipeline callers that want real Claude, scripts/smoke_*.py, tests. Uses: retry.py.
 # Customer text always goes in as quoted data; the model can only answer with an id we offered.
 import os
 from collections.abc import Callable
@@ -10,6 +10,9 @@ from app.pipeline.retry import call_with_retry
 
 # Config
 FAST_MODEL = os.environ.get("ANTHROPIC_FAST_MODEL", "claude-haiku-5-5")
+REASON_MODEL = os.environ.get("ANTHROPIC_REASON_MODEL", "claude-sonnet-5-5")
+REASON_MAX_TOKENS = 1024
+REASON_TIMEOUT_SECONDS = 60
 TIMEOUT_SECONDS = 10
 ATTEMPTS = 3  # one try plus 2 retries, then the caller treats the tie as unresolved
 CHOICE_SYSTEM = (
@@ -22,8 +25,9 @@ Chooser = Callable[[str, dict[str, str]], str | None]
 
 
 def is_retryable(error: Exception) -> bool:
-    """Timeouts, dropped connections, rate limits and server errors are worth another try."""
-    return isinstance(error, RETRYABLE_ERRORS)
+    """Timeouts, dropped connections, rate limits, overload (529) and server errors are worth another try."""
+    status = getattr(error, "status_code", None)
+    return isinstance(error, RETRYABLE_ERRORS) or (isinstance(error, anthropic.APIStatusError) and (status == 429 or status >= 500))
 
 
 def choice_prompt(text: str, options: dict[str, str]) -> str:
@@ -48,3 +52,19 @@ def make_chooser(client=None, model: str = FAST_MODEL) -> Chooser:
         return answer if answer in options else None
 
     return choose
+
+
+def make_tool_caller(client=None, model: str = REASON_MODEL):
+    """A function that sends one tool-use request. The system prompt asks for exactly one tool call."""
+    client = client or anthropic.Anthropic(timeout=REASON_TIMEOUT_SECONDS, max_retries=0)
+
+    def call(system: str, messages: list[dict], tools: list[dict]):
+        return call_with_retry(
+            lambda: client.messages.create(
+                model=model, max_tokens=REASON_MAX_TOKENS, system=system,
+                tools=tools, messages=messages,  # this model does not take a forced tool_choice; no tool means S6 escalates
+            ),
+            is_retryable, attempts=ATTEMPTS,
+        )
+
+    return call

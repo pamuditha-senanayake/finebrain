@@ -3,6 +3,7 @@
 from datetime import timedelta
 
 from temporalio import activity, workflow
+from temporalio.common import RetryPolicy
 
 with workflow.unsafe.imports_passed_through():  # these never run inside the workflow sandbox
     import asyncio
@@ -17,6 +18,8 @@ with workflow.unsafe.imports_passed_through():  # these never run inside the wor
 # Config
 TEMPORAL_ADDRESS = os.environ.get("TEMPORAL_ADDRESS", "localhost:7233")
 STEP_TIMEOUT = timedelta(seconds=30)
+REASON_TIMEOUT = timedelta(seconds=240)  # S5 + S6 + S7: Claude with up to 3 tries and 2 feedback rounds
+NO_AUTO_RETRY = RetryPolicy(maximum_attempts=1)  # steps publish messages; retrying here could publish twice
 
 
 def temporal_is_up(address: str = TEMPORAL_ADDRESS) -> bool:
@@ -68,15 +71,15 @@ class TaskWorkflow:
     @workflow.run
     async def run(self, envelope: Envelope) -> str:
         # Step 1: S5, S6 and S7
-        run = await workflow.execute_activity_method(RunActivities.start, envelope, start_to_close_timeout=STEP_TIMEOUT)
+        run = await workflow.execute_activity_method(RunActivities.start, envelope, start_to_close_timeout=REASON_TIMEOUT, retry_policy=NO_AUTO_RETRY)
 
         # Step 2: act now, close, or wait for a human (None: closed early, context unavailable)
         if run is None:
             pass
         elif run.verdict.route == "execute":
-            await workflow.execute_activity_method(RunActivities.act, run, start_to_close_timeout=STEP_TIMEOUT)
+            await workflow.execute_activity_method(RunActivities.act, run, start_to_close_timeout=STEP_TIMEOUT, retry_policy=NO_AUTO_RETRY)
         elif run.verdict.route != "approval_required":
-            await workflow.execute_activity_method(RunActivities.close, run, start_to_close_timeout=STEP_TIMEOUT)
+            await workflow.execute_activity_method(RunActivities.close, run, start_to_close_timeout=STEP_TIMEOUT, retry_policy=NO_AUTO_RETRY)
         else:
             await self.wait_for_human(run)
         self.phase = "done"
@@ -84,11 +87,11 @@ class TaskWorkflow:
 
     async def wait_for_human(self, run: RunState) -> None:
         """S8: open the approval, then sleep durably until the decision signal arrives."""
-        paused = await workflow.execute_activity_method(RunActivities.open_approval, run, start_to_close_timeout=STEP_TIMEOUT)
+        paused = await workflow.execute_activity_method(RunActivities.open_approval, run, start_to_close_timeout=STEP_TIMEOUT, retry_policy=NO_AUTO_RETRY)
         self.phase = "awaiting_approval"
         await workflow.wait_condition(lambda: self.decision is not None)
         self.phase = "running"
-        await workflow.execute_activity_method(RunActivities.resume, args=[paused, self.decision], start_to_close_timeout=STEP_TIMEOUT)
+        await workflow.execute_activity_method(RunActivities.resume, args=[paused, self.decision], start_to_close_timeout=STEP_TIMEOUT, retry_policy=NO_AUTO_RETRY)
 
     @workflow.signal
     def decide(self, envelope: Envelope) -> None:

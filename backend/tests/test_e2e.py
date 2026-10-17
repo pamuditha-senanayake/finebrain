@@ -9,7 +9,7 @@ import pytest
 from app.pipeline import fakes, orchestrate
 from app.pipeline.adapters import ALL_REAL_PARTS, make_memory_adapters, missing_infra, real_adapters
 from app.pipeline.contracts_run import Decision
-from tests.golden import NOW, RAW, SEED, golden, recorded_answer
+from tests.golden import NOW, RAW, SEED, recorded_answers
 
 # Config: s1 is a policy document for Lane B (S11 ingest), which is not built yet
 LANE_A_SAMPLES = [sample_id for sample_id in RAW if not sample_id.startswith("s1_")]
@@ -35,9 +35,8 @@ def setup(request):
 def run_all(setup):
     """Run every Lane A sample through one pipeline. Gives the lane, payments and each sample's correlation id."""
     seed, make_adapters = setup
-    answers = {golden(key, "ProposedAction")["arguments"]["payment_ref"]: recorded_answer(key) for key in ("s2", "s3")}
     gateway, paid = fakes.make_fake_gateway()
-    lane = orchestrate.build_lane(seed, fakes.make_model_by_ref(answers), gateway, NOW, make_adapters)
+    lane = orchestrate.build_lane(seed, fakes.make_recorded_caller(recorded_answers())[0], gateway, NOW, make_adapters)
     correlations = {}
     for sample_id in LANE_A_SAMPLES:
         correlations[sample_id] = orchestrate.capture_signal(lane, RAW[sample_id]).correlation_id
@@ -140,7 +139,7 @@ def test_replaying_everything_changes_nothing(run_all):
 def test_two_fresh_memory_runs_are_identical():
     """Memory only: on real infra, message timing can change the order ids are handed out."""
     def one_run():
-        lane = orchestrate.build_lane(SEED, fakes.make_model_by_ref({golden("s2", "ProposedAction")["arguments"]["payment_ref"]: recorded_answer("s2")}), fakes.make_fake_gateway()[0], NOW)
+        lane = orchestrate.build_lane(SEED, fakes.make_recorded_caller(recorded_answers())[0], fakes.make_fake_gateway()[0], NOW)
         orchestrate.capture_signal(lane, RAW[LANE_A_SAMPLES[0]])
         lane.bus.drain()
         return snapshot(lane)

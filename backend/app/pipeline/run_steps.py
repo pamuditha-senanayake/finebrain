@@ -64,7 +64,9 @@ def start_run(lane, envelope: Envelope) -> RunState | None:
         return None
 
     # Step 2: propose, then govern
-    action = stages_reason.propose(task, bundle, lane.model, run_id, ACTION_STEP_ID, lane.seed["cluster_id"])
+    signal = lane.signals[task.signal_ids[0]]
+    skill = {node["_ref"]["id"]: node for node in lane.graph.latest("skill")}.get(task.skill_ref.id, {})
+    action = stages_reason.propose(task, bundle, signal.text_masked or "", skill, lane.model, run_id, ACTION_STEP_ID, lane.seed["cluster_id"])
     _, decision, verdict = stages_govern.govern(task, action, bundle, principal, lane.seed["refund_policy"], lane.seed["payments"], lane.seed["cluster_id"], lane.now, lane.new_id)
     steps = [
         make_step(lane, "step_01", "retrieval", f"{len(bundle.items)} items", f"{bundle.denied_count} withheld", bundle.access_decision_ids),

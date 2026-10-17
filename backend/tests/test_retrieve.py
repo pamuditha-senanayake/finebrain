@@ -9,7 +9,7 @@ from app.pipeline import fakes, observe, orchestrate, stages_retrieve
 from app.pipeline.contracts_reason import ContextQuery
 from app.pipeline.store_chunks import MemoryChunks, PostgresChunks
 from app.pipeline.store_postgres import connect, database_is_up
-from tests.golden import NOW, RAW, SEED, golden, recorded_answer
+from tests.golden import NOW, RAW, SEED, golden, recorded_answers
 
 # Config
 S2_QUERY = ContextQuery.model_validate(golden("s2", "ContextQuery"))
@@ -91,7 +91,7 @@ def test_unreadable_store_is_context_unavailable():
 def test_s4_retries_once_then_escalates_without_acting():
     # Step 1: a lane whose knowledge store is down
     gateway, paid = fakes.make_fake_gateway()
-    lane = orchestrate.build_lane(SEED, fakes.make_recorded_model(recorded_answer("s2"))[0], gateway, NOW)
+    lane = orchestrate.build_lane(SEED, fakes.make_recorded_caller(recorded_answers())[0], gateway, NOW)
     calls = []
 
     def down(*args, **kwargs):
@@ -109,7 +109,7 @@ def test_s4_retries_once_then_escalates_without_acting():
 
 
 def test_every_retrieval_is_logged_as_an_access_decision():
-    lane = orchestrate.build_lane(SEED, fakes.make_recorded_model(recorded_answer("s2"))[0], fakes.make_fake_gateway()[0], NOW)
+    lane = orchestrate.build_lane(SEED, fakes.make_recorded_caller(recorded_answers())[0], fakes.make_fake_gateway()[0], NOW)
     first = orchestrate.capture_signal(lane, RAW["s2_refund_monthly_in_policy"])
     lane.bus.drain()
     decisions = lane.bus.topics["access.decisions"]
