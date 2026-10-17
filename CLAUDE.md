@@ -21,6 +21,8 @@ Every file lives in a folder that matches its job. No loose files at the repo ro
 | App code (API, pipeline stages, contracts) | `backend/app/` |
 | One-off dev scripts (key checks, smoke tests) | `backend/scripts/` |
 | Sample and fixture data | `backend/samples/` |
+| BDD scenarios for the pipeline (Gherkin) | `backend/tests/features/pipeline/` |
+| BDD scenarios for the console (Gherkin) | `frontend/tests/features/console/` |
 | Design docs and guides | `Docs/` |
 
 - Only project config stays at the top of `backend/`: `pyproject.toml`, `uv.lock`, `README.md`, `.env`, `.env.example`, `.gitignore`, `.python-version`.
