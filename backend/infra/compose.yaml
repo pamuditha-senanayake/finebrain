@@ -2,9 +2,19 @@
 # Start: docker compose -f backend/infra/compose.yaml up -d
 # Redpanda speaks the Kafka protocol on localhost:9092. Console is on http://localhost:8080.
 # Postgres is on localhost:5433, because 5432 is often taken by a Postgres installed on the Mac.
+# Valkey (Redis compatible) is on localhost:6379.
 name: finebrain
 
 services:
+  valkey:
+    image: valkey/valkey:8.0
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      retries: 12
+
   postgres:
     image: pgvector/pgvector:pg17
     environment:
