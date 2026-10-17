@@ -57,7 +57,7 @@ def make_fake_gateway(fail_with: str | None = None) -> tuple[Gateway, dict[str, 
             return {"status": "failed", "error": {"code": fail_with, "retryable": True}}
         if idempotency_key not in seen:
             external_ref = "rf_" + hashlib.sha256(idempotency_key.encode()).hexdigest()[:8]
-            seen[idempotency_key] = {"status": "succeeded", "external_ref": external_ref, "summary": f"{tool_id} accepted"}
+            seen[idempotency_key] = {"status": "succeeded", "external_ref": external_ref, "summary": f"{tool_id} accepted", "arguments": arguments}
         return seen[idempotency_key]
 
     return gateway, seen
