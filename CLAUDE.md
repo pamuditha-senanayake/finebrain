@@ -26,6 +26,7 @@ Every file lives in a folder that matches its job. No loose files at the repo ro
 | App code (API, pipeline stages, contracts) | `backend/app/` |
 | One-off dev scripts (key checks, smoke tests) | `backend/scripts/` |
 | Automated tests (pytest) | `backend/tests/` |
+| Hands-on demos (edit the input, run, read the output) | `backend/demos/` |
 | Local infra (Docker Compose) | `backend/infra/` |
 | Sample and fixture data | `backend/samples/` |
 | Design docs and guides | `Docs/` |
