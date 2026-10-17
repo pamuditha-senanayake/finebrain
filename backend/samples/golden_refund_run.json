@@ -1,0 +1,408 @@
+{
+  "_about": "Golden refund runs for Lane A. Each step is one contract a stage emits. Kafka steps carry 'event' fields; the run's 'envelope' fills the rest. Raw bodies live in pipeline_samples.json under the same sample_id.",
+  "frozen_now": "2026-10-10T10:00:00+05:30",
+  "runs": [
+    {
+      "sample_id": "s2_refund_monthly_in_policy",
+      "envelope": {
+        "schema_version": 1,
+        "tenant_id": "finebase_labs",
+        "cluster_id": "customer_care",
+        "env": "sandbox",
+        "branch": "main",
+        "trace_id": "trace_s2_0001",
+        "correlation_id": "corr_s2_0001"
+      },
+      "steps": [
+        {
+          "stage": "S1", "contract": "K1", "model": "RawSignalEnvelope", "transport": "kafka:signals.raw",
+          "event": {"event_id": "0192f3a0-0000-7000-8000-000000000201", "event_type": "signal.raw.captured", "occurred_at": "2026-10-10T09:12:00+05:30", "recorded_at": "2026-10-10T09:12:03+05:30", "causation_id": null, "producer": "capture"},
+          "data": {
+            "connector_id": "conn_gmail_support",
+            "grant_id": "grant_gmail_support_read",
+            "source_type": "email",
+            "external_id": "gmail_18c2f0a1b9",
+            "received_at": "2026-10-10T09:12:03+05:30",
+            "signature_verified": true,
+            "raw_object_uri": "s3://brain/finebase_labs/raw/2026/10/10/gmail_18c2f0a1b9.eml",
+            "raw_sha256": "50434a73df5c96c6e4f72d114e5fb0a66cfcf843b85d925f9a71041788b71b6c",
+            "content_type": "message/rfc822",
+            "size_bytes": 380,
+            "headers_subset": {"to": "support@finebase.lk", "subject": "Refund for my Pro monthly plan"}
+          }
+        },
+        {
+          "stage": "S2", "contract": "K2", "model": "Signal", "transport": "kafka:signals.normalized",
+          "event": {"event_id": "0192f3a0-0000-7000-8000-000000000202", "event_type": "signal.normalized", "occurred_at": "2026-10-10T09:12:00+05:30", "recorded_at": "2026-10-10T09:12:04+05:30", "causation_id": "0192f3a0-0000-7000-8000-000000000201", "producer": "normalizer"},
+          "data": {
+            "signal_id": "sig_s2_0001",
+            "raw_event_id": "0192f3a0-0000-7000-8000-000000000201",
+            "kind": "customer_message",
+            "channel": "email",
+            "actor": {"type": "customer", "ref": "pii_tok_NmlPrrMail000000000001"},
+            "subject": {"entity_type": "payment", "entity_ref": "pay_FB_20261004_0192"},
+            "text_masked": "Hi Finebase team, I bought the Finebase Pro monthly plan on 4 October 2026 for LKR 12,000 (payment ref pay_FB_20261004_0192). It does not fit our workflow, so I would like a full refund please. Thanks, pii_tok_NmlPrrName000000000001 pii_tok_NmlPrrPhon000000000001",
+            "language": "en",
+            "entities": [
+              {"type": "money", "value_or_token": "LKR 12000", "confidence": 0.98},
+              {"type": "payment_ref", "value_or_token": "pay_FB_20261004_0192", "confidence": 0.99},
+              {"type": "purchase_date", "value_or_token": "2026-10-04", "confidence": 0.95}
+            ],
+            "attachments": [],
+            "pii_tokens": ["pii_tok_NmlPrrName000000000001", "pii_tok_NmlPrrMail000000000001", "pii_tok_NmlPrrPhon000000000001"],
+            "sensitivity": "confidential",
+            "dedup_key": "finebase_labs:email:gmail_18c2f0a1b9"
+          }
+        },
+        {
+          "stage": "S3", "contract": "K3", "model": "TaskRequest", "transport": "kafka:tasks.created",
+          "event": {"event_id": "0192f3a0-0000-7000-8000-000000000203", "event_type": "task.created", "occurred_at": "2026-10-10T09:12:04+05:30", "recorded_at": "2026-10-10T09:12:04+05:30", "causation_id": "0192f3a0-0000-7000-8000-000000000202", "producer": "resolver"},
+          "data": {
+            "task_id": "task_s2_0001",
+            "signal_ids": ["sig_s2_0001"],
+            "activity_id": "act_refund_request",
+            "skill_ref": {"id": "skill_refund_handling", "version": 3, "branch": "main", "commit_id": "cmt_0007"},
+            "agent_id": "agent_refund_worker",
+            "on_behalf_of": null,
+            "resolver_rule_id": "rr_refund_email",
+            "match_score": 0.91,
+            "base_criticality": 0,
+            "due_at": "2026-10-10T13:12:00+05:30",
+            "priority": 3
+          }
+        },
+        {
+          "stage": "S6", "contract": "K4", "model": "ContextQuery", "transport": "http",
+          "data": {
+            "run_id": "run_s2",
+            "principal": {"type": "agent", "id": "agent_refund_worker", "capabilities": ["kb.read", "refund.propose"], "tier": "L3"},
+            "on_behalf_of": null,
+            "query_text": "refund window and automatic approval limit",
+            "entity_refs": ["pay_FB_20261004_0192"],
+            "branch": "main",
+            "node_types": ["policy", "fact"]
+          }
+        },
+        {
+          "stage": "S5", "contract": "K4", "model": "ContextBundle", "transport": "http",
+          "data": {
+            "items": [
+              {
+                "item_id": "item_policy_window", "kind": "policy",
+                "text": "Customers may request a refund within 30 days of the purchase date.",
+                "source": {"document_id": "doc_refund_policy_v3", "uri": "s3://brain/finebase_labs/documents/Finebase_Refund_Policy_v3.txt", "span": "88:157"},
+                "valid_from": "2026-01-01T00:00:00+05:30", "valid_to": null, "recorded_at": "2026-10-01T10:00:00+05:30",
+                "verified_by": "head_of_cs", "version_ref": {"id": "policy_refund", "version": 3, "branch": "main", "commit_id": "cmt_0005"},
+                "score": 0.94, "sensitivity": "internal"
+              },
+              {
+                "item_id": "item_policy_auto_limit", "kind": "policy",
+                "text": "Refunds up to LKR 50,000 inside the refund window are approved automatically.",
+                "source": {"document_id": "doc_refund_policy_v3", "uri": "s3://brain/finebase_labs/documents/Finebase_Refund_Policy_v3.txt", "span": "226:331"},
+                "valid_from": "2026-01-01T00:00:00+05:30", "valid_to": null, "recorded_at": "2026-10-01T10:00:00+05:30",
+                "verified_by": "head_of_cs", "version_ref": {"id": "policy_refund", "version": 3, "branch": "main", "commit_id": "cmt_0005"},
+                "score": 0.91, "sensitivity": "internal"
+              },
+              {
+                "item_id": "item_payment_s2", "kind": "fact",
+                "text": "Payment pay_FB_20261004_0192: LKR 12,000 on 4 October 2026 for Finebase Pro monthly.",
+                "source": {"document_id": "doc_billing_export_2026_10", "uri": "s3://brain/finebase_labs/documents/billing_2026_10.csv"},
+                "valid_from": "2026-10-04T00:00:00+05:30", "valid_to": null, "recorded_at": "2026-10-04T08:30:00+05:30",
+                "verified_by": null, "version_ref": null,
+                "score": 0.97, "sensitivity": "confidential"
+              }
+            ],
+            "denied_count": 0,
+            "denied_reasons": [],
+            "access_decision_ids": ["acc_s2_retrieve"],
+            "latency_ms": 180
+          }
+        },
+        {
+          "stage": "S6", "contract": "K5", "model": "ProposedAction", "transport": "temporal",
+          "data": {
+            "run_id": "run_s2",
+            "step_id": "step_04",
+            "action_type": "issue_refund",
+            "tool_id": "tool_payment_refund",
+            "tool_version": 1,
+            "arguments": {"payment_ref": "pay_FB_20261004_0192", "amount": {"amount_minor": 1200000, "currency": "LKR"}, "reason_code": "within_window_full"},
+            "money": {"amount_minor": 1200000, "currency": "LKR"},
+            "touches": {"money": true, "personal_data": false, "public_content": false, "legal_tax": false, "clusters": ["customer_care"]},
+            "rationale_summary": "Purchase was 6 days ago and LKR 12,000 is under the LKR 50,000 limit, so policy allows an automatic full refund.",
+            "citations": ["item_policy_window", "item_policy_auto_limit", "item_payment_s2"],
+            "model": {"provider": "anthropic", "model_id": "claude-sonnet-5-5", "input_tokens": 3400, "output_tokens": 220},
+            "confidence": 0.93
+          }
+        },
+        {
+          "stage": "S7", "contract": "K6", "model": "AccessDecision", "transport": "http",
+          "data": {"decision_id": "acc_s2_govern", "decision": "allow", "rule_id": "refund.agent_may_propose", "reason": "agent_refund_worker holds refund.propose in customer_care", "obligations": [], "latency_ms": 6}
+        },
+        {
+          "stage": "S7", "contract": "K7", "model": "GovernanceVerdict", "transport": "temporal",
+          "data": {
+            "run_id": "run_s2",
+            "step_id": "step_04",
+            "access_decision_id": "acc_s2_govern",
+            "policy_results": [
+              {"policy_ref": {"id": "policy_refund", "version": 3, "branch": "main", "commit_id": "cmt_0005"}, "passed": true, "rule_id": "refund.window_30d", "explanation": "6 days since purchase"},
+              {"policy_ref": {"id": "policy_refund", "version": 3, "branch": "main", "commit_id": "cmt_0005"}, "passed": true, "rule_id": "refund.auto_limit_50000", "explanation": "LKR 12,000 is under LKR 50,000"}
+            ],
+            "quality_gates": [
+              {"gate_id": "citations_present", "passed": true, "detail": "3 citations, all in the bundle"},
+              {"gate_id": "amount_matches_payment", "passed": true, "detail": "1200000 equals the paid amount"}
+            ],
+            "criticality": 0,
+            "criticality_reasons": ["policy_auto_approval"],
+            "route": "execute",
+            "required_approvers": null
+          }
+        },
+        {
+          "stage": "S9", "contract": "K9", "model": "ActionResult", "transport": "kafka:actions.executed",
+          "event": {"event_id": "0192f3a0-0000-7000-8000-000000000204", "event_type": "action.executed", "occurred_at": "2026-10-10T09:12:10+05:30", "recorded_at": "2026-10-10T09:12:11+05:30", "causation_id": "0192f3a0-0000-7000-8000-000000000203", "producer": "worker"},
+          "data": {
+            "action_id": "actn_s2_0001",
+            "run_id": "run_s2",
+            "tool_id": "tool_payment_refund",
+            "idempotency_key": "finebase_labs:run_s2:step_04",
+            "status": "succeeded",
+            "external_ref": "rf_PG_778812",
+            "request_hash": "52ff1cb6b5d0dd598ef7fee3600a78c0080612cbfc784be5da4c78a9172183a8",
+            "response_summary": "Refund of LKR 12,000 accepted by the gateway",
+            "attempted_at": "2026-10-10T09:12:10+05:30",
+            "completed_at": "2026-10-10T09:12:11+05:30",
+            "error": null
+          }
+        },
+        {
+          "stage": "S10", "contract": "K10", "model": "RunRecord", "transport": "kafka:runs.completed",
+          "event": {"event_id": "0192f3a0-0000-7000-8000-000000000205", "event_type": "run.completed", "occurred_at": "2026-10-10T09:12:12+05:30", "recorded_at": "2026-10-10T09:12:12+05:30", "causation_id": "0192f3a0-0000-7000-8000-000000000204", "producer": "recorder"},
+          "data": {
+            "run_id": "run_s2",
+            "task_id": "task_s2_0001",
+            "agent_id": "agent_refund_worker",
+            "skill_ref": {"id": "skill_refund_handling", "version": 3, "branch": "main", "commit_id": "cmt_0007"},
+            "outcome": "resolved",
+            "steps": [
+              {"step_id": "step_01", "kind": "retrieval", "started_at": "2026-10-10T09:12:05+05:30", "duration_ms": 180, "decision": "3 items", "reason": "policy and payment found", "refs": ["acc_s2_retrieve"]},
+              {"step_id": "step_02", "kind": "judgment", "started_at": "2026-10-10T09:12:05+05:30", "duration_ms": 3900, "decision": "issue_refund", "reason": "inside window and under limit", "refs": ["item_policy_window", "item_policy_auto_limit"]},
+              {"step_id": "step_03", "kind": "access_check", "started_at": "2026-10-10T09:12:09+05:30", "duration_ms": 6, "decision": "allow", "reason": "refund.agent_may_propose", "refs": ["acc_s2_govern"]},
+              {"step_id": "step_04", "kind": "tool", "started_at": "2026-10-10T09:12:10+05:30", "duration_ms": 1100, "decision": "succeeded", "reason": "route execute at C0", "refs": ["actn_s2_0001"]}
+            ],
+            "template_fills": [],
+            "human_touch": false,
+            "cost": {"input_tokens": 3400, "output_tokens": 220, "usd_micro": 13500},
+            "latency_ms": 9000,
+            "trace_object_uri": "s3://brain/finebase_labs/traces/run_s2.json"
+          }
+        },
+        {
+          "stage": "S10", "contract": "K11", "model": "UiEvent", "transport": "sse",
+          "data": {"type": "run.updated", "id": "run_s2", "tenant_id": "finebase_labs", "cluster_id": "customer_care", "env": "sandbox", "display": {"status": "resolved", "title": "Refund LKR 12,000", "customer": "pii_tok_NmlPrrName000000000001"}, "at": "2026-10-10T09:12:12+05:30"}
+        }
+      ]
+    },
+    {
+      "sample_id": "s3_refund_annual_late_large",
+      "envelope": {
+        "schema_version": 1,
+        "tenant_id": "finebase_labs",
+        "cluster_id": "customer_care",
+        "env": "sandbox",
+        "branch": "main",
+        "trace_id": "trace_s3_0001",
+        "correlation_id": "corr_s3_0001"
+      },
+      "steps": [
+        {
+          "stage": "S1", "contract": "K1", "model": "RawSignalEnvelope", "transport": "kafka:signals.raw",
+          "event": {"event_id": "0192f3a0-0000-7000-8000-000000000301", "event_type": "signal.raw.captured", "occurred_at": "2026-10-10T09:40:00+05:30", "recorded_at": "2026-10-10T09:40:02+05:30", "causation_id": null, "producer": "capture"},
+          "data": {
+            "connector_id": "conn_gmail_support",
+            "grant_id": "grant_gmail_support_read",
+            "source_type": "email",
+            "external_id": "gmail_18c2f3d77e",
+            "received_at": "2026-10-10T09:40:02+05:30",
+            "signature_verified": true,
+            "raw_object_uri": "s3://brain/finebase_labs/raw/2026/10/10/gmail_18c2f3d77e.eml",
+            "raw_sha256": "94e994bf07bbc94a5c4a9d5913e337bce704e7d70eb5897e8210f047c3304731",
+            "content_type": "message/rfc822",
+            "size_bytes": 426,
+            "headers_subset": {"to": "support@finebase.lk", "subject": "Full refund for annual Business plan"}
+          }
+        },
+        {
+          "stage": "S2", "contract": "K2", "model": "Signal", "transport": "kafka:signals.normalized",
+          "event": {"event_id": "0192f3a0-0000-7000-8000-000000000302", "event_type": "signal.normalized", "occurred_at": "2026-10-10T09:40:00+05:30", "recorded_at": "2026-10-10T09:40:03+05:30", "causation_id": "0192f3a0-0000-7000-8000-000000000301", "producer": "normalizer"},
+          "data": {
+            "signal_id": "sig_s3_0001",
+            "raw_event_id": "0192f3a0-0000-7000-8000-000000000301",
+            "kind": "customer_message",
+            "channel": "email",
+            "actor": {"type": "customer", "ref": "pii_tok_DlnFrnMail000000000001"},
+            "subject": {"entity_type": "payment", "entity_ref": "pay_FB_20260830_0047"},
+            "text_masked": "Hello, We paid LKR 85,000 for the Finebase Business annual plan on 30 August 2026 (payment ref pay_FB_20260830_0047). Our company is closing the project, so please refund the full amount. The account is under my NIC pii_tok_DlnFrnNicc000000000001. Regards, pii_tok_DlnFrnName000000000001 pii_tok_DlnFrnPhon000000000001",
+            "language": "en",
+            "entities": [
+              {"type": "money", "value_or_token": "LKR 85000", "confidence": 0.98},
+              {"type": "payment_ref", "value_or_token": "pay_FB_20260830_0047", "confidence": 0.99},
+              {"type": "purchase_date", "value_or_token": "2026-08-30", "confidence": 0.95}
+            ],
+            "attachments": [],
+            "pii_tokens": ["pii_tok_DlnFrnName000000000001", "pii_tok_DlnFrnMail000000000001", "pii_tok_DlnFrnPhon000000000001", "pii_tok_DlnFrnNicc000000000001"],
+            "sensitivity": "restricted",
+            "dedup_key": "finebase_labs:email:gmail_18c2f3d77e"
+          }
+        },
+        {
+          "stage": "S3", "contract": "K3", "model": "TaskRequest", "transport": "kafka:tasks.created",
+          "event": {"event_id": "0192f3a0-0000-7000-8000-000000000303", "event_type": "task.created", "occurred_at": "2026-10-10T09:40:03+05:30", "recorded_at": "2026-10-10T09:40:03+05:30", "causation_id": "0192f3a0-0000-7000-8000-000000000302", "producer": "resolver"},
+          "data": {
+            "task_id": "task_s3_0001",
+            "signal_ids": ["sig_s3_0001"],
+            "activity_id": "act_refund_request",
+            "skill_ref": {"id": "skill_refund_handling", "version": 3, "branch": "main", "commit_id": "cmt_0007"},
+            "agent_id": "agent_refund_worker",
+            "on_behalf_of": null,
+            "resolver_rule_id": "rr_refund_email",
+            "match_score": 0.89,
+            "base_criticality": 0,
+            "due_at": "2026-10-10T13:40:00+05:30",
+            "priority": 3
+          }
+        },
+        {
+          "stage": "S6", "contract": "K4", "model": "ContextQuery", "transport": "http",
+          "data": {
+            "run_id": "run_s3",
+            "principal": {"type": "agent", "id": "agent_refund_worker", "capabilities": ["kb.read", "refund.propose"], "tier": "L3"},
+            "on_behalf_of": null,
+            "query_text": "refund window and automatic approval limit",
+            "entity_refs": ["pay_FB_20260830_0047"],
+            "branch": "main",
+            "node_types": ["policy", "fact"]
+          }
+        },
+        {
+          "stage": "S5", "contract": "K4", "model": "ContextBundle", "transport": "http",
+          "data": {
+            "items": [
+              {
+                "item_id": "item_policy_window", "kind": "policy",
+                "text": "Customers may request a refund within 30 days of the purchase date.",
+                "source": {"document_id": "doc_refund_policy_v3", "uri": "s3://brain/finebase_labs/documents/Finebase_Refund_Policy_v3.txt", "span": "88:157"},
+                "valid_from": "2026-01-01T00:00:00+05:30", "valid_to": null, "recorded_at": "2026-10-01T10:00:00+05:30",
+                "verified_by": "head_of_cs", "version_ref": {"id": "policy_refund", "version": 3, "branch": "main", "commit_id": "cmt_0005"},
+                "score": 0.94, "sensitivity": "internal"
+              },
+              {
+                "item_id": "item_policy_late_large", "kind": "policy",
+                "text": "Refunds above LKR 50,000, or requests after the 30 day window, need approval from the Head of Customer Success.",
+                "source": {"document_id": "doc_refund_policy_v3", "uri": "s3://brain/finebase_labs/documents/Finebase_Refund_Policy_v3.txt", "span": "333:487"},
+                "valid_from": "2026-01-01T00:00:00+05:30", "valid_to": null, "recorded_at": "2026-10-01T10:00:00+05:30",
+                "verified_by": "head_of_cs", "version_ref": {"id": "policy_refund", "version": 3, "branch": "main", "commit_id": "cmt_0005"},
+                "score": 0.95, "sensitivity": "internal"
+              },
+              {
+                "item_id": "item_payment_s3", "kind": "fact",
+                "text": "Payment pay_FB_20260830_0047: LKR 85,000 on 30 August 2026 for Finebase Business annual.",
+                "source": {"document_id": "doc_billing_export_2026_08", "uri": "s3://brain/finebase_labs/documents/billing_2026_08.csv"},
+                "valid_from": "2026-08-30T00:00:00+05:30", "valid_to": null, "recorded_at": "2026-08-30T08:30:00+05:30",
+                "verified_by": null, "version_ref": null,
+                "score": 0.97, "sensitivity": "confidential"
+              }
+            ],
+            "denied_count": 0,
+            "denied_reasons": [],
+            "access_decision_ids": ["acc_s3_retrieve"],
+            "latency_ms": 190
+          }
+        },
+        {
+          "stage": "S6", "contract": "K5", "model": "ProposedAction", "transport": "temporal",
+          "data": {
+            "run_id": "run_s3",
+            "step_id": "step_04",
+            "action_type": "issue_refund",
+            "tool_id": "tool_payment_refund",
+            "tool_version": 1,
+            "arguments": {"payment_ref": "pay_FB_20260830_0047", "amount": {"amount_minor": 8500000, "currency": "LKR"}, "reason_code": "project_closed_full"},
+            "money": {"amount_minor": 8500000, "currency": "LKR"},
+            "touches": {"money": true, "personal_data": false, "public_content": false, "legal_tax": false, "clusters": ["customer_care"]},
+            "rationale_summary": "Purchase was 41 days ago and LKR 85,000 is above the LKR 50,000 limit, so the refund needs the Head of Customer Success.",
+            "citations": ["item_policy_window", "item_policy_late_large", "item_payment_s3"],
+            "model": {"provider": "anthropic", "model_id": "claude-sonnet-5-5", "input_tokens": 3600, "output_tokens": 240},
+            "confidence": 0.9
+          }
+        },
+        {
+          "stage": "S7", "contract": "K6", "model": "AccessDecision", "transport": "http",
+          "data": {"decision_id": "acc_s3_govern", "decision": "allow", "rule_id": "refund.agent_may_propose", "reason": "agent_refund_worker holds refund.propose in customer_care", "obligations": [], "latency_ms": 7}
+        },
+        {
+          "stage": "S7", "contract": "K7", "model": "GovernanceVerdict", "transport": "temporal",
+          "data": {
+            "run_id": "run_s3",
+            "step_id": "step_04",
+            "access_decision_id": "acc_s3_govern",
+            "policy_results": [
+              {"policy_ref": {"id": "policy_refund", "version": 3, "branch": "main", "commit_id": "cmt_0005"}, "passed": false, "rule_id": "refund.window_30d", "explanation": "41 days since purchase"},
+              {"policy_ref": {"id": "policy_refund", "version": 3, "branch": "main", "commit_id": "cmt_0005"}, "passed": false, "rule_id": "refund.auto_limit_50000", "explanation": "LKR 85,000 is above LKR 50,000"}
+            ],
+            "quality_gates": [
+              {"gate_id": "citations_present", "passed": true, "detail": "3 citations, all in the bundle"},
+              {"gate_id": "amount_matches_payment", "passed": true, "detail": "8500000 equals the paid amount"}
+            ],
+            "criticality": 3,
+            "criticality_reasons": ["outside_refund_window", "above_auto_threshold"],
+            "route": "approval_required",
+            "required_approvers": {"tier": "L1", "count": 1, "roles": ["head_of_cs"]}
+          }
+        },
+        {
+          "stage": "S8", "contract": "K8", "model": "ApprovalRequest", "transport": "kafka:approvals.requested",
+          "event": {"event_id": "0192f3a0-0000-7000-8000-000000000304", "event_type": "approval.requested", "occurred_at": "2026-10-10T09:40:09+05:30", "recorded_at": "2026-10-10T09:40:09+05:30", "causation_id": "0192f3a0-0000-7000-8000-000000000303", "producer": "approvals"},
+          "data": {
+            "approval_id": "apr_s3_0001",
+            "subject": {"kind": "action", "ref": "run_s3:step_04"},
+            "criticality": 3,
+            "summary_plain": "Refund LKR 85,000 for a Business annual plan bought 41 days ago. Outside the 30 day window and above the LKR 50,000 limit.",
+            "evidence_refs": ["item_policy_window", "item_policy_late_large", "item_payment_s3"],
+            "required_approvers": {"tier": "L1", "count": 1, "roles": ["head_of_cs"]},
+            "dri_id": "head_of_cs",
+            "due_at": "2026-10-11T09:40:00+05:30",
+            "expires_at": "2026-10-13T09:40:00+05:30"
+          }
+        },
+        {
+          "stage": "S10", "contract": "K10", "model": "RunRecord", "transport": "kafka:runs.completed",
+          "event": {"event_id": "0192f3a0-0000-7000-8000-000000000305", "event_type": "run.completed", "occurred_at": "2026-10-10T09:40:10+05:30", "recorded_at": "2026-10-10T09:40:10+05:30", "causation_id": "0192f3a0-0000-7000-8000-000000000304", "producer": "recorder"},
+          "data": {
+            "run_id": "run_s3",
+            "task_id": "task_s3_0001",
+            "agent_id": "agent_refund_worker",
+            "skill_ref": {"id": "skill_refund_handling", "version": 3, "branch": "main", "commit_id": "cmt_0007"},
+            "outcome": "awaiting_approval",
+            "steps": [
+              {"step_id": "step_01", "kind": "retrieval", "started_at": "2026-10-10T09:40:04+05:30", "duration_ms": 190, "decision": "3 items", "reason": "policy and payment found", "refs": ["acc_s3_retrieve"]},
+              {"step_id": "step_02", "kind": "judgment", "started_at": "2026-10-10T09:40:04+05:30", "duration_ms": 4100, "decision": "issue_refund", "reason": "late and above limit, needs approval", "refs": ["item_policy_window", "item_policy_late_large"]},
+              {"step_id": "step_03", "kind": "access_check", "started_at": "2026-10-10T09:40:08+05:30", "duration_ms": 7, "decision": "allow", "reason": "refund.agent_may_propose", "refs": ["acc_s3_govern"]},
+              {"step_id": "step_04", "kind": "human", "started_at": "2026-10-10T09:40:09+05:30", "duration_ms": 0, "decision": "approval_required", "reason": "C3: outside window, above limit", "refs": ["apr_s3_0001"]}
+            ],
+            "template_fills": [],
+            "human_touch": true,
+            "cost": {"input_tokens": 3600, "output_tokens": 240, "usd_micro": 14400},
+            "latency_ms": 8000,
+            "trace_object_uri": "s3://brain/finebase_labs/traces/run_s3.json"
+          }
+        },
+        {
+          "stage": "S10", "contract": "K11", "model": "UiEvent", "transport": "sse",
+          "data": {"type": "approval.created", "id": "apr_s3_0001", "tenant_id": "finebase_labs", "cluster_id": "customer_care", "env": "sandbox", "display": {"status": "awaiting_approval", "title": "Refund LKR 85,000", "approver": "head_of_cs"}, "at": "2026-10-10T09:40:10+05:30"}
+        }
+      ]
+    }
+  ]
+}
