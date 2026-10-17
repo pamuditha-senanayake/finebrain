@@ -28,7 +28,7 @@ Three rules hold everywhere:
 | Entry points | Public API with SSE, MCP server, S1 Capture | FastAPI | 8000, MCP URL, 8001 |
 | Pipeline services | One process per job, all in `backend/app` | Python, uv | internal API 8002 |
 | Event backbone | 18 topics, key starts with tenant | Kafka (Redpanda locally) | 9092, registry 8081 |
-| Data | System of record, cache, objects, workflows, secrets | Postgres 17 + pgvector, Valkey, S3/MinIO, Temporal, Secrets Manager + KMS | 5432, 6379, 9000, 7233 |
+| Data | System of record, cache, objects, workflows, secrets | Postgres 17 + pgvector, Valkey, S3 (SeaweedFS locally), Temporal, Secrets Manager + KMS | 5433, 6379, 9000, 7233 |
 | Access | Allow or deny at the moment of action | OPA (Rego) | 8181 |
 | Outside services | Models, embeddings, voice, tools | Anthropic, Voyage AI, ElevenLabs, payment gateway, Gmail, CMS | |
 
@@ -211,10 +211,10 @@ Each consumer group has its own `{topic}.dlq`. Every consumer is idempotent on `
 | FastAPI API + SSE | 8000 | | `capture` | `uv run python -m app.capture` | S1 |
 | Capture webhooks | 8001 | | `normalizer` | `uv run python -m app.normalize` | S2 |
 | Internal API | 8002 | | `resolver` | `uv run python -m app.route` | S3 |
-| PostgreSQL 17 + pgvector | 5432 | | `worker` | `uv run python -m app.workflows.worker` | S4, S6, S8, S9, S13, S15 |
+| PostgreSQL 17 + pgvector | 5433 | | `worker` | `uv run python -m app.workflows.worker` | S4, S6, S8, S9, S13, S15 |
 | Valkey | 6379 | | `internal` | `uv run python -m app.internal` | S5, S7 |
 | Redpanda / registry / console | 9092 / 8081 / 8080 | | `recorder` | `uv run python -m app.record` | S10 |
-| MinIO | 9000, 9001 | | `ingest` | `uv run python -m app.ingest` | S11 |
+| S3 (SeaweedFS) | 9000 | | `ingest` | `uv run python -m app.ingest` | S11 |
 | Temporal | 7233, UI 8233 | | `librarian` | `uv run python -m app.librarian` | S12 |
 | OPA | 8181 | | `graph` | `uv run python -m app.graph` | S14, outbox relay |
 
@@ -251,7 +251,9 @@ Keys: `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY` and the Google OAuth and Pub/Sub key
 | Kafka | `bus_kafka.py` on Redpanda (`backend/infra/compose.yaml`), tested next to the memory bus |
 | Postgres | `store_postgres.py` on port 5433: `pii_vault` and append-only `records` only |
 | Valkey | `store_valkey.py` on port 6379: "seen before" key sets with a 7-day expiry |
-| Still to come | MinIO, Temporal, OPA. In Postgres: graph, facts, chunks, outbox, encrypted vault columns |
+| S3 | `store_s3.py` on SeaweedFS, port 9000 (MinIO no longer publishes images): raw signal bodies |
+| Still to come | Temporal, OPA. In Postgres: graph, facts, chunks, outbox, encrypted vault columns |
+| Start all infra | `backend/scripts/dev_up.sh` |
 
 Suggested order, following the acceptance test in `CB_Core_Pipeline_Design.md` section 11: finish the missing contracts, then the refund path in Lane A (S1 → S10) with Docker Compose infra, then S14 and Studio writes, then Lanes B, C and D, then MCP.
 
