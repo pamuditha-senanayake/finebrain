@@ -247,7 +247,10 @@ Keys: `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY` and the Google OAuth and Pub/Sub key
 | Golden data and check | `backend/samples/golden_refund_run.json`, checked by `uv run python -m scripts.check_golden` |
 | UI contracts for Connect, Studio, Ask | Only in the frontend (zod) |
 | Samples | `backend/samples/pipeline_samples.json` |
-| Services, stores, Kafka, Temporal | Not started |
+| Lane A stages S1 to S10 | Thin first versions in `backend/app/pipeline/stages_*.py`, chained by `orchestrate.py` on the in-memory bus |
+| Kafka | `bus_kafka.py` on Redpanda (`backend/infra/compose.yaml`), tested next to the memory bus |
+| Postgres | `store_postgres.py` on port 5433: `pii_vault` and append-only `records` only |
+| Still to come | Valkey, MinIO, Temporal, OPA. In Postgres: graph, facts, chunks, outbox, encrypted vault columns |
 
 Suggested order, following the acceptance test in `CB_Core_Pipeline_Design.md` section 11: finish the missing contracts, then the refund path in Lane A (S1 → S10) with Docker Compose infra, then S14 and Studio writes, then Lanes B, C and D, then MCP.
 

@@ -1,9 +1,25 @@
 # compose.yaml: local infra for the backend. Step 5 adds one service at a time.
 # Start: docker compose -f backend/infra/compose.yaml up -d
 # Redpanda speaks the Kafka protocol on localhost:9092. Console is on http://localhost:8080.
+# Postgres is on localhost:5433, because 5432 is often taken by a Postgres installed on the Mac.
 name: finebrain
 
 services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: finebrain
+      POSTGRES_PASSWORD: finebrain  # local only, never used outside this container
+      POSTGRES_DB: finebrain
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "finebrain"]
+      interval: 5s
+      retries: 12
+
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
     command:
@@ -31,3 +47,6 @@ services:
     depends_on:
       redpanda:
         condition: service_healthy
+
+volumes:
+  postgres-data:
