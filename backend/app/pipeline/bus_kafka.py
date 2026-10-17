@@ -1,7 +1,7 @@
 # bus_kafka.py: the event bus on real Kafka (Redpanda locally), with the same methods as MemoryBus.
 # Used by: tests/test_bus.py, orchestrate.py from step 6. Uses: contracts_signal.py (Envelope), contracts_failure.py (DeadLetter).
 import time
-from collections.abc import Callable
+from collections.abc import Callable, MutableSet
 from datetime import datetime
 
 from confluent_kafka import OFFSET_BEGINNING, Consumer, Message, Producer, TopicPartition
@@ -32,7 +32,8 @@ def broker_is_up(bootstrap: str = DEFAULT_BOOTSTRAP, timeout: float = 2.0) -> bo
 class KafkaBus:
     """A class because the producer, consumers, subscribers and handled ids are state publish and drain share."""
 
-    def __init__(self, base: dict, now: datetime, new_id: Callable[[str], str], bootstrap: str = DEFAULT_BOOTSTRAP, topic_prefix: str = ""):
+    def __init__(self, base: dict, now: datetime, new_id: Callable[[str], str], bootstrap: str = DEFAULT_BOOTSTRAP,
+                 topic_prefix: str = "", handled: MutableSet[str] | None = None):
         self.base = base
         self.now = now
         self.new_id = new_id
@@ -43,7 +44,7 @@ class KafkaBus:
         self.topics: dict[str, list] = {}  # what this process published, the same view MemoryBus gives
         self.subscribers: dict[str, list[tuple[str, str, Handler]]] = {}
         self.consumers: dict[str, Consumer] = {}  # one per consumer group
-        self.handled: set[tuple[str, str]] = set()  # (group, event_id); moves to Valkey later
+        self.handled = handled if handled is not None else set()  # "group:event_id"; a Valkey key set in production
 
     # --- Publishing
 
@@ -117,7 +118,7 @@ class KafkaBus:
 
     def deliver(self, topic: str, group: str, stage: str, handler: Handler, envelope: Envelope) -> None:
         """Run a handler once per event_id. A failure becomes a DeadLetter instead of a crash."""
-        key = (group, envelope.event_id)
+        key = f"{group}:{envelope.event_id}"
         if key in self.handled:
             return
         try:

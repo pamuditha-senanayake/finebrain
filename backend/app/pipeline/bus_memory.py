@@ -1,7 +1,7 @@
 # bus_memory.py: in-memory event bus with the shape the Kafka adapter will keep (step 5).
 # Used by: orchestrate.py, tests/test_chain.py. Uses: contracts_signal.py (Envelope), contracts_failure.py (DeadLetter).
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, MutableSet
 from datetime import datetime
 
 from pydantic import BaseModel
@@ -16,14 +16,14 @@ DLQ_SUFFIX = ".dlq"
 class MemoryBus:
     """A class because topics, subscribers and handled ids are state that publish and drain share."""
 
-    def __init__(self, base: dict, now: datetime, new_id: Callable[[str], str]):
+    def __init__(self, base: dict, now: datetime, new_id: Callable[[str], str], handled: MutableSet[str] | None = None):
         self.base = base  # tenant_id, cluster_id, env, branch: the same on every message
         self.now = now
         self.new_id = new_id
         self.topics: dict[str, list] = {}  # everything ever published, kept for tests and replay
         self.queue: deque[tuple[str, Envelope]] = deque()
         self.subscribers: dict[str, list[tuple[str, str, Handler]]] = {}
-        self.handled: set[tuple[str, str]] = set()  # (consumer group, event_id)
+        self.handled = handled if handled is not None else set()  # "group:event_id"; a Valkey key set in production
 
     def publish(self, topic: str, event_type: str, payload: BaseModel, producer: str, cause: Envelope | None = None) -> Envelope:
         """Wrap the payload in the shared envelope. A cause carries its trace and correlation forward."""
@@ -56,7 +56,7 @@ class MemoryBus:
 
     def deliver(self, topic: str, group: str, stage: str, handler: Handler, envelope: Envelope) -> None:
         """Run a handler once per event_id. A failure becomes a DeadLetter instead of a crash."""
-        key = (group, envelope.event_id)
+        key = f"{group}:{envelope.event_id}"
         if key in self.handled:
             return
         try:
