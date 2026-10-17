@@ -1,6 +1,6 @@
-# contracts_reason.py: Pydantic models for the reasoning seams (K4, K5, K6 response).
-# Used by: knowledge.py, run.py, e2e.py. Uses: contracts_signal.py.
-# Source of truth: Docs/CB_Core_Pipeline_Design.md section 5.2.
+# contracts_reason.py: Pydantic models for the reasoning seams (K4, K5, K6).
+# Used by: scripts/check_golden.py. Uses: contracts_signal.py.
+# Source of truth: Docs/CB_System_Reference.md section 6.
 from datetime import datetime
 from typing import Literal
 
@@ -91,7 +91,22 @@ class ProposedAction(BaseModel):
     confidence: float = Field(ge=0, le=1)
 
 
-# --- K6 AccessDecision (response side only, from the S7 access stub instead of OPA)
+# --- K6 AccessCheck and AccessDecision (S5 and S7 to OPA, 10 ms, fail closed)
+
+class Resource(BaseModel):
+    type: str
+    id: str
+    cluster_id: str
+    sensitivity: Sensitivity
+
+
+class AccessCheck(BaseModel):
+    check_id: str
+    principal: Principal
+    on_behalf_of: str | None  # same intersection rule as K4
+    action: str  # capability name, for example refund.propose
+    resource: Resource
+
 
 class AccessDecision(BaseModel):
     decision_id: str

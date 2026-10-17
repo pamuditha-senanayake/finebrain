@@ -118,16 +118,16 @@ Every Kafka message is wrapped in the shared envelope: `event_id` (UUIDv7), `eve
 | K3 TaskRequest | S3 → S4 | Kafka `tasks.created` | task_id, activity_id, skill_ref (pinned), agent_id, on_behalf_of, match_score, base_criticality | Yes |
 | K4 ContextQuery → ContextBundle | S6 ↔ S5 (also Ask and MCP) | Sync HTTP, 2 s | principal, on_behalf_of, as_of_valid, as_of_recorded, branch → items[], denied_count, access_decision_ids | Yes |
 | K5 ProposedAction | S6 → S7 | Temporal activity + `runs.steps` | action_type, tool_id, arguments, money, touches, citations, confidence | Yes |
-| K6 AccessCheck | S5, S7 → OPA | Sync HTTP, 10 ms | principal, action, resource → decision, rule_id, reason | Response only (AccessDecision) |
+| K6 AccessCheck | S5, S7 → OPA | Sync HTTP, 10 ms | principal, action, resource → decision, rule_id, reason | Yes |
 | K7 GovernanceVerdict | S7 → S8 | Temporal activity + `runs.steps` | policy_results, quality_gates, criticality, reasons, route, required_approvers | Yes |
 | K8 ApprovalRequest, Decision | S7 or S14 → S8 → S9 or S14 | Kafka `approvals.*` via outbox | summary_plain, criticality, dri_id, due_at, expires_at → decision, decided_by, final_arguments | Yes |
 | K9 ActionResult | S9 → S10 | Kafka `actions.executed` | tool_id, idempotency_key, status, external_ref, error | Yes |
 | K10 RunRecord | S10 → S13 | Kafka `runs.completed` | outcome, steps[], template_fills[], human_touch, cost, trace_object_uri | Yes |
 | K11 UiEvent | S10 → console | SSE `GET /api/stream` | type, id, display (masked) | Yes |
 | K12 FactCandidate | S11 → S12 | Kafka `facts.candidates` | statement, subject, value, valid_from, evidence span, extractor | Yes |
-| K13 Commit + ChangeRequest | S12, S13, Skillify, Workflow Studio → S14 | Graph API, then `graph.commits` via outbox | commit: branch, author, changes[], criticality · CR: plain_diff, tests, impact_preview, status | Not yet |
-| K14 ReleaseEvent | S14 → S3, S5, S6, S11 | Kafka `graph.released`, compacted | commit_id, changed_nodes[] | Not yet |
-| K15 GapDetected | S15 → S3, S8 | Kafka `evidence.gaps` | target, required_item, due_at, action, dri_id, escalation_days | Not yet |
+| K13 Commit + ChangeRequest | S12, S13, Skillify, Workflow Studio → S14 | Graph API, then `graph.commits` via outbox | commit: branch, author, changes[], criticality · CR: plain_diff, tests, impact_preview, status | Yes |
+| K14 ReleaseEvent | S14 → S3, S5, S6, S11 | Kafka `graph.released`, compacted | commit_id, changed_nodes[] | Yes |
+| K15 GapDetected | S15 → S3, S8 | Kafka `evidence.gaps` | target, required_item, due_at, action, dri_id, escalation_days | Yes |
 
 Shared types: `VersionRef`, `Money` (minor units, never floats: LKR 85,000 is `8500000`), `Principal`, `Criticality` (0 to 4), `PiiToken`, `Touches`.
 
@@ -243,8 +243,8 @@ Keys: `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY` and the Google OAuth and Pub/Sub key
 | Part | Status |
 |---|---|
 | FastAPI app | `backend/app/main.py` has `/health` and CORS for port 3000 |
-| Contracts K1 to K12 and shared types | Written in `backend/app/pipeline/contracts_signal.py`, `contracts_reason.py`, `contracts_run.py` |
-| K6 request, K13, K14, K15 | Not written yet |
+| Contracts K1 to K15, shared types, DeadLetter | Written in `backend/app/pipeline/contracts_signal.py`, `contracts_reason.py`, `contracts_run.py`, `contracts_graph.py`, `contracts_failure.py` |
+| Golden data and check | `backend/samples/golden_refund_run.json`, checked by `uv run python -m scripts.check_golden` |
 | UI contracts for Connect, Studio, Ask | Only in the frontend (zod) |
 | Samples | `backend/samples/pipeline_samples.json` |
 | Services, stores, Kafka, Temporal | Not started |

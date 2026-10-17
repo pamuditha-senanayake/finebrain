@@ -136,6 +136,16 @@
           }
         },
         {
+          "stage": "S7", "contract": "K6", "model": "AccessCheck", "transport": "http",
+          "data": {
+            "check_id": "chk_s2_govern",
+            "principal": {"type": "agent", "id": "agent_refund_worker", "capabilities": ["kb.read", "refund.propose"], "tier": "L3"},
+            "on_behalf_of": null,
+            "action": "refund.propose",
+            "resource": {"type": "payment", "id": "pay_FB_20261004_0192", "cluster_id": "customer_care", "sensitivity": "confidential"}
+          }
+        },
+        {
           "stage": "S7", "contract": "K6", "model": "AccessDecision", "transport": "http",
           "data": {"decision_id": "acc_s2_govern", "decision": "allow", "rule_id": "refund.agent_may_propose", "reason": "agent_refund_worker holds refund.propose in customer_care", "obligations": [], "latency_ms": 6}
         },
@@ -338,6 +348,16 @@
           }
         },
         {
+          "stage": "S7", "contract": "K6", "model": "AccessCheck", "transport": "http",
+          "data": {
+            "check_id": "chk_s3_govern",
+            "principal": {"type": "agent", "id": "agent_refund_worker", "capabilities": ["kb.read", "refund.propose"], "tier": "L3"},
+            "on_behalf_of": null,
+            "action": "refund.propose",
+            "resource": {"type": "payment", "id": "pay_FB_20260830_0047", "cluster_id": "customer_care", "sensitivity": "confidential"}
+          }
+        },
+        {
           "stage": "S7", "contract": "K6", "model": "AccessDecision", "transport": "http",
           "data": {"decision_id": "acc_s3_govern", "decision": "allow", "rule_id": "refund.agent_may_propose", "reason": "agent_refund_worker holds refund.propose in customer_care", "obligations": [], "latency_ms": 7}
         },
@@ -403,6 +423,95 @@
           "data": {"type": "approval.created", "id": "apr_s3_0001", "tenant_id": "finebase_labs", "cluster_id": "customer_care", "env": "sandbox", "display": {"status": "awaiting_approval", "title": "Refund LKR 85,000", "approver": "head_of_cs"}, "at": "2026-10-10T09:40:10+05:30"}
         }
       ]
+    }
+  ],
+  "extras": [
+    {
+      "contract": "K13", "model": "Commit",
+      "about": "Workflow Studio raises the automatic refund limit from LKR 50,000 to LKR 60,000",
+      "data": {
+        "commit_id": "cmt_0008",
+        "parent_commit_id": "cmt_0007",
+        "branch": "cr_0008",
+        "author": {"kind": "studio", "id": "head_of_cs"},
+        "message": "Raise automatic refund limit to LKR 60,000",
+        "changes": [
+          {"op": "update", "node_type": "policy", "node_id": "policy_refund", "version": 4, "fields": {"window_days": 30, "auto_limit": {"amount_minor": 6000000, "currency": "LKR"}}}
+        ],
+        "criticality": 3,
+        "created_at": "2026-10-10T11:00:00+05:30"
+      }
+    },
+    {
+      "contract": "K13", "model": "ChangeRequest",
+      "about": "The review wrapper for cmt_0008",
+      "data": {
+        "cr_id": "cr_0008",
+        "commit_id": "cmt_0008",
+        "plain_diff": "Refunds up to LKR 60,000 (was LKR 50,000) inside 30 days are approved automatically.",
+        "tests": [
+          {"test_id": "replay_last_30_days", "passed": true, "detail": "4 more refunds would have been automatic"},
+          {"test_id": "golden_s2", "passed": true, "detail": "still route execute"}
+        ],
+        "impact_preview": {"verdict": "moderate", "affected": ["policy_refund", "skill_refund_handling"], "other_workflows": []},
+        "status": "open",
+        "approval_id": "apr_cr_0008"
+      }
+    },
+    {
+      "contract": "K14", "model": "ReleaseEvent",
+      "about": "cmt_0008 merged and released on main",
+      "data": {
+        "release_id": "rel_0008",
+        "commit_id": "cmt_0008",
+        "branch": "main",
+        "changed_nodes": [{"id": "policy_refund", "version": 4, "branch": "main", "commit_id": "cmt_0008"}],
+        "released_at": "2026-10-11T09:00:00+05:30"
+      }
+    },
+    {
+      "contract": "K15", "model": "GapDetected",
+      "about": "S15 finds the VAT return is missing September sales invoices",
+      "data": {
+        "gap_id": "gap_0001",
+        "obligation_id": "obl_vat_2026_q3",
+        "target": {"entity_type": "tax_filing", "entity_ref": "vat_return_2026_q3"},
+        "required_item": "September 2026 sales invoices",
+        "due_at": "2026-10-20T17:00:00+05:30",
+        "action": "request_evidence",
+        "dri_id": "finance_lead",
+        "escalation_days": 5,
+        "detected_at": "2026-10-10T08:00:00+05:30"
+      }
+    },
+    {
+      "contract": "DLQ", "model": "DeadLetter",
+      "about": "S2 cannot parse a chat signal whose body is not valid JSON",
+      "data": {
+        "original": {
+          "event_id": "0192f3a0-0000-7000-8000-000000000901",
+          "event_type": "signal.raw.captured",
+          "schema_version": 1,
+          "tenant_id": "finebase_labs",
+          "cluster_id": "customer_care",
+          "env": "sandbox",
+          "branch": "main",
+          "occurred_at": "2026-10-10T09:58:00+05:30",
+          "recorded_at": "2026-10-10T09:58:01+05:30",
+          "trace_id": "trace_dlq_0001",
+          "correlation_id": "corr_dlq_0001",
+          "causation_id": null,
+          "producer": "capture",
+          "payload": {"external_id": "chat_msg_55190", "raw_object_uri": "s3://brain/finebase_labs/raw/2026/10/10/chat_msg_55190.json"}
+        },
+        "consumer_group": "normalizer",
+        "stage": "S2",
+        "error_code": "parse_error",
+        "error_message": "chat body is not valid JSON at character 41",
+        "retryable": false,
+        "attempts": 1,
+        "failed_at": "2026-10-10T09:58:02+05:30"
+      }
     }
   ]
 }

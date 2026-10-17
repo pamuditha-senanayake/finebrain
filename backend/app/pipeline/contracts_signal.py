@@ -1,6 +1,6 @@
 # contracts_signal.py: Pydantic models for the intake seams (envelope, shared types, K1, K2, K3, K12).
-# Used by: infra.py, intake.py, knowledge.py, run.py, e2e.py. Uses: nothing local.
-# Source of truth: Docs/CB_Core_Pipeline_Design.md sections 5.0 to 5.2.
+# Used by: the other contracts_*.py files, scripts/check_golden.py. Uses: nothing local.
+# Source of truth: Docs/CB_System_Reference.md section 6.
 from datetime import datetime
 from typing import Annotated, Literal
 

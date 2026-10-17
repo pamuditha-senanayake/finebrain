@@ -1,4 +1,4 @@
-# check_golden.py: checks every step of the golden refund runs against its Pydantic contract.
+# check_golden.py: checks the golden refund runs and the extra samples against their Pydantic contracts.
 # Uses: app/pipeline/contracts_*.py, samples/golden_refund_run.json, samples/pipeline_samples.json.
 # Run from backend/: uv run python -m scripts.check_golden
 import hashlib
@@ -8,13 +8,13 @@ from pathlib import Path
 
 from pydantic import BaseModel, ValidationError
 
-from app.pipeline import contracts_reason, contracts_run, contracts_signal
+from app.pipeline import contracts_failure, contracts_graph, contracts_reason, contracts_run, contracts_signal
 
 # Config
 SAMPLES_DIR = Path(__file__).resolve().parent.parent / "samples"
 GOLDEN_FILE = SAMPLES_DIR / "golden_refund_run.json"
 RAW_FILE = SAMPLES_DIR / "pipeline_samples.json"
-CONTRACT_MODULES = [contracts_signal, contracts_reason, contracts_run]
+CONTRACT_MODULES = [contracts_signal, contracts_reason, contracts_run, contracts_graph, contracts_failure]
 
 
 # --- Loading
@@ -118,6 +118,11 @@ def check_run(run: dict, raw_bodies: dict[str, bytes]) -> list[tuple[str, str, s
     return rows
 
 
+def check_extras(extras: list[dict]) -> list[tuple[str, str, str, str]]:
+    """Samples outside the refund path are only checked against their contract."""
+    return [("ex", "-", f"{item['contract']} {item['model']}", check_contract(item) or "ok") for item in extras]
+
+
 def print_table(rows: list[tuple[str, str, str, str]]) -> None:
     """Print one line per step."""
     print(f"{'run':<4} {'stage':<6} {'contract':<24} result")
@@ -130,8 +135,9 @@ def main() -> int:
     golden = load_json(GOLDEN_FILE)
     raw_bodies = load_raw_bodies()
 
-    # Step 2: check every step of every run
+    # Step 2: check every step of every run, then the extras
     rows = [row for run in golden["runs"] for row in check_run(run, raw_bodies)]
+    rows += check_extras(golden["extras"])
 
     # Step 3: report, and exit non-zero so CI can use it later
     print_table(rows)
@@ -139,8 +145,6 @@ def main() -> int:
     print(f"\n{len(rows) - failures} ok, {failures} failed")
     return 1 if failures else 0
 
-
-# --- Entry point
 
 if __name__ == "__main__":
     sys.exit(main())

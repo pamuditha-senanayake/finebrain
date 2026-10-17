@@ -1,6 +1,6 @@
 # contracts_run.py: Pydantic models for the run seams (K7, K8, K9, K10, K11).
-# Used by: run.py, act_record.py, e2e.py. Uses: contracts_signal.py.
-# Source of truth: Docs/CB_Core_Pipeline_Design.md section 5.2.
+# Used by: scripts/check_golden.py. Uses: contracts_signal.py.
+# Source of truth: Docs/CB_System_Reference.md section 6.
 from datetime import datetime
 from typing import Literal
 
@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from app.pipeline.contracts_signal import Criticality, Env, VersionRef
 
-# Config: enum values copied from the design doc
+# Config: enum values
 Route = Literal["execute", "approval_required", "escalate", "block"]
 # awaiting_approval is added on top of the doc's list, matching section 11.3
 RunOutcome = Literal["resolved", "escalated", "failed", "blocked", "abandoned", "awaiting_approval"]
