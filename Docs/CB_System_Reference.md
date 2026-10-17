@@ -247,12 +247,14 @@ Keys: `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY` and the Google OAuth and Pub/Sub key
 | Golden data and check | `backend/samples/golden_refund_run.json`, checked by `uv run python -m scripts.check_golden` |
 | UI contracts for Connect, Studio, Ask | Only in the frontend (zod) |
 | Samples | `backend/samples/pipeline_samples.json` |
-| Lane A stages S1 to S10 | Thin first versions in `backend/app/pipeline/stages_*.py`, chained by `orchestrate.py` on the in-memory bus |
+| Lane A stages S1 to S10 | Thin first versions in `backend/app/pipeline/stages_*.py`, wired by `orchestrate.py` onto memory or real adapters (`adapters.py`) |
 | Kafka | `bus_kafka.py` on Redpanda (`backend/infra/compose.yaml`), tested next to the memory bus |
 | Postgres | `store_postgres.py` on port 5433: `pii_vault` and append-only `records` only |
 | Valkey | `store_valkey.py` on port 6379: "seen before" key sets with a 7-day expiry |
 | S3 | `store_s3.py` on SeaweedFS, port 9000 (MinIO no longer publishes images): raw signal bodies |
-| Still to come | Temporal, OPA. In Postgres: graph, facts, chunks, outbox, encrypted vault columns |
+| Temporal | `temporal_flow.py`: each task is a `TaskWorkflow`; S8 waits for the approval signal. Dev server on 7233, UI on 8233 |
+| End-to-end | `tests/test_e2e.py` runs on memory and on all real infra together |
+| Still to come | OPA. In Postgres: graph, facts, chunks, outbox, encrypted vault columns |
 | Start all infra | `backend/scripts/dev_up.sh` |
 
 Suggested order, following the acceptance test in `CB_Core_Pipeline_Design.md` section 11: finish the missing contracts, then the refund path in Lane A (S1 → S10) with Docker Compose infra, then S14 and Studio writes, then Lanes B, C and D, then MCP.
