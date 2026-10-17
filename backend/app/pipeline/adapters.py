@@ -5,6 +5,7 @@ import os
 import time
 
 from app.pipeline import access, embeddings, store_postgres, store_s3, store_valkey
+from app.pipeline.audit import MemoryAudit, PostgresAudit
 from app.pipeline.fakes import fake_embed, fake_rerank, make_fake_sender
 from app.pipeline.bus_kafka import KafkaBus, broker_is_up
 from app.pipeline.bus_memory import MemoryBus
@@ -12,6 +13,7 @@ from app.pipeline.store_chunks import MemoryChunks, PostgresChunks, load_chunks
 from app.pipeline.store_graph import MemoryGraph, PostgresGraph, load_seed
 from app.pipeline.store_memory import MemoryRecords
 from app.pipeline.tool_runners import MemoryRateLimiter, MemoryResults, ValkeyRateLimiter, ValkeyResults
+from app.pipeline.ui_stream import Broadcaster
 from app.pipeline.temporal_flow import temporal_is_up
 from app.pipeline.temporal_runner import TemporalRunner
 
@@ -48,6 +50,8 @@ def make_memory_adapters(seed: dict, now, new_id) -> dict:
         "check_access": access.make_memory_checker(seed["people"]),
         "tooling": {"limiter": MemoryRateLimiter(), "results": MemoryResults(), "sleep": time.sleep,
                     "send_email": make_fake_sender()[0]},  # real Gmail sending comes with connector OAuth
+        "audit": MemoryAudit(),
+        "broadcaster": Broadcaster(),
     }
     load_chunks(adapters["chunks"], adapters["graph"], adapters["embed"])
     return adapters
@@ -81,6 +85,7 @@ def real_adapters(parts: frozenset[str] = ALL_REAL_PARTS, topic_prefix: str = ""
             adapters["records"] = store_postgres.PostgresRecords(connection, tenant)
             adapters["graph"] = seeded(PostgresGraph(connection, tenant), seed)
             adapters["chunks"] = PostgresChunks(connection, tenant)
+            adapters["audit"] = PostgresAudit(connection, tenant)
         handled = None
         if "valkey" in parts:
             keys = store_valkey.connect()

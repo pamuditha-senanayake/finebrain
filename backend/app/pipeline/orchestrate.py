@@ -1,43 +1,18 @@
 # orchestrate.py: S4 Orchestrate. Wires S2, S3 and the task consumers onto a bus, given its adapters.
-# Used by: tests/test_chain.py, tests/test_e2e.py. Uses: adapters.py, run_steps.py, recorder.py, stages_*.py, temporal_runner.py (via adapters).
+# Used by: tests, demos, capture_api.py. Uses: lane.py, adapters.py, run_steps.py, run_approvals.py, recorder.py, audit.py, ui_stream.py, stages_*.py.
 # Each task runs in-process, or as a Temporal workflow when the adapters include a Temporal runner.
-from dataclasses import dataclass, field
 from datetime import datetime
 
 from app.pipeline import run_approvals, run_steps, stages_intake, stages_normalize, stages_route
-from app.pipeline.observe import count, log_event
 from app.pipeline.adapters import make_memory_adapters
+from app.pipeline.audit import subscribe_audit
 from app.pipeline.contracts_run import Decision
 from app.pipeline.contracts_signal import Envelope, RawSignalEnvelope, Signal
 from app.pipeline.fakes import Gateway, Model, make_id_maker, pass_grader
+from app.pipeline.lane import Lane
+from app.pipeline.observe import count, log_event
 from app.pipeline.recorder import subscribe_recorder
-
-
-@dataclass
-class Lane:
-    """Everything one pipeline holds. Data only; the functions below and in run_steps.py act on it."""
-    seed: dict
-    model: Model
-    gateway: Gateway
-    now: datetime
-    new_id: object
-    bus: object
-    object_store: object
-    vault: object
-    seen_keys: object
-    records: object
-    graph: object
-    chunks: object
-    embed: object
-    rerank: object
-    check_access: object
-    tooling: dict  # S9: rate limiter, finished results, email sender, how to wait between retries
-    grade: object = None  # S7 grader (llm.make_grader); defaults to the fake that passes cited rationales
-    choose: object = None  # S3 tie-break (llm.make_chooser); None means close calls go unrouted
-    runner: object = None  # TemporalRunner, or None to run tasks in-process
-    signals: dict = field(default_factory=dict)  # signal_id to K2, so S4 can read entities
-    approvals: dict = field(default_factory=dict)  # approval_id to its cause and task
-    pending: dict = field(default_factory=dict)  # approval_id to a paused run (in-process only)
+from app.pipeline.ui_stream import subscribe_broadcaster
 
 
 # --- Wiring
@@ -52,6 +27,8 @@ def build_lane(seed: dict, model: Model, gateway: Gateway, now: datetime, make_a
     lane.bus.subscribe("tasks.created", "worker", "S4", lambda envelope: on_task(lane, envelope))
     lane.bus.subscribe("approvals.decided", "worker", "S8", lambda envelope: on_decision(lane, envelope))
     subscribe_recorder(lane.bus, lane.records)
+    subscribe_audit(lane.bus, lane.audit)
+    subscribe_broadcaster(lane.bus, lane.broadcaster)
     if lane.runner is not None:
         lane.runner.start(lane)
     return lane

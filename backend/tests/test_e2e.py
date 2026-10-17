@@ -94,7 +94,7 @@ def test_pipeline_totals_and_records(run_all):
     assert len(paid) == 1  # only s2 is paid; s3 waits, s4 is unrouted, s5 is a duplicate of s2
     assert (len(lane.bus.topics["approvals.requested"]), len(lane.bus.topics["tasks.unrouted"])) == (1, 1)
     assert not [topic for topic in lane.bus.topics if topic.endswith(".dlq")]
-    assert len(lane.object_store) == 3  # s5 is a redelivery of s2, so it lands on the same raw object
+    assert len([uri for uri in lane.object_store if "/raw/" in uri]) == 3  # s5 is a redelivery of s2, so it lands on the same raw object
     assert sorted(run["outcome"] for run in lane.records.list_kind("run")) == ["awaiting_approval", "resolved"]
     assert (len(lane.records.list_kind("approval")), len(lane.records.list_kind("action"))) == (1, 1)
 

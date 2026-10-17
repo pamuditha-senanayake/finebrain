@@ -3,6 +3,7 @@
 from pydantic import BaseModel
 
 from app.pipeline.contracts_run import ActionResult, ApprovalRequest, Decision, RunRecord
+from app.pipeline.observe import count, set_flag
 
 # Config: topic to (record kind, contract, id field)
 RECORDED_TOPICS = {
@@ -13,12 +14,23 @@ RECORDED_TOPICS = {
 }
 
 
+class RecorderUnavailable(Exception):
+    """The records store could not be written. A replay later will work."""
+    retryable = True
+
+
 def make_saver(records, kind: str, contract: type[BaseModel], id_field: str):
     """A handler that validates one payload and appends it as a new version."""
 
     def save(envelope) -> None:
         body = contract.model_validate(envelope.payload)
-        records.save(kind, getattr(body, id_field), body)
+        try:
+            records.save(kind, getattr(body, id_field), body)
+        except Exception as error:  # the event stays on the bus and in the DLQ for replay; the console shows "delayed"
+            count("s10.recorder_failed")
+            set_flag("recorder_delayed", True)
+            raise RecorderUnavailable(type(error).__name__) from None
+        set_flag("recorder_delayed", False)
 
     return save
 

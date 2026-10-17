@@ -10,6 +10,7 @@ LOGGER_NAME = "finebrain"
 
 logger = logging.getLogger(LOGGER_NAME)
 counters: Counter[str] = Counter()
+flags: dict[str, bool] = {}  # health flags, like recorder_delayed, read by the live stream
 
 
 def log_event(stage: str, event: str, **fields) -> None:
@@ -29,3 +30,12 @@ def read_count(name: str) -> int:
 def reset_counts() -> None:
     """Tests start from zero."""
     counters.clear()
+    flags.clear()
+
+
+def set_flag(name: str, value: bool) -> None:
+    flags[name] = value
+
+
+def read_flag(name: str) -> bool:
+    return flags.get(name, False)

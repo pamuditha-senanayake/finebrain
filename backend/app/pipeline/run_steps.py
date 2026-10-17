@@ -46,7 +46,8 @@ def retrieve_with_retry(lane, query: ContextQuery, cause: Envelope):
 def close_unavailable(lane, envelope: Envelope, task: TaskRequest, run_id: str) -> None:
     """Context could not be read even after a retry: escalate to a human, act on nothing."""
     step = make_step(lane, "step_01", "retrieval", "context_unavailable", "knowledge store unreachable after one retry", [])
-    record, event = stages_record.record(task, None, [step], "escalated", None, lane.seed, lane.now, lane.now, run_id=run_id)
+    written = stages_record.write_trace(lane.object_store, stages_record.trace_uri(lane.seed, run_id), {"task": task.model_dump(mode="json"), "steps": [step.model_dump(mode="json")], "outcome": "escalated"})
+    record, event = stages_record.record(task, None, [step], "escalated", None, lane.seed, lane.now, lane.now, run_id=run_id, trace_written=written)
     lane.bus.publish("runs.completed", "run.completed", record, "recorder", envelope)
     lane.bus.publish("ui.events", "ui.event", event, "recorder", envelope)
 
@@ -102,8 +103,10 @@ def start_run(lane, envelope: Envelope) -> RunState | None:
 
 
 def finish_run(lane, run: RunState, outcome: str) -> None:
-    """S10: publish the run record and the live UI event."""
-    record, event = stages_record.record(run.task, run.action, run.steps, outcome, run.approval_id, lane.seed, lane.now, lane.now)
+    """S10: write the trace, then publish the run record and the live UI event."""
+    trace = {**run.model_dump(mode="json", exclude={"cause", "bundle"}), "outcome": outcome, "bundle_items": [item.item_id for item in run.bundle.items] if run.bundle else []}
+    written = stages_record.write_trace(lane.object_store, stages_record.trace_uri(lane.seed, run.action.run_id), trace)
+    record, event = stages_record.record(run.task, run.action, run.steps, outcome, run.approval_id, lane.seed, lane.now, lane.now, trace_written=written)
     lane.bus.publish("runs.completed", "run.completed", record, "recorder", run.cause)
     lane.bus.publish("ui.events", "ui.event", event, "recorder", run.cause)
 
