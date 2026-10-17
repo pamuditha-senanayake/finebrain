@@ -22,4 +22,5 @@ Local infra is up:
   S3 (SeaweedFS)      http://localhost:9000
   Temporal            localhost:7233
   Temporal UI         http://localhost:8233
+  OPA                 http://localhost:8181
 PORTS

@@ -2,7 +2,7 @@
   "_about": "Golden refund runs for Lane A. Each step is one contract a stage emits. Kafka steps carry 'event' fields; the run's 'envelope' fills the rest. Raw bodies live in pipeline_samples.json under the same sample_id.",
   "frozen_now": "2026-10-10T10:00:00+05:30",
   "seed": {
-    "_about": "What the stages read from the graph and the outside world in Lane A tests: resolver rules, agents, the refund policy, payments and knowledge items.",
+    "_about": "What the stages read from the graph and the outside world in Lane A tests: resolver rules, agents, people (staff ids with tier, roles and a delegate for expired approvals), the refund policy, payments and knowledge items.",
     "tenant_id": "finebase_labs",
     "cluster_id": "customer_care",
     "env": "sandbox",
@@ -65,9 +65,12 @@
       "agent_billing_helper": {"type": "agent", "id": "agent_billing_helper", "capabilities": ["kb.read", "reply.draft"], "tier": "L3"}
     },
     "people": {
-      "head_of_cs": {"tier": "L1"},
-      "support_operator_1": {"tier": "L3"}
+      "head_of_cs": {"tier": "L1", "roles": ["head_of_cs", "dri", "leader"], "delegate": "founder"},
+      "founder": {"tier": "L1", "roles": ["founder", "dri", "leader"], "delegate": null},
+      "steward_1": {"tier": "L2", "roles": ["steward"], "delegate": "head_of_cs"},
+      "support_operator_1": {"tier": "L3", "roles": ["operator"], "delegate": null}
     },
+    "approval_timing": {"expires_after_seconds": 259200, "seconds_per_cooling_hour": 3600},
     "refund_policy": {
       "policy_ref": {"id": "policy_refund", "version": 3, "branch": "main", "commit_id": "cmt_0005"},
       "window_days": 30,

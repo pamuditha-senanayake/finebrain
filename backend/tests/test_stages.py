@@ -156,7 +156,7 @@ def test_s7_escalates_when_a_citation_is_made_up():
 
 def test_s8_opens_one_approval_for_s3():
     _, _, verdict = run_govern("s3")
-    approval = stages_decide.request_approval(ProposedAction.model_validate(golden("s3", "ProposedAction")), verdict, fakes.make_id_maker(), NOW)
+    approval = stages_decide.request_approval(ProposedAction.model_validate(golden("s3", "ProposedAction")), verdict, SEED["people"], fakes.make_id_maker(), NOW, 72 * 3600).request
     expected = golden("s3", "ApprovalRequest")
     assert (approval.criticality, approval.dri_id, approval.evidence_refs) == (expected["criticality"], expected["dri_id"], expected["evidence_refs"])
     assert approval.expires_at > approval.due_at

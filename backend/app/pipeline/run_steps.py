@@ -1,18 +1,18 @@
 # run_steps.py: the S4 run steps (S5 to S10 for one task), shared by the in-process runner and Temporal.
-# Used by: orchestrate.py (in-process), temporal_flow.py (activities). Uses: stages_*.py, contracts_*.py.
+# Used by: orchestrate.py, temporal_flow.py, run_approvals.py (the S8 part). Uses: stages_*.py, contracts_*.py.
 from pydantic import BaseModel
 
-from app.pipeline import stages_decide, stages_govern, stages_reason, stages_record, stages_retrieve
+from app.pipeline import stages_govern, stages_reason, stages_record, stages_retrieve
 from app.pipeline.retry import call_with_retry
-from app.pipeline.contracts_reason import ContextQuery, ProposedAction
+from app.pipeline.contracts_reason import ContextBundle, ContextQuery, ProposedAction
 from app.pipeline.contracts_run import Decision, GovernanceVerdict, RunStep
 from app.pipeline.contracts_signal import Envelope, Principal, TaskRequest
+from app.pipeline.stages_decide import ApprovalState
 
 # Config
 ACTION_STEP_ID = "step_04"
 QUERY_TEXT = "refund window and automatic approval limit"
 OUTCOME_FOR_ROUTE = {"block": "blocked", "escalate": "escalated"}
-OUTCOME_FOR_DECISION = {"reject": "blocked", "expired": "escalated", "request_changes": "escalated"}
 RETRIEVE_ATTEMPTS = 2  # reference doc section 8 (K4): one retry, then escalate context_unavailable
 
 
@@ -23,7 +23,9 @@ class RunState(BaseModel):
     verdict: GovernanceVerdict
     steps: list[RunStep]
     cause: Envelope  # the latest message of this run, so the next one continues the chain
+    bundle: ContextBundle | None = None  # kept so an approver's "request changes" can go back to S6
     approval_id: str | None = None
+    approval: ApprovalState | None = None
 
 
 def make_step(lane, step_id: str, kind: str, decision: str, reason: str, refs: list[str]) -> RunStep:
@@ -62,11 +64,10 @@ def failed_gates(verdict: GovernanceVerdict) -> str:
     return "; ".join(f"{gate.gate_id}: {gate.detail}" for gate in verdict.quality_gates if not gate.passed)
 
 
-def propose_and_govern(lane, task: TaskRequest, bundle, principal: Principal, run_id: str, cause: Envelope):
+def propose_and_govern(lane, task: TaskRequest, bundle, principal: Principal, run_id: str, cause: Envelope, feedback: str | None = None):
     """S6 then S7. Reference doc section 8 (K7): a failed quality gate goes back to S6 once, then escalates."""
     signal = lane.signals[task.signal_ids[0]]
     skill = {node["_ref"]["id"]: node for node in lane.graph.latest("skill")}.get(task.skill_ref.id, {})
-    feedback = None
     for _ in range(2):
         action = stages_reason.propose(task, bundle, signal.text_masked or "", skill, lane.model, run_id, ACTION_STEP_ID, lane.seed["cluster_id"], feedback, f"{lane.now:%d %B %Y}")
         decision, verdict = govern_once(lane, task, action, bundle, principal, cause, signal.text_masked or "")
@@ -97,7 +98,7 @@ def start_run(lane, envelope: Envelope) -> RunState | None:
         make_step(lane, "step_02", "judgment", action.action_type, action.rationale_summary, action.citations),
         make_step(lane, "step_03", "access_check", decision.decision, decision.rule_id, [decision.decision_id]),
     ]
-    return RunState(task=task, action=action, verdict=verdict, steps=steps, cause=envelope)
+    return RunState(task=task, action=action, verdict=verdict, steps=steps, cause=envelope, bundle=bundle)
 
 
 def finish_run(lane, run: RunState, outcome: str) -> None:
@@ -118,23 +119,3 @@ def act_and_finish(lane, run: RunState, decision: Decision | None) -> None:
 def close_without_acting(lane, run: RunState) -> None:
     """Blocked or escalated by governance: record it, act on nothing."""
     finish_run(lane, run, OUTCOME_FOR_ROUTE[run.verdict.route])
-
-
-def open_approval(lane, run: RunState) -> RunState:
-    """S8: publish the approval, record the run as waiting, and return it paused."""
-    approval = stages_decide.request_approval(run.action, run.verdict, lane.new_id, lane.now)
-    run.cause = lane.bus.publish("approvals.requested", "approval.requested", approval, "approvals", run.cause)
-    run.approval_id = approval.approval_id
-    lane.approvals[approval.approval_id] = {"cause": run.cause, "task_id": run.task.task_id}
-    run.steps.append(make_step(lane, ACTION_STEP_ID, "human", run.verdict.route, ", ".join(run.verdict.criticality_reasons), [approval.approval_id]))
-    finish_run(lane, run, "awaiting_approval")
-    return run
-
-
-def resume_after_decision(lane, run: RunState, envelope: Envelope) -> None:
-    """Approve acts. Anything else closes the run without acting. Never auto approves."""
-    decision = Decision.model_validate(envelope.payload)
-    run.cause = envelope
-    if decision.decision == "approve":
-        return act_and_finish(lane, run, decision)
-    finish_run(lane, run, OUTCOME_FOR_DECISION.get(decision.decision, "escalated"))

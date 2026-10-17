@@ -4,7 +4,8 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from app.pipeline import run_steps, stages_intake, stages_normalize, stages_route
+from app.pipeline import run_approvals, run_steps, stages_intake, stages_normalize, stages_route
+from app.pipeline.observe import count, log_event
 from app.pipeline.adapters import make_memory_adapters
 from app.pipeline.contracts_run import Decision
 from app.pipeline.contracts_signal import Envelope, RawSignalEnvelope, Signal
@@ -63,7 +64,7 @@ def capture_signal(lane: Lane, raw: dict) -> Envelope:
 
 def decide(lane: Lane, decision: Decision) -> Envelope:
     """Entry point for a human answer from the To review screen."""
-    cause = lane.approvals[decision.approval_id]["cause"]
+    cause = (lane.approvals.get(decision.approval_id) or {}).get("cause")  # unknown ids still go on the bus, to be refused and logged
     return lane.bus.publish("approvals.decided", "approval.decided", decision, "approvals", cause)
 
 
@@ -114,13 +115,36 @@ def on_task(lane: Lane, envelope: Envelope) -> None:
         return run_steps.act_and_finish(lane, run, None)
     if run.verdict.route != "approval_required":
         return run_steps.close_without_acting(lane, run)
-    paused = run_steps.open_approval(lane, run)
+    paused = run_approvals.open_approval(lane, run)
     lane.pending[paused.approval_id] = paused
 
 
 def on_decision(lane: Lane, envelope: Envelope) -> None:
-    """S4 resumes the paused run for this approval."""
+    """S4 hands a decision to the paused run for its approval. Unknown or closed approvals are refused."""
     approval_id = Decision.model_validate(envelope.payload).approval_id
+    known = lane.approvals.get(approval_id)
+    if known is None or (lane.runner is None and approval_id not in lane.pending):
+        count("s8.refused.unknown_or_closed")
+        log_event("S8", "refused", approval_id=approval_id, reason="unknown_or_closed")
+        return None
     if lane.runner is not None:
-        return lane.runner.send_decision(lane.approvals[approval_id]["task_id"], envelope)
-    run_steps.resume_after_decision(lane, lane.pending.pop(approval_id), envelope)
+        return lane.runner.send_decision(known["task_id"], envelope)
+    keep(lane, run_approvals.handle_decision(lane, lane.pending.pop(approval_id), envelope))
+
+
+def keep(lane: Lane, run) -> None:
+    """Still waiting: keep it under its (maybe new) approval id. Closed: forget it."""
+    if run is not None:
+        lane.pending[run.approval_id] = run
+
+
+def sweep_expired(lane: Lane, now) -> None:
+    """In-process timers (Temporal uses durable ones): move the clock, expire overdue approvals, end cooling periods."""
+    lane.now = lane.bus.now = now
+    for approval_id, run in list(lane.pending.items()):
+        state = run.approval
+        if state.cooling_until is not None and state.cooling_until <= now:
+            del lane.pending[approval_id]
+            run_approvals.release(lane, run)
+        elif state.final_decision is None and state.request.expires_at <= now:
+            keep(lane, run_approvals.expire(lane, lane.pending.pop(approval_id)))

@@ -1,5 +1,6 @@
-# temporal_flow.py: S4 on Temporal. Each task is a durable workflow; S8 waits for an approval signal.
-# Used by: temporal_runner.py, adapters.py (temporal_is_up). Uses: run_steps.py.
+# temporal_flow.py: S4 on Temporal. Each task is a durable workflow. S8 waits for decision signals with a timer
+# for expiry, hands to the delegate once, and sleeps through a C4 cooling period before acting.
+# Used by: temporal_runner.py, adapters.py (temporal_is_up). Uses: run_steps.py, run_approvals.py.
 from datetime import timedelta
 
 from temporalio import activity, workflow
@@ -11,7 +12,7 @@ with workflow.unsafe.imports_passed_through():  # these never run inside the wor
 
     from temporalio.client import Client
 
-    from app.pipeline import run_steps
+    from app.pipeline import run_approvals, run_steps
     from app.pipeline.contracts_signal import Envelope
     from app.pipeline.run_steps import RunState
 
@@ -53,11 +54,23 @@ class RunActivities:
 
     @activity.defn(name="open_approval")
     async def open_approval(self, run: RunState) -> RunState:
-        return run_steps.open_approval(self.lane, run)
+        return run_approvals.open_approval(self.lane, run)
 
-    @activity.defn(name="resume_after_decision")
-    async def resume(self, run: RunState, envelope: Envelope) -> None:
-        run_steps.resume_after_decision(self.lane, run, envelope)
+    @activity.defn(name="handle_decision")
+    async def handle_decision(self, run: RunState, envelope: Envelope) -> RunState | None:
+        return run_approvals.handle_decision(self.lane, run, envelope)
+
+    @activity.defn(name="expire_approval")
+    async def expire(self, run: RunState) -> RunState | None:
+        return run_approvals.expire(self.lane, run)
+
+    @activity.defn(name="release_after_cooling")
+    async def release(self, run: RunState) -> None:
+        run_approvals.release(self.lane, run)
+
+
+async def step(method, *args, timeout: timedelta = STEP_TIMEOUT):
+    return await workflow.execute_activity_method(method, args=list(args), start_to_close_timeout=timeout, retry_policy=NO_AUTO_RETRY)
 
 
 # --- Workflow: one per task
@@ -65,38 +78,52 @@ class RunActivities:
 @workflow.defn
 class TaskWorkflow:
     def __init__(self) -> None:
-        self.phase = "running"
-        self.decision: Envelope | None = None
+        self.phase, self.handled = "running", 0
+        self.inbox: list[Envelope] = []
+        self.deadline, self.round_seen = None, 0
 
     @workflow.run
     async def run(self, envelope: Envelope) -> str:
         # Step 1: S5, S6 and S7
-        run = await workflow.execute_activity_method(RunActivities.start, envelope, start_to_close_timeout=REASON_TIMEOUT, retry_policy=NO_AUTO_RETRY)
+        run = await step(RunActivities.start, envelope, timeout=REASON_TIMEOUT)
 
-        # Step 2: act now, close, or wait for a human (None: closed early, context unavailable)
-        if run is None:
-            pass
-        elif run.verdict.route == "execute":
-            await workflow.execute_activity_method(RunActivities.act, run, start_to_close_timeout=STEP_TIMEOUT, retry_policy=NO_AUTO_RETRY)
-        elif run.verdict.route != "approval_required":
-            await workflow.execute_activity_method(RunActivities.close, run, start_to_close_timeout=STEP_TIMEOUT, retry_policy=NO_AUTO_RETRY)
-        else:
-            await self.wait_for_human(run)
+        # Step 2: act now, close, or wait for people (None: closed early, context unavailable)
+        if run is not None and run.verdict.route == "execute":
+            await step(RunActivities.act, run)
+        elif run is not None and run.verdict.route != "approval_required":
+            await step(RunActivities.close, run)
+        elif run is not None:
+            paused = await step(RunActivities.open_approval, run)
+            while paused is not None:
+                paused = await self.next_turn(paused)
         self.phase = "done"
         return self.phase
 
-    async def wait_for_human(self, run: RunState) -> None:
-        """S8: open the approval, then sleep durably until the decision signal arrives."""
-        paused = await workflow.execute_activity_method(RunActivities.open_approval, run, start_to_close_timeout=STEP_TIMEOUT, retry_policy=NO_AUTO_RETRY)
+    async def next_turn(self, paused: RunState) -> RunState | None:
+        """One turn of S8: sleep through cooling and act, or wait for a decision until the round's deadline."""
+        state = paused.approval
+        if state.final_decision is not None:
+            self.phase = "cooling"
+            await asyncio.sleep(state.cooling_seconds)  # a durable Temporal timer
+            await step(RunActivities.release, paused)
+            return None
+        if state.round != self.round_seen:  # each round (first approver, then delegate) gets its own clock
+            self.deadline, self.round_seen = workflow.now() + timedelta(seconds=state.expires_after_seconds), state.round
         self.phase = "awaiting_approval"
-        await workflow.wait_condition(lambda: self.decision is not None)
+        try:
+            await workflow.wait_condition(lambda: bool(self.inbox), timeout=max(self.deadline - workflow.now(), timedelta(0)))
+        except asyncio.TimeoutError:
+            self.phase = "running"
+            return await step(RunActivities.expire, paused)
         self.phase = "running"
-        await workflow.execute_activity_method(RunActivities.resume, args=[paused, self.decision], start_to_close_timeout=STEP_TIMEOUT, retry_policy=NO_AUTO_RETRY)
+        result = await step(RunActivities.handle_decision, paused, self.inbox.pop(0), timeout=REASON_TIMEOUT)
+        self.handled += 1
+        return result
 
     @workflow.signal
     def decide(self, envelope: Envelope) -> None:
-        self.decision = envelope
+        self.inbox.append(envelope)
 
     @workflow.query
-    def current_phase(self) -> str:
-        return self.phase
+    def progress(self) -> dict:
+        return {"phase": self.phase, "handled": self.handled}

@@ -13,7 +13,7 @@ from app.pipeline.temporal_flow import TEMPORAL_ADDRESS, RunActivities, TaskWork
 
 # Config
 WAIT_SECONDS = 30
-AT_REST = {"awaiting_approval", "done"}
+AT_REST = {"awaiting_approval", "cooling", "done"}
 
 
 class TemporalRunner:
@@ -35,7 +35,8 @@ class TemporalRunner:
     async def make_worker(self, activities: RunActivities) -> Worker:
         return Worker(
             self.client, task_queue=self.task_queue, workflows=[TaskWorkflow],
-            activities=[activities.start, activities.act, activities.close, activities.open_approval, activities.resume],
+            activities=[activities.start, activities.act, activities.close, activities.open_approval,
+                        activities.handle_decision, activities.expire, activities.release],
         )
 
     def call(self, coroutine):
@@ -49,20 +50,27 @@ class TemporalRunner:
         """Start the task's workflow and wait until it acts, closes, or pauses for a human."""
         task_id = envelope.payload["task_id"]
         self.call(self.client.start_workflow(TaskWorkflow.run, envelope, id=self.workflow_id(task_id), task_queue=self.task_queue))
-        self.wait_for_phase(task_id, AT_REST)
+        self.wait_until_at_rest(task_id, handled_before=0)
 
     def send_decision(self, task_id: str, envelope: Envelope) -> None:
-        """Signal the paused workflow and wait until it finishes."""
-        self.call(self.client.get_workflow_handle(self.workflow_id(task_id)).signal(TaskWorkflow.decide, envelope))
-        self.wait_for_phase(task_id, {"done"})
-
-    def wait_for_phase(self, task_id: str, wanted: set[str]) -> None:
-        """The bus handler waits, so the next message it reads sees everything this run published."""
+        """Signal the paused workflow and wait until it has handled this decision."""
         handle = self.client.get_workflow_handle(self.workflow_id(task_id))
+        before = self.call(handle.query(TaskWorkflow.progress))["handled"]
+        self.call(handle.signal(TaskWorkflow.decide, envelope))
+        self.wait_until_at_rest(task_id, handled_before=before + 1)
+
+    def progress(self, task_id: str) -> dict:
+        return self.call(self.client.get_workflow_handle(self.workflow_id(task_id)).query(TaskWorkflow.progress))
+
+    def wait_until_at_rest(self, task_id: str, handled_before: int) -> None:
+        """The bus handler waits, so the next message it reads sees everything this run published."""
         deadline = time.monotonic() + WAIT_SECONDS
-        while self.call(handle.query(TaskWorkflow.current_phase)) not in wanted:
+        while True:
+            progress = self.progress(task_id)
+            if progress["phase"] in AT_REST and progress["handled"] >= handled_before:
+                return
             if time.monotonic() > deadline:
-                raise TimeoutError(f"workflow {self.workflow_id(task_id)} did not reach {wanted}")
+                raise TimeoutError(f"workflow {self.workflow_id(task_id)} did not come to rest")
             time.sleep(0.05)
 
     def stop(self) -> None:
