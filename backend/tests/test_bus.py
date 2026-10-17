@@ -11,6 +11,7 @@ from app.pipeline.bus_kafka import DEFAULT_BOOTSTRAP, KafkaBus, broker_is_up
 from app.pipeline.bus_memory import MemoryBus
 from app.pipeline.contracts_failure import DeadLetter
 from app.pipeline.contracts_signal import Subject
+from app.pipeline.retry import replay_dead_letters
 from tests.golden import NOW, SEED
 
 # Config
@@ -80,6 +81,23 @@ def test_failing_handler_goes_to_dead_letter(bus):
     bus.drain()
     letters = bus.topics["signals.raw.dlq"]
     assert [(letter.stage, letter.error_code, letter.original.event_id) for letter in letters] == [("S2", "ValueError", sent.event_id)]
+
+
+def test_replay_after_a_fix_runs_the_handler(bus):
+    state, received = {"broken": True}, []
+
+    def handler(envelope):
+        if state["broken"]:
+            raise ValueError("bug")
+        received.append(envelope)
+
+    bus.subscribe("signals.raw", "normalizer", "S2", handler)
+    sent = bus.publish("signals.raw", "signal.raw.captured", PAYLOAD, "capture")
+    bus.drain()
+    state["broken"] = False  # the bug is fixed and deployed
+    assert replay_dead_letters(bus, "signals.raw") == 1
+    bus.drain()
+    assert received == [sent]
 
 
 # --- Kafka only: the dead letter is really on the broker, not just in memory

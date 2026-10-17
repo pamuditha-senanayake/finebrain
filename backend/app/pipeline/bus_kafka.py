@@ -125,6 +125,7 @@ class KafkaBus:
             handler(envelope)
         except Exception as error:  # one catch per consumer, the entry point of each delivery
             self.dead_letter(topic, group, stage, envelope, error)
+            return  # not marked handled, so a replay after a fix runs it again
         self.handled.add(key)
 
     def dead_letter(self, topic: str, group: str, stage: str, envelope: Envelope, error: Exception) -> None:
@@ -134,3 +135,16 @@ class KafkaBus:
             error_message=str(error)[:200], retryable=False, attempts=1, failed_at=self.now,
         )
         self.send(topic + DLQ_SUFFIX, letter, envelope.correlation_id)
+
+    def dead_letters(self, topic: str) -> list[DeadLetter]:
+        """Read every dead letter for a topic back from the broker, not from memory."""
+        self.producer.flush()
+        reader = Consumer({"bootstrap.servers": self.bootstrap, "group.id": self.topic_prefix + "dlq-reader", "enable.auto.commit": False})
+        reader.assign([TopicPartition(self.topic_prefix + topic + DLQ_SUFFIX, 0, OFFSET_BEGINNING)])
+        letters, message = [], reader.poll(2.0)
+        while message is not None:
+            if not message.error():
+                letters.append(DeadLetter.model_validate_json(message.value()))
+            message = reader.poll(0.5)
+        reader.close()
+        return letters

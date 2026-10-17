@@ -63,6 +63,7 @@ class MemoryBus:
             handler(envelope)
         except Exception as error:  # one catch per consumer, the entry point of each delivery
             self.dead_letter(topic, group, stage, envelope, error)
+            return  # not marked handled, so a replay after a fix runs it again
         self.handled.add(key)
 
     def dead_letter(self, topic: str, group: str, stage: str, envelope: Envelope, error: Exception) -> None:
@@ -72,3 +73,7 @@ class MemoryBus:
             error_message=str(error)[:200], retryable=False, attempts=1, failed_at=self.now,
         )
         self.topics.setdefault(topic + DLQ_SUFFIX, []).append(letter)
+
+    def dead_letters(self, topic: str) -> list[DeadLetter]:
+        """Every dead letter a topic's consumers produced."""
+        return list(self.topics.get(topic + DLQ_SUFFIX, []))

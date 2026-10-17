@@ -254,6 +254,8 @@ Keys: `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY` and the Google OAuth and Pub/Sub key
 | S3 | `store_s3.py` on SeaweedFS, port 9000 (MinIO no longer publishes images): raw signal bodies |
 | Temporal | `temporal_flow.py`: each task is a `TaskWorkflow`; S8 waits for the approval signal. Dev server on 7233, UI on 8233 |
 | End-to-end | `tests/test_e2e.py` runs on memory and on all real infra together |
+| Shared helpers | `observe.py` (JSON logs, counters), `retry.py` (retry with backoff, DLQ replay) |
+| S1 Capture (done) | `capture_api.py`: connector, grant, size, type and HMAC signature checks; 404, 403, 401, 413, 415, 400, 503 as in section 8 |
 | Still to come | OPA. In Postgres: graph, facts, chunks, outbox, encrypted vault columns |
 | Start all infra | `backend/scripts/dev_up.sh` |
 

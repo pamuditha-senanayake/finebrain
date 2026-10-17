@@ -6,6 +6,13 @@
     "tenant_id": "finebase_labs",
     "cluster_id": "customer_care",
     "env": "sandbox",
+    "connectors": {
+      "_about": "Secrets here are test-only values for local runs. Real connector secrets live in Secrets Manager.",
+      "conn_gmail_support": {"grant_id": "grant_gmail_support_read", "grant_active": true, "source_type": "email", "secret": "test-only-secret-gmail"},
+      "conn_web_chat": {"grant_id": "grant_web_chat_read", "grant_active": true, "source_type": "chat", "secret": "test-only-secret-chat"},
+      "conn_upload_console": {"grant_id": "grant_upload_all", "grant_active": true, "source_type": "upload", "secret": "test-only-secret-upload"},
+      "conn_old_crm": {"grant_id": "grant_old_crm_read", "grant_active": false, "source_type": "webhook", "secret": "test-only-secret-old-crm"}
+    },
     "resolver_rules": [
       {
         "rule_id": "rr_refund_email",
