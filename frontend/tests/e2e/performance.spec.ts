@@ -60,7 +60,7 @@ test("a graph with more than 2,000 nodes stays interactive", async ({ page }) =>
 
 test("heavy visual libraries are not in the initial bundle of other routes", async ({ request, baseURL }) => {
   // The initial bundle is every script the route's HTML loads up front.
-  for (const route of ["/l1", "/l1/approvals", "/l3", "/l2/policies"]) {
+  for (const route of ["/l1", "/l1/digest?tab=approvals", "/l3", "/l2/policies"]) {
     const html = await (await request.get(`${baseURL}${route}`)).text();
     const srcs = [...html.matchAll(/<script[^>]+src="([^"]+\.js)"/g)].map((m) => m[1]);
     expect(srcs.length, route).toBeGreaterThan(0);

@@ -49,6 +49,8 @@ export const Run = z.object({
   latencyMs: z.number().int(),
   humanTouch: z.boolean(),
   failureClass: z.string().nullable(),
+  /** Set when a person marks the run's outcome as wrong: who, when and what went wrong. Kept so it is not repeated. */
+  markedWrong: z.object({ by: z.string(), at: IsoDate, note: z.string() }).nullable().optional(),
 });
 export type Run = z.infer<typeof Run>;
 

@@ -2,12 +2,16 @@
 
 import { ArrowRight, Moon, Wrench } from "lucide-react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { DigestItem } from "@/contracts";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLookup } from "@/components/brain/names";
 import { SimpleTable } from "@/components/brain/simple-table";
 import { CritBadge, EmptyState, PageHeader, QueryView, Section } from "@/components/brain/primitives";
-import { useDigest, useOp } from "@/lib/api/hooks";
+import { useApprovals, useDigest, useEvidenceRequests, useOp } from "@/lib/api/hooks";
+import { ApprovalsInbox } from "@/features/l1/approvals";
+import { EvidenceRequests } from "@/features/l1/evidence";
 import { useCurrentUser } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -48,24 +52,57 @@ function Metric({ label, value, tone }: { label: string; value: number; tone?: "
   );
 }
 
+const TABS = ["summary", "approvals", "evidence"] as const;
+type Tab = (typeof TABS)[number];
+
+/** Everything waiting for the owner, whenever they log in: the overnight summary, approvals and evidence requests. */
 export function Digest() {
+  const params = useSearchParams();
+  const router = useRouter();
+  const asked = params.get("tab");
+  const tab: Tab = TABS.includes(asked as Tab) ? (asked as Tab) : "summary";
+  const approvals = useApprovals();
+  const evidence = useEvidenceRequests();
+  const pendingApprovals = approvals.data?.filter((a) => a.status === "pending").length ?? 0;
+  const openEvidence = evidence.data?.filter((r) => r.status !== "fulfilled").length ?? 0;
+  const count = (n: number) => (n ? <span className="ml-1.5 tabular text-muted-foreground">{n}</span> : null);
+  return (
+    <div>
+      <PageHeader title="To review" description="What needs you now." />
+      <Tabs value={tab} onValueChange={(v) => router.replace(v === "summary" ? "/l1/digest" : `/l1/digest?tab=${v}`, { scroll: false })}>
+        <TabsList className="mb-6">
+          <TabsTrigger value="summary">Summary</TabsTrigger>
+          <TabsTrigger value="approvals" data-testid="tab-approvals">Approvals{count(pendingApprovals)}</TabsTrigger>
+          <TabsTrigger value="evidence" data-testid="tab-evidence">Evidence{count(openEvidence)}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="summary">
+          <Summary />
+        </TabsContent>
+        <TabsContent value="approvals">
+          <ApprovalsInbox embedded />
+        </TabsContent>
+        <TabsContent value="evidence">
+          <EvidenceRequests embedded />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function Summary() {
   const digest = useDigest();
   const lookup = useLookup();
   const { user } = useCurrentUser();
   const run = useOp("runOvernightReview", { success: "Overnight review finished" });
   return (
     <div>
-      <PageHeader
-        title="Morning digest"
-        description="What happened overnight: runs, failures found, fixes applied automatically at C0 and C1, and changes waiting for a decision."
-        actions={
-          user && user.tier !== "L3" ? (
-            <Button variant="outline" size="sm" onClick={() => run.mutate({})} disabled={run.isPending}>
-              <Moon /> Run overnight review now
-            </Button>
-          ) : null
-        }
-      />
+      {user && user.tier !== "L3" && (
+        <div className="mb-6 flex justify-end">
+          <Button variant="outline" size="sm" onClick={() => run.mutate({})} disabled={run.isPending}>
+            <Moon /> Run overnight review now
+          </Button>
+        </div>
+      )}
       <QueryView query={digest} empty={<EmptyState title="No digest yet" description="The Quality Supervisor writes one every night at 02:00." />}>
         {(d) => {
           if (!d) return null;

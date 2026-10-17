@@ -54,7 +54,7 @@ export function Readiness() {
                       <div className="flex flex-col items-end gap-1">
                         <StatusChip tone={a.tone}>{a.label}</StatusChip>
                         <span className="text-[11px]"><PersonChip id={g.dri} /></span>
-                        {g.requestId && <Link href="/l1/evidence" className="text-[11px] text-primary hover:underline">request sent</Link>}
+                        {g.requestId && <Link href="/l1/digest?tab=evidence" className="text-[11px] text-primary hover:underline">request sent</Link>}
                       </div>
                     </li>
                   );

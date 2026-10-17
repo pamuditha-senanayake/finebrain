@@ -16,6 +16,7 @@ import { num, pct, usd } from "@/lib/format";
 import { useUi } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { useWorkflowIndex } from "@/lib/workflow-index";
+import { FleetErrors } from "./fleet-errors";
 
 export function Fleet() {
   const agents = useAgents();
@@ -74,6 +75,7 @@ export function Fleet() {
         <Kpi label="Blocked or erroring" value={data.filter((a) => a.status === "blocked" || a.status === "error").length} tone={data.some((a) => a.status === "blocked" || a.status === "error") ? "risk" : undefined} />
         <Kpi label="Cost today" value={usd(data.reduce((s, a) => s + a.costTodayUsd, 0))} />
       </div>
+      <FleetErrors />
       <QueryView query={agents}>
         {() =>
           view === "table" ? (

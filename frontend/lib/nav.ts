@@ -5,11 +5,10 @@ import {
   BarChart3,
   BookOpen,
   Boxes,
+  Bot,
   CalendarClock,
   ClipboardList,
-  FileCheck2,
   FlaskConical,
-  GitBranch,
   GraduationCap,
   Inbox,
   LayoutDashboard,
@@ -20,9 +19,9 @@ import {
   Repeat,
   Route,
   ScrollText,
+  Settings2,
   ShieldCheck,
   Siren,
-  Sunrise,
   Table2,
   Vault,
   Workflow,
@@ -31,7 +30,16 @@ import {
 import type { Area } from "@/lib/auth";
 import type { MessageKey } from "@/lib/i18n";
 
-export type NavItem = { href: string; label: MessageKey; icon: LucideIcon; exact?: boolean; /** Items sharing a group render together; a divider separates groups. */ group?: number };
+export type NavItem = {
+  href: string;
+  label: MessageKey;
+  icon: LucideIcon;
+  exact?: boolean;
+  /** Items sharing a group render together; a divider separates groups. */
+  group?: number;
+  /** Other routes that live inside this page (e.g. a detail page), so the item stays highlighted there. */
+  also?: string[];
+};
 export type NavArea = { area: Area; label: MessageKey; home: string; items: NavItem[] };
 
 export const NAV: NavArea[] = [
@@ -42,45 +50,50 @@ export const NAV: NavArea[] = [
     items: [
       { href: "/l1", label: "nav.overview", icon: LayoutDashboard, exact: true, group: 0 },
       { href: "/l1/ask", label: "nav.ask", icon: AudioLines, group: 0 },
-      { href: "/l1/digest", label: "nav.digest", icon: Sunrise, group: 0 },
+      // To review holds approvals and evidence requests as tabs.
+      { href: "/l1/digest", label: "nav.digest", icon: Inbox, group: 0, also: ["/l1/approvals", "/l1/evidence"] },
+      { href: "/l1/claude", label: "nav.claude", icon: Bot, group: 0 },
       // Workflow Studio is the main feature, so it gets a section of its own.
       { href: "/studio", label: "nav.studio", icon: Workflow, group: 1 },
-      { href: "/l1/approvals", label: "nav.approvals", icon: Inbox, group: 2 },
       { href: "/l1/entity", label: "nav.entity", icon: CalendarClock, group: 2 },
-      { href: "/l1/evidence", label: "nav.evidence", icon: FileCheck2, group: 2 },
-      { href: "/l1/analytics", label: "nav.analytics", icon: BarChart3, group: 3 },
-      { href: "/l1/audit", label: "nav.audit", icon: ScrollText, group: 4 },
+      { href: "/l1/analytics", label: "nav.analytics", icon: BarChart3, group: 2 },
+      { href: "/l1/audit", label: "nav.audit", icon: ScrollText, group: 2 },
+      { href: "/l1/setup", label: "nav.setup", icon: Settings2, group: 3 },
     ],
   },
   {
     area: "L2",
     label: "tier.L2",
-    home: "/l2/graph",
+    home: "/l2/vault",
     items: [
-      { href: "/l2/graph", label: "nav.graph", icon: Network, group: 0 },
-      { href: "/l2/versioning", label: "nav.versioning", icon: GitBranch, group: 0 },
+      // Where people act: resolve conflicts and keep access safe.
+      { href: "/l2/vault", label: "nav.vault", icon: Vault, group: 0 },
+      { href: "/l2/security", label: "nav.security", icon: ShieldCheck, group: 0 },
+      // Find things. Versions sit in a tab inside the graph.
+      { href: "/l2/graph", label: "nav.graph", icon: Network, group: 1, also: ["/l2/versioning"] },
       { href: "/l2/library", label: "nav.library", icon: Library, group: 1 },
-      { href: "/l2/vault", label: "nav.vault", icon: Vault, group: 1 },
+      // Overviews: read only.
       { href: "/l2/policies", label: "nav.policies", icon: BookOpen, group: 2 },
       { href: "/l2/skills", label: "nav.skills", icon: GraduationCap, group: 2 },
       { href: "/l2/resolver", label: "nav.resolver", icon: Route, group: 2 },
       { href: "/l2/templates", label: "nav.templates", icon: ClipboardList, group: 2 },
       { href: "/l2/sensors", label: "nav.sensors", icon: Radar, group: 2 },
-      { href: "/l2/loops", label: "nav.loops", icon: Repeat, group: 3 },
-      { href: "/l2/readiness", label: "nav.readiness", icon: AlarmClock, group: 3 },
-      { href: "/l2/security", label: "nav.security", icon: ShieldCheck, group: 3 },
-      { href: "/studio", label: "nav.studioL2", icon: Workflow, group: 4 },
+      { href: "/l2/loops", label: "nav.loops", icon: Repeat, group: 2 },
+      { href: "/l2/readiness", label: "nav.readiness", icon: AlarmClock, group: 2 },
+      { href: "/studio", label: "nav.studioL2", icon: Workflow, group: 3 },
     ],
   },
   {
     area: "L3",
     label: "tier.L3",
-    home: "/l3",
+    home: "/l3/conversations",
     items: [
-      { href: "/l3", label: "nav.fleet", icon: Boxes, exact: true, group: 0 },
-      { href: "/l3/runs", label: "nav.runs", icon: Activity, group: 0 },
-      { href: "/l3/conversations", label: "nav.conversations", icon: MessagesSquare, group: 1 },
-      { href: "/l3/escalations", label: "nav.escalations", icon: Siren, group: 1 },
+      // The human in the loop acts here: take over a live conversation or an escalation.
+      { href: "/l3/conversations", label: "nav.conversations", icon: MessagesSquare, group: 0 },
+      { href: "/l3/escalations", label: "nav.escalations", icon: Siren, group: 0 },
+      // Overviews.
+      { href: "/l3", label: "nav.fleet", icon: Boxes, exact: true, group: 1, also: ["/l3/agents"] },
+      { href: "/l3/runs", label: "nav.runs", icon: Activity, group: 1 },
       { href: "/l3/templates", label: "nav.templateBoard", icon: Table2, group: 2 },
     ],
   },

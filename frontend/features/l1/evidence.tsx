@@ -49,7 +49,7 @@ function RequestActions({ req }: { req: EvidenceRequest }) {
       )}
       {req.status === "awaiting_grant_approval" && (
         <p className="text-xs text-muted-foreground">
-          Needs two L1 approvals. <Link href="/l1/approvals" className="text-primary hover:underline">Open approvals</Link>
+          Needs two L1 approvals. <Link href="/l1/digest?tab=approvals" className="text-primary hover:underline">Open approvals</Link>
         </p>
       )}
       {req.fulfilledBy && <p className="text-xs text-ok">Fulfilled by {req.fulfilledBy.kind === "upload" ? "an upload" : "a granted source"} ({req.fulfilledBy.ref}).</p>}
@@ -111,7 +111,7 @@ function RequestTable({ rows, label }: { rows: EvidenceRequest[]; label: string 
   );
 }
 
-export function EvidenceRequests() {
+export function EvidenceRequests({ embedded = false }: { embedded?: boolean }) {
   const requests = useEvidenceRequests();
   const grants = useGrants();
   const lookup = useLookup();
@@ -119,7 +119,7 @@ export function EvidenceRequests() {
   const revoke = useOp<{ grantId: string }>("revokeGrant", { success: "Access revoked" });
   return (
     <div>
-      <PageHeader title="Evidence requests" description="When the system needs proof, the DRI uploads a document or grants a data source. Requests start early and escalate as deadlines approach." actions={<SampleBadge />} />
+      {!embedded && <PageHeader title="Evidence requests" description="When the system needs proof, the DRI uploads a document or grants a data source. Requests start early and escalate as deadlines approach." actions={<SampleBadge />} />}
       <QueryView query={requests} empty={<EmptyState title="No evidence requests" description="Run the readiness scheduler in L2 to look for gaps." action={<Button asChild size="sm" variant="outline"><Link href="/l2/readiness">Readiness scheduler</Link></Button>} />}>
         {(list) => {
           const open = list.filter((r) => r.status !== "fulfilled");

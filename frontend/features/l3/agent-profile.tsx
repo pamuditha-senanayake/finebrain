@@ -125,6 +125,7 @@ export function AgentProfile() {
                 </Section>
               </TabsContent>
               <TabsContent value="runs" className="mt-3">
+                <RecordedMistakes runs={runs.data ?? []} />
                 <QueryView query={runs}>
                   {(rs) => <DataTable label="Runs" data={rs} columns={runColumns} getRowId={(r) => r.id} onRowClick={(r) => router.push(`/l3/runs/${r.id}`)} initialSort={{ id: "started", desc: true }} height={520} />}
                 </QueryView>
@@ -162,5 +163,27 @@ export function AgentProfile() {
         );
       }}
     </QueryView>
+  );
+}
+
+/** Runs a person marked wrong, newest first, so the same mistake is easy to spot again. */
+function RecordedMistakes({ runs }: { runs: Run[] }) {
+  const lookup = useLookup();
+  const wrong = runs.filter((r) => r.markedWrong).sort((a, b) => (a.markedWrong!.at < b.markedWrong!.at ? 1 : -1));
+  if (wrong.length === 0) return null;
+  return (
+    <section aria-label="Recorded mistakes" className="mb-6">
+      <h2 className="mb-3 text-[15px] font-semibold">Recorded mistakes <span className="tabular text-risk">{wrong.length}</span></h2>
+      <ul className="divide-y overflow-hidden rounded-xl border border-risk/30 bg-card">
+        {wrong.map((r) => (
+          <li key={r.id}>
+            <Link href={`/l3/runs/${r.id}`} className="block px-4 py-3 hover:bg-sidebar-accent/60">
+              <span className="block text-[14.5px] font-medium">{r.markedWrong!.note}</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">{r.subject} · {lookup.name(r.markedWrong!.by)} · {relTime(r.markedWrong!.at)}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

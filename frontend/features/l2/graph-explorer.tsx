@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, List, Lock, Network } from "lucide-react";
+import { Box, List, Lock, Network, Search } from "lucide-react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { Suspense, lazy, useMemo, useState } from "react";
@@ -13,6 +13,7 @@ import { KeyValue, LoadingState, Mono, QueryView, StatusChip } from "@/component
 import { useAgents, useGraph, useHumans } from "@/lib/api/hooks";
 import { agentPrincipal, checkEdge, checkNode, humanPrincipal, type Principal } from "@/lib/governance/access";
 import { TYPE_COLOR } from "./graph-colors";
+import { GraphTabs } from "./graph-tabs";
 
 // React.lazy, not next/dynamic: the chunk loads only when this view renders, never on route prefetch.
 const GraphCanvas = lazy(() => import("./graph-canvas"));
@@ -26,7 +27,7 @@ const HREF: Partial<Record<NodeType, (n: GraphNode) => string>> = {
   skill: (n) => `/l2/skills/${n.refId}`,
   policy: (n) => `/l2/policies/${n.refId.split("@")[0]}`,
   fact: (n) => `/l2/vault?fact=${n.refId}`,
-  document: () => "/l2/library",
+  document: (n) => `/l2/library?doc=${n.refId}`,
   template: () => "/l2/templates",
   sensor: () => "/l2/sensors",
   security: () => "/l2/security",
@@ -41,6 +42,7 @@ export function GraphExplorer() {
   const [viewAs, setViewAs] = useState<string>("none");
   const [selected, setSelected] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("3d");
+  const [query, setQuery] = useState("");
 
   const principal: Principal | null = useMemo(() => {
     if (viewAs === "none") return null;
@@ -81,6 +83,17 @@ export function GraphExplorer() {
     return graph.data.nodes.filter((n) => ids.has(n.id)).slice(0, 30);
   }, [sel, graph.data]);
 
+  // Search by name; picking a result selects the node, which lights up what it connects to.
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q || !graph.data) return [];
+    return graph.data.nodes.filter((n) => visible.has(n.type) && n.label.toLowerCase().includes(q)).slice(0, 8);
+  }, [query, graph.data, visible]);
+  const pick = (id: string) => {
+    setSelected(id);
+    setQuery("");
+  };
+
   const panel = "rounded-xl border bg-card/90 shadow-md backdrop-blur";
   return (
     <div className="relative -mx-3 -my-4 h-[calc(100dvh-3rem)] min-h-[520px] overflow-hidden sm:-mx-6 sm:-my-5">
@@ -117,6 +130,37 @@ export function GraphExplorer() {
             </div>
 
             <div className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-2">
+              <GraphTabs />
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && matches[0]) pick(matches[0].id);
+                    if (e.key === "Escape") setQuery("");
+                  }}
+                  placeholder="Search a node"
+                  aria-label="Search a node"
+                  data-testid="graph-search"
+                  className="h-8 w-56 rounded-full border bg-card/90 pl-8 pr-3 text-[13px] shadow-sm outline-none backdrop-blur placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+                />
+                {query.trim() && (
+                  <ul className={`${panel} absolute left-0 top-10 w-72 overflow-hidden p-1`} role="listbox" aria-label="Matching nodes">
+                    {matches.length === 0 && <li className="px-3 py-2 text-[13px] text-muted-foreground">No match</li>}
+                    {matches.map((n) => (
+                      <li key={n.id}>
+                        <button type="button" role="option" aria-selected={false} onClick={() => pick(n.id)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] hover:bg-sidebar-accent">
+                          <span className="size-2 shrink-0 rounded-full" style={{ background: TYPE_COLOR[n.type] }} aria-hidden />
+                          <span className="truncate">{n.label}</span>
+                          <span className="ml-auto shrink-0 text-xs text-muted-foreground">{n.type}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
               <ToggleGroup type="single" value={mode} onValueChange={(v) => v && setMode(v as Mode)} variant="outline" size="sm" className="rounded-full bg-card/90 shadow-sm backdrop-blur" aria-label="Graph view">
                 <ToggleGroupItem value="3d" aria-label="3D graph" className="rounded-l-full px-3"><Box /> 3D</ToggleGroupItem>
                 <ToggleGroupItem value="2d" aria-label="2D graph" className="px-3"><Network /> 2D</ToggleGroupItem>

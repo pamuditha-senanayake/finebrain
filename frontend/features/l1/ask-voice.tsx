@@ -2,13 +2,17 @@
 
 import { History, Keyboard, Mic, Send, Square, Volume2, VolumeX } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { AskAnswer } from "@/contracts";
 import { Button } from "@/components/ui/button";
+import { ConnectorPicker } from "@/features/connect/connector-picker";
+import { Interview } from "@/features/setup/interview";
 import { useAsk } from "@/lib/api/hooks";
 import { date } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { VoiceOrb, type VoiceState } from "./voice-orb";
+import { t } from "@/lib/i18n";
 
 // The browser speech APIs are not in TypeScript's DOM types yet, so describe the parts used here.
 type Recognition = {
@@ -36,6 +40,14 @@ const useVoiceSupported = () => useSyncExternalStore(noop, () => !!recognitionCt
 const LABEL: Record<VoiceState, string> = { idle: "Tap to talk", listening: "Listening", thinking: "Thinking", speaking: "Speaking" };
 const SUGGESTIONS = ["What is our refund window?", "When does the domain renew?", "What are support hours?"];
 
+/** Typing "/" in the box offers these. They do things instead of asking a question. */
+const COMMANDS = [
+  { cmd: "/setup", label: "Set up the brain" },
+  { cmd: "/connect", label: "Add a connector" },
+  { cmd: "/claude", label: "Use in Claude" },
+] as const;
+type Command = (typeof COMMANDS)[number]["cmd"];
+
 type Turn = { q: string; a: AskAnswer };
 
 /** The first two sentences: what is shown and spoken first. The rest waits behind "More". */
@@ -59,6 +71,9 @@ export function AskVoice() {
   const [sources, setSources] = useState(false);
   const [more, setMore] = useState(false);
   const [earlier, setEarlier] = useState(false);
+  const [setup, setSetup] = useState(false);
+  const [picker, setPicker] = useState(false);
+  const router = useRouter();
   const level = useRef(0);
   const rec = useRef<Recognition | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
@@ -308,9 +323,26 @@ export function AskVoice() {
     } else if (voice === "idle") listen();
   }
 
+  function run(cmd: Command) {
+    setText("");
+    setNote("");
+    if (cmd === "/setup") {
+      setTyping(false);
+      setHeard("");
+      setSetup(true);
+    } else if (cmd === "/connect") setPicker(true);
+    else router.push("/l1/claude");
+  }
+
   function submitText() {
     const q = text.trim();
     if (!q || voice === "thinking") return;
+    if (q.startsWith("/")) {
+      const hit = COMMANDS.find((c) => c.cmd.startsWith(q.split(" ")[0].toLowerCase()));
+      if (hit) run(hit.cmd);
+      else setNote("Try /setup, /connect or /claude.");
+      return;
+    }
     setText("");
     void answer(q);
   }
@@ -318,6 +350,24 @@ export function AskVoice() {
   const last = turns[turns.length - 1];
   const showLast = last && voice !== "listening" && voice !== "thinking" && heard === last.q;
   const before = turns.slice(0, -1);
+  const slash = typing && text.startsWith("/") ? COMMANDS.filter((c) => c.cmd.startsWith(text.trim().split(" ")[0].toLowerCase())) : [];
+
+  // The setup interview takes over the page; the orb stays small above it and speaks each question.
+  if (setup) {
+    return (
+      <div className="-mx-3 -my-4 flex min-h-[calc(100dvh-3rem)] flex-col sm:-mx-6 sm:-my-5">
+        <h1 className="sr-only">Ask the Brain, setup</h1>
+        <div className="flex justify-center pt-6">
+          <button type="button" onClick={() => { stopSpeaking(); setVoice("idle"); }} className="rounded-full outline-none" aria-label="Stop speaking">
+            <VoiceOrb state={voice} level={level} size={120} />
+          </button>
+        </div>
+        <div className="flex-1 px-6 pb-10 pt-2">
+          <Interview variant="ask" onQuestion={(q) => { if (speakOut) void say(q); }} onExit={() => { stopSpeaking(); setVoice("idle"); setSetup(false); }} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="-mx-3 -my-4 flex min-h-[calc(100dvh-3rem)] flex-col sm:-mx-6 sm:-my-5">
@@ -387,22 +437,44 @@ export function AskVoice() {
             </div>
           )}
           {!heard && turns.length === 0 && (
+            <div className="mb-8">
+              <p className="mx-auto max-w-md text-[15px] leading-relaxed text-muted-foreground">{t("ask.greeting")}</p>
+              <p className="mt-2 text-xl font-semibold tracking-tight">{t("ask.greetingAsk")}</p>
+            </div>
+          )}
+          {!heard && turns.length === 0 && (
             <div className="flex flex-wrap justify-center gap-2">
               {SUGGESTIONS.map((s) => (
                 <button key={s} type="button" onClick={() => void answer(s)} disabled={voice !== "idle"} className="rounded-full border bg-surface px-4 py-2 text-sm transition-colors hover:bg-accent disabled:opacity-50">
                   {s}
                 </button>
               ))}
+              <button type="button" onClick={() => run("/setup")} disabled={voice !== "idle"} className="rounded-full border border-dashed px-4 py-2 font-mono text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50">
+                /setup
+              </button>
             </div>
           )}
           {note && <p className="mt-4 text-sm text-warn-fg">{note}</p>}
         </div>
       </div>
 
-      <div className="mx-auto flex w-full max-w-2xl items-center justify-center gap-4 px-6 pb-8">
+      <ConnectorPicker open={picker} onOpenChange={setPicker} />
+      <div className="relative mx-auto flex w-full max-w-2xl items-center justify-center gap-4 px-6 pb-8">
+        {slash.length > 0 && (
+          <ul className="absolute inset-x-6 bottom-full mb-2 overflow-hidden rounded-2xl border bg-popover p-1.5 shadow-lg" role="listbox" aria-label="Commands">
+            {slash.map((c, i) => (
+              <li key={c.cmd}>
+                <button type="button" role="option" aria-selected={i === 0} onClick={() => run(c.cmd)} className={cn("flex w-full items-center gap-4 rounded-xl px-4 py-3 text-left hover:bg-accent", i === 0 && "bg-accent/60")}>
+                  <span className="w-20 font-mono text-sm">{c.cmd}</span>
+                  <span className="text-[15px] text-muted-foreground">{c.label}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         {typing ? (
           <form className="flex w-full items-center gap-2 rounded-full border bg-surface p-1.5 pl-5" onSubmit={(e) => { e.preventDefault(); submitText(); }}>
-            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Ask anything…" aria-label="Question" autoFocus className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground" />
+            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Ask anything, or type /" aria-label="Question" autoFocus className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground" />
             <Button type="submit" size="icon" className="rounded-full" disabled={!text.trim() || voice === "thinking"} aria-label="Ask"><Send /></Button>
             {supported && <Button type="button" size="icon" variant="ghost" className="rounded-full" onClick={() => setTyping(false)} aria-label="Use voice"><Mic /></Button>}
           </form>

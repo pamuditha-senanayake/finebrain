@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { PageHeader, QueryView, Section, Status } from "@/components/brain/primitives";
 import { useAnalytics, useOverview } from "@/lib/api/hooks";
+import { FeatureUse } from "./feature-use";
 import { AutonomyTrend, LegibilityMap } from "./overview-panels";
 import { pct } from "@/lib/format";
 
@@ -116,6 +117,7 @@ export function Analytics() {
           );
         }}
       </QueryView>
+      <FeatureUse />
     </div>
   );
 }

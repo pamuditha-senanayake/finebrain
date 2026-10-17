@@ -9,6 +9,7 @@ import { Beam } from "@/components/brain/motion";
 import { AgentChip, useLookup } from "@/components/brain/names";
 import { CritBadge, EnvBadge, KeyValue, Mono, PageHeader, QueryView, Section, Status, StatusChip } from "@/components/brain/primitives";
 import { useRun } from "@/lib/api/hooks";
+import { MarkWrong } from "./mark-wrong";
 import { RunInput, useRunContext } from "./run-context";
 import { date, dateTime, duration, num, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -44,7 +45,7 @@ export function RunTrace() {
               }
             />
             <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-              <Section title="Step timeline" description="Every step is labelled as model judgment or a deterministic call.">
+              <Section title="Why it did this" description="Every step, with the reason and the facts it used.">
                 <Beam active={r.status === "running"} className="rounded-xl">
                   <ol className="relative space-y-3 border-l pl-5" aria-label="Trace steps">
                     {r.steps.map((s) => {
@@ -104,6 +105,7 @@ export function RunTrace() {
                 </Beam>
               </Section>
               <div className="space-y-6">
+                <MarkWrong run={r} />
                 <RunInput run={r} conversation={ctx.conversationOf(r)} actor={ctx.actorOf(r)} />
                 <Section title="Run">
                   <KeyValue

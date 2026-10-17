@@ -122,6 +122,21 @@ export function takeover(d: TenantData, ctx: Ctx, { conversationId }: { conversa
   return conv;
 }
 
+/** A person marks a run as wrong. The agent is accountable: the mistake is recorded, shown on the run and the agent, and its DRI is told. */
+export function markRunWrong(d: TenantData, ctx: Ctx, { runId, note }: { runId: string; note: string }) {
+  const h = humanOf(d, ctx);
+  const run = must(d.runs.find((r) => r.id === runId), "Run");
+  if (!note.trim()) throw new OpError("Say what went wrong");
+  if (run.markedWrong) throw new OpError("Already marked wrong", 409);
+  run.markedWrong = { by: h.id, at: iso(ctx.now), note: note.trim() };
+  run.failureClass ??= "marked wrong";
+  run.humanTouch = true;
+  const agent = d.agents.find((a) => a.id === run.agentId);
+  audit(d, ctx, "run.marked_wrong", { type: "run", id: run.id, label: run.subject }, 2, note.trim(), `run:${run.id}`);
+  if (agent) notify(d, ctx, { to: agent.dri, title: `Marked wrong: ${run.subject}`, body: `${agent.name}. ${note.trim()}`, href: `/l3/runs/${run.id}`, kind: "info" });
+  return run;
+}
+
 export function handback(d: TenantData, ctx: Ctx, { conversationId }: { conversationId: string }) {
   humanOf(d, ctx);
   const conv = must(d.conversations.find((c) => c.id === conversationId), "Conversation");
@@ -450,7 +465,7 @@ export function runReadinessScheduler(d: TenantData, ctx: Ctx) {
       d.evidenceRequests.unshift(req);
       gap.requestId = req.id;
       created.push(req.id);
-      notify(d, ctx, { to: ob.dri, title: `Evidence needed: ${item.label}`, body: `${ob.title} is due in ${Math.ceil(daysLeft)} days (sample).`, href: "/l1/evidence", kind: "evidence" });
+      notify(d, ctx, { to: ob.dri, title: `Evidence needed: ${item.label}`, body: `${ob.title} is due in ${Math.ceil(daysLeft)} days (sample).`, href: "/l1/digest?tab=evidence", kind: "evidence" });
       audit(d, ctx, "evidence.requested", { type: "obligation", id: ob.id, label: ob.title }, 4, `Requested "${item.label}" from the DRI ${Math.ceil(daysLeft)} days before the sample deadline`, `ob:${ob.id}`);
     }
   }
@@ -795,7 +810,7 @@ export function markRead(d: TenantData, _ctx: Ctx, { id }: { id: string | "all" 
 }
 
 export const OPS = {
-  takeover, handback, sendMessage, closeConversation, skillify, runChecks, decide, rollback, runReadinessScheduler, uploadEvidence, requestGrant, revokeGrant,
+  takeover, handback, markRunWrong, sendMessage, closeConversation, skillify, runChecks, decide, rollback, runReadinessScheduler, uploadEvidence, requestGrant, revokeGrant,
   librarianPropose, experimentPreview, experimentStart, experimentConclude, experimentKeep, experimentDiscard, runOvernightReview, saveSkillDraft, promoteAgent,
   revealPersonal, addTrackingItem, markRead, studioApply, studioSuggest,
 } as const;

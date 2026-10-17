@@ -89,19 +89,29 @@ export default function GraphCanvas3D({ data, visibleTypes, locked, lockedEdges,
     const m = new THREE.Matrix4();
     const c = new THREE.Color();
     const baseEdge = new THREE.Color(dark ? "#4a5873" : "#94a3b8");
-    const dimEdge = new THREE.Color(dark ? "#222a3b" : "#e2e8f0");
+    const dimEdge = new THREE.Color(dark ? "#2f384b" : "#e2e8f0");
     const redEdge = new THREE.Color("#ef4444");
     const lockedNode = new THREE.Color(dark ? "#3f4657" : "#cbd5e1");
 
+    const dimNode = new THREE.Color(dark ? "#5b6478" : "#d4d8e0");
     const refresh = () => {
       const s = live.current;
+      // When a node is selected, its neighbours keep their colour and the rest fade.
+      let near: Set<string> | null = null;
+      if (s.selected) {
+        near = new Set([s.selected]);
+        for (const e of edges) {
+          if (e.source === s.selected) near.add(e.target);
+          else if (e.target === s.selected) near.add(e.source);
+        }
+      }
       nodes.forEach((n, i) => {
         const shown = s.visibleTypes.has(n.type);
         const sel = s.selected === n.id;
         const r = shown ? radius(i) * (sel ? 1.7 : 1) : 0;
         m.compose(pos[i], new THREE.Quaternion(), new THREE.Vector3(r, r, r));
         mesh.setMatrixAt(i, m);
-        mesh.setColorAt(i, s.locked.has(n.id) ? lockedNode : c.set(TYPE_COLOR[n.type]));
+        mesh.setColorAt(i, s.locked.has(n.id) ? lockedNode : near && !near.has(n.id) ? dimNode : c.set(TYPE_COLOR[n.type]));
       });
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;

@@ -119,7 +119,7 @@ export function EntityProtection() {
                             </div>
                           ))}
                           {missing.length > 0 && (
-                            <Link href="/l1/evidence" className="inline-block text-primary hover:underline">
+                            <Link href="/l1/digest?tab=evidence" className="inline-block text-primary hover:underline">
                               {missing.length} missing
                             </Link>
                           )}

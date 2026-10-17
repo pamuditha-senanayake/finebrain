@@ -12,6 +12,7 @@ import { date } from "@/lib/format";
 import { guideFor } from "@/lib/page-context";
 import { useUi } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 type Scope = "page" | "system";
 type Msg =
@@ -159,8 +160,8 @@ export function AskPanel() {
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="pt-4">
                 <div className="mb-6 flex flex-col items-center text-center">
                   <Orb size={64} />
-                  <p className="mt-5 text-xl font-bold tracking-tight">What do you want to know?</p>
-                  <p className="mt-1.5 max-w-[340px] text-sm text-muted-foreground">Ask about this page or anything in the company. Answers cite verified facts.</p>
+                  <p className="mt-5 max-w-[340px] text-[15px] leading-relaxed text-muted-foreground">{t("ask.greeting")}</p>
+                  <p className="mt-2 text-xl font-bold tracking-tight">{t("ask.greetingAsk")}</p>
                 </div>
                 <div className="flex flex-col gap-2">
                   {suggestions.map((s, i) => (

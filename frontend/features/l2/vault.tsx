@@ -138,7 +138,9 @@ export function Vault() {
                       <blockquote key={i} className="rounded-md border-l-2 border-primary bg-surface p-2 text-xs">
                         “{e.quote}”
                         <div className="mt-1 text-muted-foreground">
-                          {documents.data?.find((d) => d.id === e.documentId)?.title ?? e.documentId}
+                          <Link href={`/l2/library?doc=${e.documentId}`} className="hover:text-foreground hover:underline">
+                            {documents.data?.find((d) => d.id === e.documentId)?.title ?? e.documentId}
+                          </Link>
                           {e.page ? `, page ${e.page}` : ""}
                         </div>
                       </blockquote>

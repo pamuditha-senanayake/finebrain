@@ -17,6 +17,7 @@ import { CritBadge, LoadingState, Mono, PageHeader, QueryView, Section, Status, 
 import { useApproval, useBranches, useChangeRequest, useChangeRequests, useCommits, useOp } from "@/lib/api/hooks";
 import { useCurrentUser } from "@/lib/auth";
 import { dateTime, relTime } from "@/lib/format";
+import { GraphTabs } from "./graph-tabs";
 
 // React.lazy, not next/dynamic: the chunk loads only when this view renders, never on route prefetch.
 const BranchGraph = lazy(() => import("./branch-graph"));
@@ -62,7 +63,8 @@ export function Versioning() {
   const later = rollbackTo ? (commits.data ?? []).filter((c) => c.createdAt > rollbackTo.createdAt) : [];
   return (
     <div>
-      <PageHeader title="Knowledge graph's versioning" description="Git for the graph. Every change is a commit, main is Production, staging runs in shadow, and each sandbox is a branch tested against recorded runs." />
+      <GraphTabs className="mb-5" />
+      <PageHeader title="Versions" description="Every change to the graph, so you can recover an older state." />
       <Tabs defaultValue={params.get("commit") ? "main" : "crs"}>
         <TabsList>
           <TabsTrigger value="crs">Change requests</TabsTrigger>

@@ -200,7 +200,7 @@ export function ShellMenu() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         {canApprove && (
-          <DropdownMenuItem onSelect={() => router.push("/l1/approvals")} data-testid="menu-approvals">
+          <DropdownMenuItem onSelect={() => router.push("/l1/digest?tab=approvals")} data-testid="menu-approvals">
             <Inbox /> Approvals
             <Badge variant={mine.length ? "default" : "secondary"} className="ml-auto tabular" data-testid="approvals-count">{mine.length}</Badge>
           </DropdownMenuItem>

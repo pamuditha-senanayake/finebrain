@@ -55,6 +55,12 @@ export default function GraphCanvas({ data, visibleTypes, locked, lockedEdges, s
           out.highlighted = true;
           out.size = (attrs.size as number) * 1.6;
           out.zIndex = 2;
+        } else if (s.selected && g.hasNode(s.selected)) {
+          // Name what the selected node connects to; fade the rest.
+          if (g.areNeighbors(node, s.selected)) {
+            out.forceLabel = true;
+            out.zIndex = 1;
+          } else out.color = dark ? "#5b6478" : "#d4d8e0";
         }
         return out;
       },
@@ -68,7 +74,7 @@ export default function GraphCanvas({ data, visibleTypes, locked, lockedEdges, s
         }
         if (s.selected) {
           const [a, b] = g.extremities(edge);
-          if (a !== s.selected && b !== s.selected) out.color = dark ? "#252c3d" : "#e2e8f0";
+          if (a !== s.selected && b !== s.selected) out.color = dark ? "#2f384b" : "#e2e8f0";
         }
         return out;
       },

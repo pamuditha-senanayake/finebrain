@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import { EvidenceRequests } from "@/features/l1/evidence";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Evidence requests" };
-
+/** Evidence requests now live inside To review. */
 export default function Page() {
-  return <EvidenceRequests />;
+  redirect("/l1/digest?tab=evidence");
 }

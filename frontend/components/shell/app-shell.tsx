@@ -13,6 +13,7 @@ import { flags } from "@/lib/flags";
 import { t } from "@/lib/i18n";
 import { AREA_ICON, NAV, RESEARCH_NAV, type NavArea } from "@/lib/nav";
 import { useUi } from "@/lib/store";
+import { navItemFor, useUsage } from "@/lib/usage";
 import { cn } from "@/lib/utils";
 import { AskPanel } from "./ask-panel";
 import { CommandPalette } from "./command-palette";
@@ -29,7 +30,8 @@ function NavList({ area, onNavigate }: { area: NavArea; onNavigate?: () => void 
     <ul className="space-y-0.5">
       {area.items.map((item, idx) => {
         const newGroup = idx > 0 && (item.group ?? 0) !== (area.items[idx - 1].group ?? 0);
-        const active = item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const under = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+        const active = (item.exact ? pathname === item.href : under(item.href)) || (item.also ?? []).some(under);
         return (
           <li key={item.href} className={cn(newGroup && "mt-2 border-t border-sidebar-border pt-2")}>
             <Link
@@ -144,6 +146,12 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
   const fullBleed = /^\/(l1|studio|l2\/graph|l2\/policies\/.+)\/?$/.test(pathname);
   // Working surfaces with several panes get more room than reading pages.
   const wide = /^\/l3\/conversations(\/.+)?\/?$/.test(pathname);
+  // Count page opens so features nobody uses can be found and removed.
+  const record = useUsage((s) => s.record);
+  useEffect(() => {
+    const item = navItemFor(pathname);
+    if (item) record(item.href);
+  }, [pathname, record]);
 
   return (
     <BeamScope>

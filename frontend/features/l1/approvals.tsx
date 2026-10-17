@@ -26,7 +26,7 @@ function waitingOn(a: Approval, userId: string | undefined, tier: string | undef
   return (a.requiredApprovers.tier === tier || a.delegatedTo === userId) && max >= a.criticality;
 }
 
-export function ApprovalsInbox() {
+export function ApprovalsInbox({ embedded = false }: { embedded?: boolean }) {
   const approvals = useApprovals();
   const { user } = useCurrentUser();
   const router = useRouter();
@@ -38,7 +38,7 @@ export function ApprovalsInbox() {
   }, [approvals.data, tab, user]);
   return (
     <div>
-      <PageHeader title="All approvals" description="Sorted by criticality, then deadline. C4 needs two L1 approvers. Requests expire and can be delegated, never silently skipped." />
+      {!embedded && <PageHeader title="All approvals" description="Sorted by criticality, then deadline. C4 needs two L1 approvers. Requests expire and can be delegated, never silently skipped." />}
       <ToggleGroup type="single" value={tab} onValueChange={(v) => v && setTab(v as typeof tab)} variant="outline" size="sm" className="mb-5" aria-label="Which approvals">
         <ToggleGroupItem value="mine" className="px-3 text-xs">Waiting on me</ToggleGroupItem>
         <ToggleGroupItem value="pending" className="px-3 text-xs">All pending</ToggleGroupItem>
@@ -121,13 +121,13 @@ export function ApprovalDetail() {
                 onSuccess: (res) => {
                   setComment("");
                   const r = res as Approval;
-                  if (r.status === "approved") router.push(isMerge ? `/l2/versioning/${a.subject.id}` : "/l1/evidence");
+                  if (r.status === "approved") router.push(isMerge ? `/l2/versioning/${a.subject.id}` : "/l1/digest?tab=evidence");
                 },
               },
             );
           return (
             <div>
-              <PageHeader eyebrow={<Link href="/l1/approvals" className="hover:underline">All approvals</Link>} title={a.title} description={a.summary} actions={<Status value={a.status} />} />
+              <PageHeader eyebrow={<Link href="/l1/digest?tab=approvals" className="hover:underline">To review</Link>} title={a.title} description={a.summary} actions={<Status value={a.status} />} />
               <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
                 <div className="space-y-6">
                   {isMerge ? (

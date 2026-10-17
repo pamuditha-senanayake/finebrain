@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import { ApprovalsInbox } from "@/features/l1/approvals";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "All approvals" };
-
+/** Approvals now live inside To review. */
 export default function Page() {
-  return <ApprovalsInbox />;
+  redirect("/l1/digest?tab=approvals");
 }

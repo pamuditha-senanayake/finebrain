@@ -95,7 +95,7 @@ export function StatusBox({ o }: { o: Overview }) {
           </div>
           <div className="space-y-0.5">
             <Row icon={<Siren />} label="Open risks" value={o.totals.openRisks} tone={o.totals.openRisks > 5 ? "risk" : o.totals.openRisks ? "warn" : "ok"} href="/l1/entity" />
-            {canApprove && <Row icon={<Inbox />} label="All approvals" value={mine.length} tone={mine.length ? "warn" : undefined} href="/l1/approvals" />}
+            {canApprove && <Row icon={<Inbox />} label="Approvals" value={mine.length} tone={mine.length ? "warn" : undefined} href="/l1/digest?tab=approvals" />}
             <Row icon={<Bell />} label={t("shell.notifications")} value={unread} tone={unread ? "warn" : undefined} onClick={() => setNotifications(true)} hint={unread ? "unread" : undefined} />
             <Row icon={<ShieldAlert />} label="Entity protection" value={o.entity.red + o.entity.amber} tone={o.entity.red ? "risk" : o.entity.amber ? "warn" : "ok"} href="/l1/entity" hint={`${o.entity.red} red · ${o.entity.amber} amber`} />
             <Row icon={<Coins />} label="Cost, last 7 days" value={usd(o.costs.weekUsd)} hint={weekDelta ?? undefined} href="/l1/analytics" />

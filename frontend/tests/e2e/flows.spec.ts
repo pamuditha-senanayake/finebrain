@@ -33,7 +33,7 @@ test("1. refund outside policy: escalate, take over, Skillify, sandbox replay, C
 
   // L2 cannot approve C3. The L1 DRI approves and merges.
   await switchPersona(page, "h-hcs");
-  await page.goto("/l1/approvals");
+  await page.goto("/l1/digest?tab=approvals");
   await page.getByRole("link", { name: /New skill: Late refund with DRI approval/ }).click();
   await page.getByTestId("approve").click();
   await expect(page).toHaveURL(/\/l2\/versioning\//);
@@ -57,7 +57,7 @@ test("2. tax readiness: scheduler finds missing proof 21 days ahead, DRI uploads
   await expect(page.getByTestId("gaps")).toContainText("request sent");
 
   await switchPersona(page, "h-fd");
-  await page.goto("/l1/evidence");
+  await page.goto("/l1/digest?tab=evidence");
   const vatRows = page.getByRole("row").filter({ hasText: "VAT return, September 2026" });
   await expect(page.getByRole("table", { name: "Open requests" }).getByRole("row").filter({ hasText: "VAT return, September 2026" })).toHaveCount(2);
 
@@ -105,7 +105,7 @@ test("3. policy drift: librarian proposes invalidation, dependents update in one
   await expect(page.getByText("awaiting approval").first()).toBeVisible();
 
   await switchPersona(page, "h-hcs");
-  await page.goto("/l1/approvals");
+  await page.goto("/l1/digest?tab=approvals");
   await page.getByRole("link", { name: /Invalidate refund window v3/ }).click();
   await page.getByTestId("approve").click();
   await expect(page.getByText(/Merged .* Live in Production/).first()).toBeVisible();

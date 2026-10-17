@@ -46,6 +46,6 @@ test("the shell works with the keyboard alone", async ({ page }) => {
 
 test("live updates are announced", async ({ page }) => {
   await setPersona(page, "h-founder");
-  await page.goto("/l1/approvals");
+  await page.goto("/l1/digest?tab=approvals");
   await expect(page.locator("[aria-live]").first()).toBeAttached();
 });
