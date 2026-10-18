@@ -21,5 +21,13 @@
     "conn_gmail_support": {"name": "Support inbox", "kind": "inbox", "cluster": "customer_care", "events": ["email.received"], "subscribers": ["agent_refund_worker"], "personal_data": true},
     "conn_web_chat": {"name": "Website chat", "kind": "chat", "cluster": "customer_care", "events": ["chat.message"], "subscribers": ["agent_refund_worker"], "personal_data": true},
     "conn_upload_console": {"name": "Console uploads", "kind": "documents", "cluster": "customer_care", "events": ["document.uploaded"], "subscribers": [], "personal_data": false}
+  },
+  "graph_labels": {
+    "agents": {
+      "agent_refund_worker": {"name": "Refund worker", "description": "Handles refund requests from email and chat, inside the refund policy.", "kind": "worker", "dri": "h-pamuditha"},
+      "agent_billing_helper": {"name": "Billing helper", "description": "Answers invoice and billing questions from the documents.", "kind": "worker", "dri": "h-pamuditha"}
+    },
+    "policies": {"policy_refund": {"name": "Refund policy", "dri": "h-pamuditha", "skills": ["skill_refund_handling"]}},
+    "skill_dri": "h-pamuditha"
   }
 }

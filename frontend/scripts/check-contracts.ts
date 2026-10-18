@@ -18,6 +18,14 @@ const CHECKS: [string, z.ZodType][] = [
   ["audit", z.array(C.AuditEvent)],
   ["sensors", z.array(C.Sensor)],
   ["trends", z.array(C.TrendCard)],
+  ["agents", z.array(C.Agent)],
+  ["agents/agent_refund_worker", C.Agent],
+  ["skills", z.array(C.Skill)],
+  ["skills/skill_refund_handling", z.array(C.Skill)],
+  ["policies", z.array(C.Policy)],
+  ["policies/policy_refund", z.array(C.Policy)],
+  ["resolver", z.array(C.ResolverRule)],
+  ["graph", C.Graph],
 ];
 
 async function fetchJson(path: string) {

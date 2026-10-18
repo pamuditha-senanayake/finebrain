@@ -1,6 +1,6 @@
 # routes.py: the console API for Finebase HQ: GET /api/t/{tenant}/{resource}, POST ops/decide, the live stream, and
 # capture. Screens not built yet answer [] (lists) or 501 (single objects); they never fall back to demo data.
-# Used by: hq.py, tests/test_api.py. Uses: ask.py, lists.py, views.py, capture_api.py, ui_stream.py, orchestrate.py.
+# Used by: hq.py, tests/test_api.py. Uses: ask.py, graph_map.py, lists.py, views.py, capture_api.py, ui_stream.py, orchestrate.py.
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from app.api import ask as asking
 from app.api import ask_memory
 from app.api import views
+from app.api.graph_map import graph_resource
 from app.api.lists import clusters_view, list_view, live_event, refusal_for, sensors_view, tenant_view
 from app.pipeline import capture_api, orchestrate
 from app.pipeline.contracts_run import Decision
@@ -15,7 +16,7 @@ from app.pipeline.ui_stream import stream_events
 
 # Config
 CONSOLE_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
-NOT_BUILT_OBJECTS = {"overview", "analytics", "graph", "studio/map"}  # single objects whose screens come in 9b to 9d
+NOT_BUILT_OBJECTS = {"overview", "analytics", "studio/map"}  # single objects whose screens come later
 NULLABLE_OBJECTS = {"digest"}
 
 
@@ -67,6 +68,12 @@ def create_api_app(lane, hq: dict, answerer=None) -> FastAPI:
             return sensors_view(lane, hq, started)
         if resource == "humans":
             return [views.human_view(lane, pid, person).ui() for pid, person in lane.seed["people"].items()]
+        try:
+            graph = graph_resource(lane, hq, resource, dict(request.query_params))
+        except LookupError:
+            raise HTTPException(404, "not_found") from None
+        if graph is not None:
+            return graph
         served = list_view(lane, resource, dict(request.query_params))
         if served is not None:
             return served
