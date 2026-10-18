@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, Menu, PanelLeftClose, PanelLeftOpen, Search, Sparkles } from "lucide-react";
+import { Brain, Menu, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
@@ -15,7 +15,7 @@ import { AREA_ICON, NAV, RESEARCH_NAV, type NavArea } from "@/lib/nav";
 import { useUi } from "@/lib/store";
 import { navItemFor, useUsage } from "@/lib/usage";
 import { cn } from "@/lib/utils";
-import { AskPanel } from "./ask-panel";
+import { AskOrb } from "./ask-orb";
 import { CommandPalette } from "./command-palette";
 import { EnvSwitcher, NotificationsSheet, ShellMenu, TenantClusterSwitcher } from "./widgets";
 
@@ -92,24 +92,6 @@ function Sidebar({ area, onNavigate }: { area: Area; onNavigate?: () => void }) 
         <NavList area={current} onNavigate={onNavigate} />
       </nav>
     </div>
-  );
-}
-
-/** Ask the Brain floats bottom right on every page. Workflow Studio has its own assistant and the Ask the Brain page is the full version, so it steps aside on both. */
-function AskFab() {
-  const setAsk = useUi((s) => s.setAskOpen);
-  const pathname = usePathname();
-  if (pathname.startsWith("/studio") || pathname.startsWith("/l1/ask")) return null;
-  return (
-    <button
-      type="button"
-      onClick={() => setAsk(true)}
-      className="fixed bottom-4 right-4 z-40 inline-flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-lg shadow-primary/25 transition hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:bottom-6 sm:right-6"
-      aria-label={t("shell.ask")}
-    >
-      <Sparkles className="size-4" aria-hidden />
-      {t("shell.ask")}
-    </button>
   );
 }
 
@@ -211,9 +193,8 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
         </SheetContent>
       </Sheet>
       <CommandPalette />
-      <AskPanel />
       <NotificationsSheet />
-      <AskFab />
+      <AskOrb />
     </BeamScope>
   );
 }

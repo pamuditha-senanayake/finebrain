@@ -33,14 +33,18 @@ test("command palette opens, searches entities and navigates", async ({ page }) 
 test("Ask the Brain answers with citations and valid time", async ({ page }) => {
   await setPersona(page, "h-founder");
   await page.goto("/l1");
+  // The glowing orb opens a bubble; ⌘J does the same. The question carries what is on screen.
   await page.getByRole("button", { name: "Ask the Brain" }).click();
-  // A typed question on a page makes the brain ask what it is about before answering.
-  const panel = page.getByRole("complementary", { name: "Ask the Brain" });
-  await panel.getByRole("textbox", { name: "Question" }).fill("What is our refund window?");
-  await panel.getByRole("button", { name: "Ask", exact: true }).click();
-  await panel.getByRole("group", { name: "What is this about" }).getByRole("button", { name: "Whole system" }).click();
+  const bubble = page.getByRole("dialog", { name: "Ask the Brain" });
+  await bubble.getByRole("textbox", { name: "Question" }).fill("What is our refund window?");
+  await bubble.getByRole("button", { name: "Ask", exact: true }).click();
   await expect(page.getByTestId("ask-answer")).toContainText("30 days");
-  await expect(page.getByText(/true from/).first()).toBeVisible();
+  await bubble.getByRole("button", { name: /source/ }).click();
+  await expect(page.getByText(/True from/).first()).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(bubble).toBeHidden();
+  await page.keyboard.press("ControlOrMeta+j");
+  await expect(bubble).toBeVisible();
 });
 
 test("conversation list: Needs a human filter and search find the escalated refund", async ({ page }) => {

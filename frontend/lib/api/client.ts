@@ -47,3 +47,10 @@ export async function apiGlobal<T>(path: string, schema: z.ZodType<T>): Promise<
   const res = await fetch(`${config.apiBaseUrl}/api/${path}`, { headers: headers() });
   return parse(res, schema, path);
 }
+
+/** Multipart upload; the browser sets the content type with its boundary, so only the persona header is sent. */
+export async function apiUpload<T>(path: string, form: FormData, schema: z.ZodType<T>): Promise<T> {
+  await mocksReady();
+  const res = await fetch(tenantPath(path), { method: "POST", headers: { "x-persona": currentPersonaId() }, body: form });
+  return parse(res, schema, path);
+}

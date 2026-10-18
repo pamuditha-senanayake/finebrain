@@ -109,6 +109,16 @@ def test_conversation_is_remembered_and_only_for_its_owner():
     assert post_ask(client, "hi", persona="h-udayanga", conversation=first["conversationId"]).status_code == 403
 
 
+def test_the_page_on_screen_goes_with_the_question():
+    answerer = Recorder()
+    client, _ = build(answerer)
+    page = {"path": "/l2/policies", "scope": "page", "title": "Policy registry", "snapshot": "Refund policy v3 · C3 · fresh"}
+    post_ask(client, "what is this?", page=page)
+    assert "page_view" in answerer.calls[0]["ids"]
+    post_ask(client, "hello", page={"path": "/l1/ask", "scope": "system"})
+    assert "page_view" not in answerer.calls[1]["ids"]
+
+
 def test_each_person_is_addressed_their_way():
     answerer = Recorder()
     client, _ = build(answerer)

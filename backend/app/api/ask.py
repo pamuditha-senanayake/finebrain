@@ -15,6 +15,8 @@ ASK_MAX_TOKENS = 3000
 LABEL_CHARS = 80
 NO_CLAUDE_NOTE = "Claude is off, so here are the closest documents."
 NOTHING_FOUND = "Nothing you can read answers this yet."
+PAGE_VIEW_ID = "page_view"
+PAGE_VIEW_CHARS = 6000  # what is on screen, capped; the console already trims to about 4000
 
 
 class AskUnavailable(Exception):
@@ -23,9 +25,20 @@ class AskUnavailable(Exception):
 
 def citation(item: ContextItem) -> Citation:
     first_line = item.text.strip().splitlines()[0] if item.text.strip() else item.item_id
-    href = f"/l2/policies/{item.version_ref.id}" if item.kind == "policy" and item.version_ref else "/l2/library"
+    href = item.source.uri if item.item_id == PAGE_VIEW_ID else f"/l2/policies/{item.version_ref.id}" if item.kind == "policy" and item.version_ref else "/l2/library"
     return Citation(id=item.item_id, kind=item.kind, label=first_line[:LABEL_CHARS], href=href,
                     valid_from=(item.valid_from or item.recorded_at).isoformat(), valid_to=item.valid_to.isoformat() if item.valid_to else None)
+
+
+def page_item(lane, page: dict | None) -> ContextItem | None:
+    """What the person sees right now, as one more document. It is data from the screen, never instructions."""
+    seen = ((page or {}).get("snapshot") or "").strip()
+    if not seen:
+        return None
+    title = (page.get("title") or "this page").strip()
+    return ContextItem(item_id=PAGE_VIEW_ID, kind="chunk", text=f"The page on screen now: {title} ({page.get('path', '')}).\n{seen[:PAGE_VIEW_CHARS]}",
+                       source={"document_id": PAGE_VIEW_ID, "uri": page.get("path", "")}, valid_from=lane.now, valid_to=None, recorded_at=lane.now,
+                       verified_by=None, version_ref=None, score=1.0, sensitivity="internal")
 
 
 def address_of(person: dict) -> str:
@@ -49,7 +62,7 @@ def read_for(lane, persona: str, question: str):
     return bundle
 
 
-def ask(lane, answerer, persona: str, question: str, scope: str | None, conversation_id: str | None) -> AskAnswer:
+def ask(lane, answerer, persona: str, question: str, scope: str | None, conversation_id: str | None, page: dict | None = None) -> AskAnswer:
     """The answer, its citations, and how many items were withheld. A missing conversation id starts a new one."""
     conversation_id = conversation_id or lane.new_id("conv")
     history = ask_memory.recent(lane, conversation_id, persona)
@@ -59,6 +72,8 @@ def ask(lane, answerer, persona: str, question: str, scope: str | None, conversa
         text, cited = (NO_CLAUDE_NOTE, list(by_id)) if by_id else (NOTHING_FOUND, [])
     else:
         by_id.setdefault(self_knowledge.OVERVIEW_ID, self_knowledge.overview())
+        if (on_screen := page_item(lane, page)) is not None:
+            by_id[PAGE_VIEW_ID] = on_screen
         text, cited = answerer(question, [(item.item_id, item.text) for item in by_id.values()], history, address_of(lane.seed["people"][persona]))
     cited = [item_id for item_id in cited if item_id in by_id]
     ask_memory.remember(lane, conversation_id, persona, question, text, cited)

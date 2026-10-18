@@ -167,7 +167,7 @@ export function ask(d: TenantData, asker: Human, question: string, now: number, 
     const facts = ask(d, asker, question, now);
     const live = pageLine(d, guide.key);
     const lead = `${guide.title}: ${guide.summary}`;
-    const body = [live, facts.citations.length ? facts.answer : null].filter(Boolean).join(" ");
+    const body = [facts.citations.length ? facts.answer : null, live].filter(Boolean).join(" "); // the answer first, then the page
     return { ...facts, answer: body ? `${body}` : lead, scope: "page", guide: tips.length ? tips : guide.tips, actions: guide.links };
   }
   return { ...askSystem(d, asker, question, now), scope: "system" };

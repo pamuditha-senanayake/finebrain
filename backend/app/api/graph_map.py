@@ -5,6 +5,7 @@ from pathlib import PurePosixPath
 
 from app.api import ui_models_graph as g
 from app.api.graph_views import agents_view, resolver_view, skills_view
+from app.api.overview_views import brain_map, overview
 
 # Config
 COLUMNS = ["agent", "skill", "tool", "policy", "document", "fact"]  # left to right on the map
@@ -32,6 +33,10 @@ def graph_resource(lane, hq: dict, resource: str, query: dict):
         return resolver_view(lane)
     if resource == "graph":
         return graph_view(lane, hq)
+    if resource == "studio/map":
+        return brain_map(lane, hq)
+    if resource == "overview":
+        return overview(lane, hq)
     return None
 
 

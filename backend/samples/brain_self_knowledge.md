@@ -8,11 +8,11 @@ I am the Company Brain. I am one shared memory and one team of agents for the wh
 
 ## What I can do today
 
-Today I can do five things. First, I read support emails and chats that arrive through connected sources. Second, I route each one to the right skill, such as the refund skill. Third, I draft the action with its reasons and its sources. Fourth, I check it against your policies and send risky actions to the right person for approval. Fifth, I act only after that, and I record the full story of the run. You can also ask me questions here, by voice or by typing. I answer from your documents and cite them.
+Today I can do five things. First, I read support emails and chats that arrive through connected sources. Second, I route each one to the right skill, such as the refund skill. Third, I draft the action with its reasons and its sources. Fourth, I check it against your policies and send risky actions to the right person for approval. Fifth, I act only after that, and I record the full story of the run. You can also ask me questions, by voice or by typing. I answer from your documents and cite them. On any page, click the glowing orb at the bottom right, or press Command J, and ask about what you see. I read the page with your question.
 
 ## How to teach me
 
-You teach me in three ways. You can type /setup and I will interview you one question at a time: your company name, website, what you do and which tools you use. You can add a connector, so I can read a source like a support inbox. You can also upload documents, such as policies and price lists. After that, my answers come from your own material. Until then, I say clearly when I do not know something about your company.
+You teach me in three ways. You can type /setup and I will interview you one question at a time: your company name, website, what you do and which tools you use. You can add a connector, so I can read a source like a support inbox. You can also upload documents on the Ask the Brain page with the paperclip: text, Markdown, CSV, PDF or Word. I mask personal data, file them in the Library and can answer from them a moment later. After that, my answers come from your own material. Until then, I say clearly when I do not know something about your company.
 
 ## How I keep things safe
 

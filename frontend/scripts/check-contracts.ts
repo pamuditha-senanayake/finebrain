@@ -26,6 +26,9 @@ const CHECKS: [string, z.ZodType][] = [
   ["policies/policy_refund", z.array(C.Policy)],
   ["resolver", z.array(C.ResolverRule)],
   ["graph", C.Graph],
+  ["overview", C.Overview],
+  ["studio/map", C.BrainMap],
+  ["documents", z.array(C.Document)],
 ];
 
 async function fetchJson(path: string) {

@@ -18,8 +18,10 @@ const useConversations = create<Conversations>()(
     (set) => ({
       byKey: {},
       set: (key, id) => set((s) => {
-        const { [key]: _old, ...rest } = s.byKey;
-        return { byKey: id ? { ...rest, [key]: id } : rest };
+        const byKey = { ...s.byKey };
+        if (id) byKey[key] = id;
+        else delete byKey[key];
+        return { byKey };
       }),
     }),
     { name: "cb.ask.v1", storage: createJSONStorage(() => localStorage) },
@@ -32,7 +34,7 @@ function useConversationKey() {
   return `${tenantId}:${persona ?? currentPersonaId()}`;
 }
 
-export type AskInput = { question: string; page?: { path: string; scope: "page" | "system" } };
+export type AskInput = { question: string; page?: { path: string; scope: "page" | "system"; title?: string; snapshot?: string } };
 
 /** Asks inside the current conversation and keeps the id the brain sends back. */
 export function useAsk() {

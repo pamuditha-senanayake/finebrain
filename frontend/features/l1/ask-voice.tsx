@@ -10,9 +10,10 @@ import { ConnectorPicker } from "@/features/connect/connector-picker";
 import { Interview } from "@/features/setup/interview";
 import { useAsk, useConversation } from "@/lib/api/conversation";
 import { canRecord, openMic, recordQuestion, transcribe, type Mic as OpenMic } from "@/lib/voice/mic";
-import { speak, unlockAudio } from "@/lib/voice/speaker";
+import { shortOf, speak, unlockAudio } from "@/lib/voice/speaker";
 import { date } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { AskUpload } from "./ask-upload";
 import { VoiceOrb, type VoiceState } from "./voice-orb";
 import { t } from "@/lib/i18n";
 
@@ -51,13 +52,6 @@ type Command = (typeof COMMANDS)[number]["cmd"];
 
 type Turn = { q: string; a: AskAnswer };
 
-/** The first two sentences: what is shown and spoken first. The rest waits behind "More". */
-function shortOf(answer: string): { short: string; rest: string } {
-  const parts = answer.match(/[^.!?]+[.!?]+(\s|$)/g) ?? [answer];
-  const short = parts.slice(0, 2).join("").trim();
-  return { short, rest: answer.slice(short.length).trim() };
-}
-
 /** Full page Ask the Brain with a voice agent: talk or type, hear the answer, see its sources on demand. */
 export function AskVoice() {
   const ask = useAsk();
@@ -70,6 +64,8 @@ export function AskVoice() {
   const [typing, setTyping] = useState(false);
   const [text, setText] = useState("");
   const [note, setNote] = useState("");
+  const [filed, setFiled] = useState("");
+  const onFiled = (message: string, ok: boolean) => (ok ? (setFiled(message), setNote("")) : (setNote(message), setFiled("")));
   const [sources, setSources] = useState(false);
   const [more, setMore] = useState(false);
   const [earlier, setEarlier] = useState(false);
@@ -350,7 +346,7 @@ export function AskVoice() {
                 )}
                 {last.a.citations.length > 0 && (
                   <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setSources(!sources)} aria-expanded={sources}>
-                    {sources ? "Hide sources" : `${last.a.citations.length} sources`}
+                    {sources ? "Hide sources" : `${last.a.citations.length} ${last.a.citations.length === 1 ? "source" : "sources"}`}
                   </Button>
                 )}
               </div>
@@ -387,6 +383,7 @@ export function AskVoice() {
             </div>
           )}
           {note && <p className="mt-4 text-sm text-warn-fg">{note}</p>}
+          {filed && <p className="mt-4 text-sm text-muted-foreground" role="status">{filed}</p>}
         </div>
       </div>
 
@@ -406,6 +403,7 @@ export function AskVoice() {
         )}
         {typing ? (
           <form className="flex w-full items-center gap-2 rounded-full border bg-surface p-1.5 pl-5" onSubmit={(e) => { e.preventDefault(); submitText(); }}>
+            <AskUpload onDone={onFiled} />
             <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Ask anything, or type /" aria-label="Question" autoFocus className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground" />
             <Button type="submit" size="icon" className="rounded-full" disabled={!text.trim() || voice === "thinking"} aria-label="Ask"><Send /></Button>
             {supported && <Button type="button" size="icon" variant="ghost" className="rounded-full" onClick={() => setTyping(false)} aria-label="Use voice"><Mic /></Button>}
@@ -416,7 +414,7 @@ export function AskVoice() {
             <Button size="icon" className={cn("size-16 rounded-full shadow-lg shadow-primary/25", voice === "listening" && "animate-pulse")} onClick={tapOrb} disabled={voice === "thinking"} aria-label={voice === "listening" ? "Stop listening" : voice === "speaking" ? "Stop speaking" : "Talk"}>
               {voice === "listening" || voice === "speaking" ? <Square className="size-5" /> : <Mic className="size-6" />}
             </Button>
-            <span className="size-9" aria-hidden />
+            <AskUpload onDone={onFiled} />
           </>
         )}
       </div>

@@ -52,3 +52,10 @@ export async function speak(text: string, level: Level): Promise<Playback> {
   tick();
   return { stop: () => source.stop(), done };
 }
+
+/** The first two sentences: what is shown and spoken first. The rest waits behind "More". */
+export function shortOf(answer: string): { short: string; rest: string } {
+  const parts = answer.match(/[^.!?]+[.!?]+(\s|$)/g) ?? [answer];
+  const short = parts.slice(0, 2).join("").trim();
+  return { short, rest: answer.slice(short.length).trim() };
+}

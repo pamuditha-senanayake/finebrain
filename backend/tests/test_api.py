@@ -93,7 +93,7 @@ def test_access_log_and_audit(hq):
 @pytest.mark.parametrize("resource, persona, status, body", [
     ("runs", "someone_else", 401, {"error": "unknown_persona"}),
     ("templates", FOUNDER, 200, []),
-    ("overview", FOUNDER, 501, {"error": "not_connected_yet"}),
+    ("analytics", FOUNDER, 501, {"error": "not_connected_yet"}),
     ("digest", FOUNDER, 200, None),
     ("runs/run_missing", FOUNDER, 404, {"error": "not_found"}),
 ])

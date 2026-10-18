@@ -195,6 +195,20 @@ export const handlers = [
       return fail(e);
     }
   }),
+  // Demo tenants file an upload straight into the Library; the real brain reads and indexes it first.
+  http.post("*/api/t/:tenant/documents", async ({ params, request }) => {
+    await delay(LATENCY_MS * 3);
+    try {
+      const d = db.tenant(str(params.tenant));
+      const file = (await request.formData()).get("file") as File | null;
+      if (!file) throw new OpError("No file", 400);
+      const doc = { id: `doc-up-${Date.now().toString(36)}`, tenantId: d.tenant.id, clusterId: d.clusters[0]?.id ?? "", title: file.name.replace(/\.[^.]+$/, ""), source: "Ask the Brain upload", type: file.name.split(".").pop() ?? "file", sensitivity: "internal" as const, extractionStatus: "done" as const, linkedFacts: [], retentionDays: 365, filingRule: "uploads", uploadedBy: request.headers.get("x-persona") ?? "", uploadedAt: new Date(db.now()).toISOString(), sizeKb: Math.max(1, Math.round(file.size / 1024)), personalData: false };
+      d.documents.unshift(doc);
+      return HttpResponse.json(doc, { status: 202 });
+    } catch (e) {
+      return fail(e);
+    }
+  }),
   studioPost("chat", (d, persona, body) => chat(d, d.humans.find((h) => h.id === persona)!, body as Parameters<typeof chat>[2])),
   studioPost("review", (d, persona, body) => {
     const { input, workflowId } = body as { input: Parameters<typeof reviewReply>[2]; workflowId: string };
