@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { ConnectorPicker } from "@/features/connect/connector-picker";
 import { Interview } from "@/features/setup/interview";
 import { useAsk, useConversation } from "@/lib/api/conversation";
+import { canRecord, openMic, recordQuestion, transcribe, type Mic as OpenMic } from "@/lib/voice/mic";
+import { speak, unlockAudio } from "@/lib/voice/speaker";
 import { date } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { VoiceOrb, type VoiceState } from "./voice-orb";
@@ -32,9 +34,8 @@ const recognitionCtor = (): RecognitionCtor | null => {
   const w = window as unknown as { SpeechRecognition?: RecognitionCtor; webkitSpeechRecognition?: RecognitionCtor };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 };
-const canRecord = () => typeof window !== "undefined" && typeof MediaRecorder !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
 const noop = () => () => {};
-/** Voice works with the browser's own recognition, or by recording and sending the audio to ElevenLabs. */
+/** Voice works by recording and sending the audio to ElevenLabs, or with the browser's own recognition when it cannot record. */
 const useVoiceSupported = () => useSyncExternalStore(noop, () => !!recognitionCtor() || canRecord(), () => true);
 
 const LABEL: Record<VoiceState, string> = { idle: "Tap to talk", listening: "Listening", thinking: "Thinking", speaking: "Speaking" };
@@ -77,55 +78,22 @@ export function AskVoice() {
   const router = useRouter();
   const level = useRef(0);
   const rec = useRef<Recognition | null>(null);
-  const recorder = useRef<MediaRecorder | null>(null);
-  const mic = useRef<{ stream: MediaStream; stop: () => void } | null>(null);
+  const recording = useRef<{ stop: () => void } | null>(null);
+  const mic = useRef<OpenMic | null>(null);
   const player = useRef<{ stop: () => void } | null>(null);
 
   // Stop listening and speaking when leaving the page.
   useEffect(
     () => () => {
       rec.current?.abort();
-      recorder.current?.stop();
+      recording.current?.stop();
       mic.current?.stop();
       player.current?.stop();
     },
     [],
   );
 
-  /** Opens the mic and keeps `level` at its loudness, which drives the orb while listening. */
-  async function openMic(): Promise<MediaStream | null> {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const ac = new AudioContext();
-      const an = ac.createAnalyser();
-      an.fftSize = 512;
-      ac.createMediaStreamSource(stream).connect(an);
-      const buf = new Uint8Array(an.fftSize);
-      let raf = 0;
-      const tick = () => {
-        an.getByteTimeDomainData(buf);
-        let sum = 0;
-        for (const v of buf) sum += ((v - 128) / 128) ** 2;
-        level.current = Math.min(1, Math.sqrt(sum / buf.length) * 4);
-        raf = requestAnimationFrame(tick);
-      };
-      tick();
-      mic.current = {
-        stream,
-        stop: () => {
-          cancelAnimationFrame(raf);
-          stream.getTracks().forEach((t) => t.stop());
-          void ac.close();
-          level.current = 0;
-          mic.current = null;
-        },
-      };
-      return stream;
-    } catch {
-      setNote("The microphone is blocked. Allow it in the browser, or type instead.");
-      return null;
-    }
-  }
+  const MIC_BLOCKED = "The microphone is blocked. Allow it in the browser, or type instead.";
 
   function beginListening() {
     stopSpeaking();
@@ -135,14 +103,48 @@ export function AskVoice() {
     setVoice("listening");
   }
 
+  /** Called on the tap: unlocks sound for the reply, then listens. ElevenLabs first, because it works in every browser. */
   function listen() {
-    const Ctor = recognitionCtor();
-    if (!Ctor) {
-      if (canRecord()) void listenRecorded();
-      else setTyping(true);
+    unlockAudio();
+    if (canRecord()) void listenRecorded();
+    else if (recognitionCtor()) listenInBrowser();
+    else setTyping(true);
+  }
+
+  /** Records one question until a short silence (or a second tap), then ElevenLabs turns it into words. */
+  async function listenRecorded() {
+    beginListening();
+    const opened = await openMic(level);
+    if (!opened) {
+      setNote(MIC_BLOCKED);
+      setVoice("idle");
       return;
     }
-    const r = new Ctor();
+    mic.current = opened;
+    const take = recordQuestion(opened, level);
+    recording.current = take;
+    const audio = await take.done;
+    recording.current = null;
+    mic.current = null;
+    if (!audio) {
+      setNote("I did not hear anything, sir. Tap and speak again.");
+      setVoice("idle");
+      return;
+    }
+    setVoice("thinking");
+    try {
+      const words = await transcribe(audio);
+      if (!words) throw new Error("No words recognised.");
+      void answer(words);
+    } catch {
+      setNote("I could not make that out, sir. Tap to try again, or type instead.");
+      setVoice("idle");
+    }
+  }
+
+  /** The browser's own recognition, only for browsers that cannot record. */
+  function listenInBrowser() {
+    const r = new (recognitionCtor()!)();
     r.lang = "en-US";
     r.interimResults = true;
     r.continuous = false;
@@ -156,9 +158,8 @@ export function AskVoice() {
       }
       setHeard((final + interim).trim());
     };
-    r.onerror = (e) => setNote(e.error === "not-allowed" ? "The microphone is blocked. Allow it in the browser, or type instead." : e.error === "no-speech" ? "I did not hear anything. Tap to try again." : "");
+    r.onerror = (e) => setNote(e.error === "not-allowed" ? MIC_BLOCKED : e.error === "no-speech" ? "I did not hear anything, sir. Tap and speak again." : "Voice is not working in this browser. Please type instead.");
     r.onend = () => {
-      mic.current?.stop();
       rec.current = null;
       const q = final.trim();
       if (q) void answer(q);
@@ -166,60 +167,11 @@ export function AskVoice() {
     };
     rec.current = r;
     beginListening();
-    void openMic();
-    r.start();
-  }
-
-  /**
-   * Browsers without built-in recognition (Firefox) record the question and ElevenLabs transcribes it.
-   * Recording stops by itself after a short silence once you have spoken, or when you tap again.
-   */
-  async function listenRecorded() {
-    beginListening();
-    const stream = await openMic();
-    if (!stream) {
-      setVoice("idle");
-      return;
-    }
-    const chunks: Blob[] = [];
-    const r = new MediaRecorder(stream);
-    recorder.current = r;
-    r.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-    const startedAt = performance.now();
-    let spoke = false;
-    let loudAt = startedAt;
-    const watch = setInterval(() => {
-      const now = performance.now();
-      if (level.current > 0.08) {
-        spoke = true;
-        loudAt = now;
-      }
-      if ((spoke && now - loudAt > 1300) || now - startedAt > 15000) r.stop();
-    }, 100);
-    r.onstop = async () => {
-      clearInterval(watch);
-      mic.current?.stop();
-      recorder.current = null;
-      if (!spoke) {
-        setNote("I did not hear anything. Tap to try again.");
-        setVoice("idle");
-        return;
-      }
-      setVoice("thinking");
-      try {
-        const res = await fetch("/api/voice/listen", { method: "POST", body: new Blob(chunks, { type: r.mimeType || "audio/webm" }) });
-        const data = (await res.json()) as { text?: string; error?: string };
-        if (!res.ok || !data.text) throw new Error(data.error ?? "No words recognised.");
-        void answer(data.text);
-      } catch {
-        setNote("I could not make that out. Tap to try again, or type instead.");
-        setVoice("idle");
-      }
-    };
     r.start();
   }
 
   async function answer(q: string) {
+    unlockAudio();
     setHeard(q);
     setSources(false);
     setMore(false);
@@ -242,44 +194,16 @@ export function AskVoice() {
     level.current = 0;
   }
 
-  /** Speaks with the ElevenLabs voice; the orb follows the real loudness of the audio. Falls back to the browser's voice. */
+  /** Speaks with the ElevenLabs voice; the orb follows the real loudness. Falls back to the browser's voice. */
   async function say(words: string) {
     stopSpeaking();
     try {
-      const res = await fetch("/api/voice/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: words }) });
-      if (!res.ok) throw new Error("speak failed");
-      const url = URL.createObjectURL(await res.blob());
-      const audio = new Audio(url);
-      const ac = new AudioContext();
-      const an = ac.createAnalyser();
-      an.fftSize = 512;
-      const src = ac.createMediaElementSource(audio);
-      src.connect(an);
-      an.connect(ac.destination);
-      const buf = new Uint8Array(an.fftSize);
-      let raf = 0;
-      const tick = () => {
-        an.getByteTimeDomainData(buf);
-        let sum = 0;
-        for (const v of buf) sum += ((v - 128) / 128) ** 2;
-        level.current = Math.min(1, Math.sqrt(sum / buf.length) * 5);
-        raf = requestAnimationFrame(tick);
-      };
-      const done = () => {
-        cancelAnimationFrame(raf);
-        level.current = 0;
-        URL.revokeObjectURL(url);
-        void ac.close();
-        if (player.current === handle) player.current = null;
-        setVoice((v) => (v === "speaking" ? "idle" : v));
-      };
-      const handle = { stop: () => { audio.pause(); done(); } };
-      player.current = handle;
-      audio.onended = done;
-      audio.onerror = done;
       setVoice("speaking");
-      tick();
-      await audio.play();
+      const playback = await speak(words, level);
+      player.current = playback;
+      await playback.done;
+      if (player.current === playback) player.current = null;
+      setVoice((v) => (v === "speaking" ? "idle" : v));
     } catch {
       browserSay(words);
     }
@@ -317,7 +241,7 @@ export function AskVoice() {
   function tapOrb() {
     if (voice === "listening") {
       rec.current?.stop();
-      if (recorder.current?.state === "recording") recorder.current.stop();
+      recording.current?.stop();
     } else if (voice === "speaking") {
       stopSpeaking();
       setVoice("idle");

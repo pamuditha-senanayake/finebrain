@@ -20,7 +20,7 @@ QUESTION = "How many days do customers have to ask for a refund?"
 
 # --- Helpers
 
-def fake_answerer(question: str, documents: list[tuple[str, str]], history=()) -> tuple[str, list[str]]:
+def fake_answerer(question: str, documents: list[tuple[str, str]], history=(), address="sir") -> tuple[str, list[str]]:
     return "Customers have 30 days.", [documents[0][0], "item_made_up"]
 
 
@@ -30,8 +30,8 @@ class Recorder:
     def __init__(self):
         self.calls = []
 
-    def __call__(self, question, documents, history=()):
-        self.calls.append({"question": question, "ids": [item_id for item_id, _ in documents], "history": list(history)})
+    def __call__(self, question, documents, history=(), address="sir"):
+        self.calls.append({"question": question, "ids": [item_id for item_id, _ in documents], "history": list(history), "address": address})
         return f"Noted: {question}", []
 
 
@@ -107,6 +107,14 @@ def test_conversation_is_remembered_and_only_for_its_owner():
     other = client.get(f"/api/t/{TENANT}/ask/turns?conversation={first['conversationId']}", headers={"x-persona": "h-udayanga"})
     assert other.status_code == 403
     assert post_ask(client, "hi", persona="h-udayanga", conversation=first["conversationId"]).status_code == 403
+
+
+def test_each_person_is_addressed_their_way():
+    answerer = Recorder()
+    client, _ = build(answerer)
+    post_ask(client, "hi")
+    post_ask(client, "hi", persona="h-udayanga")
+    assert [call["address"] for call in answerer.calls] == ["sir", "Udayanga"]
 
 
 def test_new_conversation_has_no_history():

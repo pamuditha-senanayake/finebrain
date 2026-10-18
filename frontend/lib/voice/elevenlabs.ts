@@ -34,11 +34,20 @@ export async function speak(text: string): Promise<Response> {
   return res;
 }
 
+/** Safari records MP4 and Chrome records WebM; the file name tells Scribe which. */
+function extensionOf(type: string): string {
+  if (type.includes("mp4") || type.includes("aac")) return "m4a";
+  if (type.includes("mpeg")) return "mp3";
+  if (type.includes("ogg")) return "ogg";
+  if (type.includes("wav")) return "wav";
+  return "webm";
+}
+
 /** Recorded audio to text with Scribe. */
 export async function transcribe(audio: Blob): Promise<string> {
   const form = new FormData();
   form.append("model_id", "scribe_v1");
-  form.append("file", audio, "speech.webm");
+  form.append("file", audio, `speech.${extensionOf(audio.type)}`);
   const res = await fetch(`${API}/speech-to-text`, { method: "POST", headers: { "xi-api-key": key() }, body: form });
   if (!res.ok) throw new VoiceError(`ElevenLabs could not transcribe (${res.status}).`, 502);
   const data = (await res.json()) as { text?: string };

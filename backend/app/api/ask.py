@@ -28,6 +28,11 @@ def citation(item: ContextItem) -> Citation:
                     valid_from=(item.valid_from or item.recorded_at).isoformat(), valid_to=item.valid_to.isoformat() if item.valid_to else None)
 
 
+def address_of(person: dict) -> str:
+    """How the brain addresses this person: their chosen form, like "sir", or else their first name."""
+    return person.get("address") or person.get("name", "").split(" ")[0] or "there"
+
+
 def read_for(lane, persona: str, question: str):
     """S5 as the person: their tier decides what they may read. The access decision goes to the audit log."""
     person = lane.seed["people"][persona]
@@ -54,7 +59,7 @@ def ask(lane, answerer, persona: str, question: str, scope: str | None, conversa
         text, cited = (NO_CLAUDE_NOTE, list(by_id)) if by_id else (NOTHING_FOUND, [])
     else:
         by_id.setdefault(self_knowledge.OVERVIEW_ID, self_knowledge.overview())
-        text, cited = answerer(question, [(item.item_id, item.text) for item in by_id.values()], history)
+        text, cited = answerer(question, [(item.item_id, item.text) for item in by_id.values()], history, address_of(lane.seed["people"][persona]))
     cited = [item_id for item_id in cited if item_id in by_id]
     ask_memory.remember(lane, conversation_id, persona, question, text, cited)
     return AskAnswer(question=question, answer=text, citations=[citation(by_id[item_id]) for item_id in cited], withheld=bundle.denied_count,

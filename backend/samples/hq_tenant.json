@@ -10,7 +10,7 @@
   },
   "seed_overrides": {"tenant_id": "finebase-hq", "env": "production"},
   "people": {
-    "h-pamuditha": {"tier": "L1", "roles": ["founder", "dri", "leader", "head_of_cs"], "delegate": null, "name": "Pamuditha Senanayake", "title": "Founder", "color": "#4338ca"},
+    "h-pamuditha": {"tier": "L1", "roles": ["founder", "dri", "leader", "head_of_cs"], "delegate": null, "name": "Pamuditha Senanayake", "title": "Founder", "color": "#4338ca", "address": "sir"},
     "h-udayanga": {"tier": "L2", "roles": ["steward"], "delegate": "h-pamuditha", "name": "Udayanga Weerakoon", "title": "Steward", "color": "#0f766e"},
     "h-imashi": {"tier": "L2", "roles": ["steward"], "delegate": "h-pamuditha", "name": "Imashi Dissanayake", "title": "Steward", "color": "#b45309"}
   },
