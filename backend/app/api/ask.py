@@ -1,6 +1,8 @@
 # ask.py: Ask the Brain for Finebase HQ. A person's question goes through S5 with that person's own rights, then Claude
-# answers from only the documents they may read and cites them. Without a Claude key it lists the closest documents.
-# Used by: routes.py, tests/test_api_brain.py. Uses: stages_retrieve.py, ui_models_work.py, retry.py.
+# answers from only the documents they may read, plus the brain's own "who I am", and what was said earlier in the
+# conversation. Each turn is remembered. Without a Claude key it lists the closest documents.
+# Used by: routes.py, tests/test_api_brain.py. Uses: ask_memory.py, self_knowledge.py, stages_retrieve.py, retry.py.
+from app.api import ask_memory, self_knowledge
 from app.api.ui_models_work import AskAnswer, Citation
 from app.pipeline import stages_retrieve
 from app.pipeline.contracts_reason import ContextItem, ContextQuery
@@ -42,14 +44,18 @@ def read_for(lane, persona: str, question: str):
     return bundle
 
 
-def ask(lane, answerer, persona: str, question: str, scope: str | None) -> AskAnswer:
-    """The answer, its citations, and how many items were withheld from this person."""
+def ask(lane, answerer, persona: str, question: str, scope: str | None, conversation_id: str | None) -> AskAnswer:
+    """The answer, its citations, and how many items were withheld. A missing conversation id starts a new one."""
+    conversation_id = conversation_id or lane.new_id("conv")
+    history = ask_memory.recent(lane, conversation_id, persona)
     bundle = read_for(lane, persona, question)
     by_id = {item.item_id: item for item in bundle.items}
-    if not bundle.items:
-        text, cited = NOTHING_FOUND, []
-    elif answerer is None:
-        text, cited = NO_CLAUDE_NOTE, list(by_id)
+    if answerer is None:
+        text, cited = (NO_CLAUDE_NOTE, list(by_id)) if by_id else (NOTHING_FOUND, [])
     else:
-        text, cited = answerer(question, [(item.item_id, item.text) for item in bundle.items])
-    return AskAnswer(question=question, answer=text, citations=[citation(by_id[item_id]) for item_id in cited if item_id in by_id], withheld=bundle.denied_count, scope=scope)
+        by_id.setdefault(self_knowledge.OVERVIEW_ID, self_knowledge.overview())
+        text, cited = answerer(question, [(item.item_id, item.text) for item in by_id.values()], history)
+    cited = [item_id for item_id in cited if item_id in by_id]
+    ask_memory.remember(lane, conversation_id, persona, question, text, cited)
+    return AskAnswer(question=question, answer=text, citations=[citation(by_id[item_id]) for item_id in cited], withheld=bundle.denied_count,
+                     scope=scope, conversation_id=conversation_id)

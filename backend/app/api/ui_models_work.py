@@ -106,3 +106,10 @@ class AskAnswer(UiModel):
     citations: list[Citation]
     withheld: int
     scope: Literal["page", "system"] | None = None
+    conversation_id: str | None = None
+
+
+class AskTurn(UiModel):
+    question: str
+    answer: str
+    at: str

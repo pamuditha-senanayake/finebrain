@@ -1,6 +1,6 @@
 "use client";
 
-import { History, Keyboard, Mic, Send, Square, Volume2, VolumeX } from "lucide-react";
+import { History, Keyboard, Mic, Plus, Send, Square, Volume2, VolumeX } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -8,7 +8,7 @@ import type { AskAnswer } from "@/contracts";
 import { Button } from "@/components/ui/button";
 import { ConnectorPicker } from "@/features/connect/connector-picker";
 import { Interview } from "@/features/setup/interview";
-import { useAsk } from "@/lib/api/hooks";
+import { useAsk, useConversation } from "@/lib/api/conversation";
 import { date } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { VoiceOrb, type VoiceState } from "./voice-orb";
@@ -60,6 +60,7 @@ function shortOf(answer: string): { short: string; rest: string } {
 /** Full page Ask the Brain with a voice agent: talk or type, hear the answer, see its sources on demand. */
 export function AskVoice() {
   const ask = useAsk();
+  const conversation = useConversation();
   const supported = useVoiceSupported();
   const [voice, setVoice] = useState<VoiceState>("idle");
   const [heard, setHeard] = useState("");
@@ -349,7 +350,9 @@ export function AskVoice() {
 
   const last = turns[turns.length - 1];
   const showLast = last && voice !== "listening" && voice !== "thinking" && heard === last.q;
-  const before = turns.slice(0, -1);
+  // Earlier turns: what was saved before this page opened, then this visit's turns except the last.
+  const saved: Turn[] = conversation.saved.map((t) => ({ q: t.question, a: { question: t.question, answer: t.answer, citations: [], withheld: 0 } }));
+  const before = [...saved, ...turns.slice(0, -1)];
   const slash = typing && text.startsWith("/") ? COMMANDS.filter((c) => c.cmd.startsWith(text.trim().split(" ")[0].toLowerCase())) : [];
 
   // The setup interview takes over the page; the orb stays small above it and speaks each question.
@@ -377,6 +380,11 @@ export function AskVoice() {
         {before.length > 0 && (
           <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setEarlier(!earlier)} aria-expanded={earlier}>
             <History /> Earlier ({before.length})
+          </Button>
+        )}
+        {(before.length > 0 || turns.length > 0) && (
+          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => { conversation.startOver(); setTurns([]); setHeard(""); setEarlier(false); }}>
+            <Plus /> New
           </Button>
         )}
         <Button variant="ghost" size="icon-sm" className="ml-auto text-muted-foreground" onClick={() => { setSpeakOut(!speakOut); stopSpeaking(); if (voice === "speaking") setVoice("idle"); }} aria-label={speakOut ? "Turn spoken replies off" : "Turn spoken replies on"} aria-pressed={speakOut}>

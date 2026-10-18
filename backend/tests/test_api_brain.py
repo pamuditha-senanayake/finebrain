@@ -1,10 +1,11 @@
 # test_api_brain.py: Ask the Brain and Sensors on the Finebase HQ API (step 9b). Ask reads with the person's own
-# rights, cites only what it was given, and logs the read; Sensors come from connectors and S1's counters.
-# Uses: app/api/routes.py, app/api/ask.py, app/api/hq.py (load_hq), capture_api.py, stages_retrieve.py, tests/golden.py.
+# rights, cites only what it was given, logs the read, always knows who it is (cold start), and remembers the
+# conversation; Sensors come from connectors and S1's counters.
+# Uses: app/api/routes.py, ask.py, ask_memory.py, self_knowledge.py, hq.py (load_hq), capture_api.py, tests/golden.py.
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api import ask
+from app.api import ask, self_knowledge
 from app.api.hq import load_hq
 from app.api.routes import create_api_app
 from app.pipeline import capture_api, fakes, observe, orchestrate, stages_retrieve
@@ -19,8 +20,19 @@ QUESTION = "How many days do customers have to ask for a refund?"
 
 # --- Helpers
 
-def fake_answerer(question: str, documents: list[tuple[str, str]]) -> tuple[str, list[str]]:
+def fake_answerer(question: str, documents: list[tuple[str, str]], history=()) -> tuple[str, list[str]]:
     return "Customers have 30 days.", [documents[0][0], "item_made_up"]
+
+
+class Recorder:
+    """An answerer that keeps what it was given, so tests can see the documents and the earlier turns."""
+
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, question, documents, history=()):
+        self.calls.append({"question": question, "ids": [item_id for item_id, _ in documents], "history": list(history)})
+        return f"Noted: {question}", []
 
 
 def build(answerer=fake_answerer):
@@ -29,8 +41,8 @@ def build(answerer=fake_answerer):
     return TestClient(create_api_app(lane, HQ, answerer)), lane
 
 
-def post_ask(client, question: str = QUESTION, persona: str = FOUNDER, page: dict | None = None):
-    return client.post(f"/api/t/{TENANT}/ask", json={"question": question, "page": page}, headers={"x-persona": persona})
+def post_ask(client, question: str = QUESTION, persona: str = FOUNDER, page: dict | None = None, conversation: str | None = None):
+    return client.post(f"/api/t/{TENANT}/ask", json={"question": question, "page": page, "conversationId": conversation}, headers={"x-persona": persona})
 
 
 # --- Ask the Brain
@@ -66,6 +78,43 @@ def test_store_outage_answers_503(monkeypatch):
 
     monkeypatch.setattr(stages_retrieve, "retrieve", broken)
     assert post_ask(client).json() == {"error": "knowledge_unavailable"}
+
+
+# --- Cold start and memory
+
+def test_self_knowledge_is_public_knowledge_in_the_hq_seed():
+    mine = [item for item in SEED["knowledge"] if item["source"]["document_id"] == self_knowledge.DOCUMENT_ID]
+    assert len(mine) >= 5 and all(item["sensitivity"] == "public" and item["kind"] == "chunk" for item in mine)
+
+
+def test_who_i_am_goes_with_every_question():
+    answerer = Recorder()
+    client, _ = build(answerer)
+    post_ask(client, "hello, what can you do?")
+    assert self_knowledge.OVERVIEW_ID in answerer.calls[0]["ids"]
+
+
+def test_conversation_is_remembered_and_only_for_its_owner():
+    answerer = Recorder()
+    client, _ = build(answerer)
+    first = post_ask(client, "My favourite colour is teal.").json()
+    second = post_ask(client, "What is my favourite colour?", conversation=first["conversationId"]).json()
+    assert second["conversationId"] == first["conversationId"]
+    assert answerer.calls[1]["history"] == [("My favourite colour is teal.", "Noted: My favourite colour is teal.")]
+    turns = client.get(f"/api/t/{TENANT}/ask/turns?conversation={first['conversationId']}", headers={"x-persona": FOUNDER}).json()
+    assert [t["question"] for t in turns] == ["My favourite colour is teal.", "What is my favourite colour?"]
+    assert set(turns[0]) == {"question", "answer", "at"}
+    other = client.get(f"/api/t/{TENANT}/ask/turns?conversation={first['conversationId']}", headers={"x-persona": "h-udayanga"})
+    assert other.status_code == 403
+    assert post_ask(client, "hi", persona="h-udayanga", conversation=first["conversationId"]).status_code == 403
+
+
+def test_new_conversation_has_no_history():
+    answerer = Recorder()
+    client, _ = build(answerer)
+    post_ask(client, "first")
+    post_ask(client, "second")
+    assert answerer.calls[1]["history"] == []
 
 
 # --- Sensors

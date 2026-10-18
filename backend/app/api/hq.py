@@ -9,6 +9,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from app.api import self_knowledge
 from app.api.routes import create_api_app
 from app.pipeline import fakes, llm, orchestrate
 from app.pipeline.adapters import ALL_REAL_PARTS, make_memory_adapters, missing_infra, real_adapters
@@ -22,10 +23,11 @@ TICK_SECONDS = 0.2
 
 
 def load_hq() -> tuple[dict, dict]:
-    """The golden seed with Finebase HQ's tenant id, people and clusters on top."""
+    """The golden seed with Finebase HQ's tenant id, people and clusters on top, plus the brain's knowledge about itself."""
     hq = json.loads((SAMPLES / "hq_tenant.json").read_text())
     golden = json.loads((SAMPLES / "golden_refund_run.json").read_text())
-    return {**golden["seed"], **hq["seed_overrides"], "people": hq["people"]}, hq
+    knowledge = golden["seed"]["knowledge"] + list(self_knowledge.items())
+    return {**golden["seed"], **hq["seed_overrides"], "people": hq["people"], "knowledge": knowledge}, hq
 
 
 def choose_parts() -> frozenset[str]:

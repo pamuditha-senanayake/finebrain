@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.api import ask as asking
+from app.api import ask_memory
 from app.api import views
 from app.api.lists import clusters_view, list_view, live_event, refusal_for, sensors_view, tenant_view
 from app.pipeline import capture_api, orchestrate
@@ -57,6 +58,11 @@ def create_api_app(lane, hq: dict, answerer=None) -> FastAPI:
             return tenant_view(lane, hq)
         if resource == "clusters":
             return clusters_view(lane, hq)
+        if resource == "ask/turns":
+            try:
+                return ask_memory.shown(lane, request.query_params.get("conversation", ""), x_persona)
+            except ask_memory.NotYourConversation:
+                raise HTTPException(403, "not_your_conversation") from None
         if resource == "sensors":
             return sensors_view(lane, hq, started)
         if resource == "humans":
@@ -100,9 +106,11 @@ def create_api_app(lane, hq: dict, answerer=None) -> FastAPI:
         if not question:
             raise HTTPException(400, "empty_question")
         try:
-            return asking.ask(lane, answerer, x_persona, question, (body.get("page") or {}).get("scope")).ui()
+            return asking.ask(lane, answerer, x_persona, question, (body.get("page") or {}).get("scope"), body.get("conversationId")).ui()
         except asking.AskUnavailable:
             raise HTTPException(503, "knowledge_unavailable") from None
+        except ask_memory.NotYourConversation:
+            raise HTTPException(403, "not_your_conversation") from None
 
     @app.post("/api/t/{tenant}/{rest:path}")
     def not_built(tenant: str, rest: str, x_persona: str = Header(default="")):

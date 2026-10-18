@@ -135,6 +135,4 @@ export function useOp<A = Record<string, unknown>>(op: string, opts: { success?:
   });
 }
 
-export function useAsk() {
-  return useMutation({ mutationFn: (input: { question: string; page?: { path: string; scope: "page" | "system" } }) => apiPost("ask", input, C.AskAnswer) });
-}
+export { useAsk } from "./conversation";

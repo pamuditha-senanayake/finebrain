@@ -120,8 +120,13 @@ export const AskAnswer = z.object({
   /** Short how-to steps for the page the person is on. */
   guide: z.array(z.string()).optional(),
   actions: z.array(z.object({ label: z.string(), href: z.string() })).optional(),
+  /** Set by the real brain: the conversation this answer belongs to, so the next question can refer back. */
+  conversationId: z.string().nullable().optional(),
 });
 export type AskAnswer = z.infer<typeof AskAnswer>;
+
+export const AskTurn = z.object({ question: z.string(), answer: z.string(), at: IsoDate });
+export type AskTurn = z.infer<typeof AskTurn>;
 
 export const SearchHit = z.object({ id: z.string(), kind: z.string(), label: z.string(), href: z.string(), hint: z.string() });
 export type SearchHit = z.infer<typeof SearchHit>;
