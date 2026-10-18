@@ -1,12 +1,13 @@
 # routes.py: the console API for Finebase HQ: GET /api/t/{tenant}/{resource}, POST ops/decide, the live stream, and
 # capture. Screens not built yet answer [] (lists) or 501 (single objects); they never fall back to demo data.
-# Used by: hq.py, tests/test_api.py. Uses: lists.py, views.py, capture_api.py, ui_stream.py, orchestrate.py.
+# Used by: hq.py, tests/test_api.py. Uses: ask.py, lists.py, views.py, capture_api.py, ui_stream.py, orchestrate.py.
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from app.api import ask as asking
 from app.api import views
-from app.api.lists import clusters_view, list_view, live_event, refusal_for, tenant_view
+from app.api.lists import clusters_view, list_view, live_event, refusal_for, sensors_view, tenant_view
 from app.pipeline import capture_api, orchestrate
 from app.pipeline.contracts_run import Decision
 from app.pipeline.ui_stream import stream_events
@@ -19,11 +20,12 @@ NULLABLE_OBJECTS = {"digest"}
 
 # --- The app
 
-def create_api_app(lane, hq: dict) -> FastAPI:
+def create_api_app(lane, hq: dict, answerer=None) -> FastAPI:
     app = FastAPI(title="finebrain API")
     app.add_middleware(CORSMiddleware, allow_origins=CONSOLE_ORIGINS, allow_methods=["*"], allow_headers=["*"])
     capture_api.register(app, lane)
     tenant_id = lane.seed["tenant_id"]
+    started = lane.now  # sensors count events per hour since the API started
 
     def check(tenant: str, persona: str | None) -> None:
         if tenant != tenant_id:
@@ -55,6 +57,8 @@ def create_api_app(lane, hq: dict) -> FastAPI:
             return tenant_view(lane, hq)
         if resource == "clusters":
             return clusters_view(lane, hq)
+        if resource == "sensors":
+            return sensors_view(lane, hq, started)
         if resource == "humans":
             return [views.human_view(lane, pid, person).ui() for pid, person in lane.seed["people"].items()]
         served = list_view(lane, resource, dict(request.query_params))
@@ -87,6 +91,18 @@ def create_api_app(lane, hq: dict) -> FastAPI:
             raise HTTPException(*refused)
         orchestrate.decide(lane, decision)
         return {"ok": True}
+
+    @app.post("/api/t/{tenant}/ask")
+    async def ask(tenant: str, request: Request, x_persona: str = Header(default="")):
+        check(tenant, x_persona)
+        body = await request.json()
+        question = str(body.get("question") or "").strip()
+        if not question:
+            raise HTTPException(400, "empty_question")
+        try:
+            return asking.ask(lane, answerer, x_persona, question, (body.get("page") or {}).get("scope")).ui()
+        except asking.AskUnavailable:
+            raise HTTPException(503, "knowledge_unavailable") from None
 
     @app.post("/api/t/{tenant}/{rest:path}")
     def not_built(tenant: str, rest: str, x_persona: str = Header(default="")):

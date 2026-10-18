@@ -16,6 +16,8 @@ const CHECKS: [string, z.ZodType][] = [
   ["approvals", z.array(C.Approval)],
   ["access-decisions", z.array(C.AccessDecision)],
   ["audit", z.array(C.AuditEvent)],
+  ["sensors", z.array(C.Sensor)],
+  ["trends", z.array(C.TrendCard)],
 ];
 
 async function fetchJson(path: string) {
@@ -40,6 +42,11 @@ async function main() {
   if (runs[0]) results.push(await check(`runs/${runs[0].id}`, C.RunDetail));
   const approvals = (await fetchJson("approvals")).body as { id: string }[];
   if (approvals[0]) results.push(await check(`approvals/${approvals[0].id}`, C.Approval));
+  // Ask the Brain is a POST
+  const asked = await fetch(`${API}/api/t/${TENANT}/ask`, { method: "POST", headers: { "x-persona": PERSONA, "content-type": "application/json" }, body: JSON.stringify({ question: "What is the refund window?", page: { path: "/l1/ask", scope: "system" } }) });
+  const answer = C.AskAnswer.safeParse(await asked.json());
+  console.log(`${answer.success && asked.ok ? "ok  " : "FAIL"} ask${answer.success ? "" : ` ${answer.error.issues[0]?.path.join(".")}: ${answer.error.issues[0]?.message}`}`);
+  results.push(answer.success && asked.ok);
   process.exit(results.every(Boolean) ? 0 : 1);
 }
 

@@ -1,8 +1,12 @@
 # lists.py: the console resources that need more than one record: tenant, clusters, filtered lists, the decision
-# pre-check, and K11 as LiveEvent. Used by: routes.py, tests. Uses: views.py, ui_models.py, stages_decide.py.
+# pre-check, sensors from connectors, and K11 as LiveEvent. Used by: routes.py, tests. Uses: views.py, ui_models.py, stages_decide.py.
+from datetime import datetime
+
 from app.api import ui_models as ui
+from app.api import ui_models_work as work
 from app.api import views
 from app.pipeline import stages_decide
+from app.pipeline.observe import read_count, read_last_seen
 from app.pipeline.contracts_run import ApprovalRequest, Decision
 
 # Config
@@ -24,6 +28,20 @@ def clusters_view(lane, hq: dict) -> list[dict]:
                        dri=c["dri"], health=1.0, autonomy_rate=sum(not r["human_touch"] for r in runs) / len(runs) if runs else 0.0,
                        escalation_rate=len(escalated) / len(runs) if runs else 0.0, money_at_stake_minor=0, open_risks=0,
                        cost_per_task_usd=sum(r["cost"]["usd_micro"] for r in runs) / len(runs) / 1_000_000 if runs else 0.0).ui() for c in hq["clusters"]]
+
+
+def sensors_view(lane, hq: dict, started: datetime) -> list[dict]:
+    """One sensor per connector named in hq_tenant.json: health from its grant, activity from S1's counters."""
+    hours = max((lane.now - started).total_seconds() / 3600, 1.0)
+    shown = []
+    for connector_id, about in hq.get("sensors", {}).items():
+        connector = lane.seed["connectors"][connector_id]
+        captured = read_count(f"s1.captured.{connector_id}")
+        shown.append(work.Sensor(id=connector_id, tenant_id=lane.seed["tenant_id"], cluster_id=about["cluster"], name=about["name"], source=connector["source_type"],
+                               kind=about["kind"], events=about["events"], subscribers=about["subscribers"], health="ok" if connector["grant_active"] else "down",
+                               scopes=[connector["grant_id"]], retention_days=90, personal_data=about["personal_data"],
+                               last_event_at=read_last_seen(f"s1.last_event.{connector_id}") or started.isoformat(), events_per_hour=round(captured / hours, 2)).ui())
+    return shown
 
 
 def list_view(lane, resource: str, query: dict) -> list[dict] | None:

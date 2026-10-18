@@ -16,5 +16,10 @@
   },
   "clusters": [
     {"id": "customer_care", "name": "Customer care", "description": "Support inbox, refunds and customer replies.", "dri": "h-pamuditha"}
-  ]
+  ],
+  "sensors": {
+    "conn_gmail_support": {"name": "Support inbox", "kind": "inbox", "cluster": "customer_care", "events": ["email.received"], "subscribers": ["agent_refund_worker"], "personal_data": true},
+    "conn_web_chat": {"name": "Website chat", "kind": "chat", "cluster": "customer_care", "events": ["chat.message"], "subscribers": ["agent_refund_worker"], "personal_data": true},
+    "conn_upload_console": {"name": "Console uploads", "kind": "documents", "cluster": "customer_care", "events": ["document.uploaded"], "subscribers": [], "personal_data": false}
+  }
 }

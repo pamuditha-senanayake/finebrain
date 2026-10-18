@@ -46,6 +46,11 @@ def choose_models():
     return fakes.make_recorded_caller({})[0], None, None
 
 
+def choose_answerer():
+    """Claude Sonnet for Ask the Brain when a key is set; None lists the closest documents instead."""
+    return llm.make_answerer() if USE_CLAUDE and os.environ.get("ANTHROPIC_API_KEY") else None
+
+
 def unique_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
@@ -74,4 +79,4 @@ def build_hq_app():
     lane = orchestrate.build_lane(seed, model, fakes.make_fake_gateway()[0], datetime.now(timezone.utc), make_adapters, choose, grade, new_id=unique_id)
     log_event("API", "hq_started", parts=sorted(parts), claude=choose is not None)
     threading.Thread(target=keep_running, args=(lane,), daemon=True).start()
-    return create_api_app(lane, hq)
+    return create_api_app(lane, hq, choose_answerer())
