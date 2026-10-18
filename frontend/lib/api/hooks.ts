@@ -81,6 +81,7 @@ export const useNotifications = () => useResource("notifications", list(C.Notifi
 export const useDigest = () => useResource("digest", C.Digest.nullable());
 export const useOverview = () => useResource("overview", C.Overview);
 export const useAnalytics = () => useResource("analytics", C.Analytics);
+export const useTrends = () => useResource("trends", list(C.TrendCard));
 export const useActivities = () => useResource("activities", list(z.object({ cluster: z.string(), activity: z.string(), agent: z.string(), sensors: z.array(z.string()), template: z.string(), criticality: z.string() })));
 export const useSearch = (q: string) => useResource(`search?q=${encodeURIComponent(q)}`, list(C.SearchHit), { enabled: q.trim().length > 1 });
 export const useResearch = () => useResource("research", list(ResearchSnapshot));

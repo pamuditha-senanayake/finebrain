@@ -1,5 +1,6 @@
 import {
   Activity,
+  TrendingUp,
   AlarmClock,
   AudioLines,
   BarChart3,
@@ -57,6 +58,7 @@ export const NAV: NavArea[] = [
       { href: "/studio", label: "nav.studio", icon: Workflow, group: 1 },
       { href: "/l1/entity", label: "nav.entity", icon: CalendarClock, group: 2 },
       { href: "/l1/analytics", label: "nav.analytics", icon: BarChart3, group: 2 },
+      { href: "/l1/trends", label: "nav.trends", icon: TrendingUp, group: 2 },
       { href: "/l1/audit", label: "nav.audit", icon: ScrollText, group: 2 },
       { href: "/l1/setup", label: "nav.setup", icon: Settings2, group: 3 },
     ],

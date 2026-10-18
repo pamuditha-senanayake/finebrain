@@ -23,6 +23,7 @@ import { approverFor, assessCriticality, canApprove, type ChangeKind } from "@/l
 import { readinessOf, statusOf } from "@/lib/governance/readiness";
 import { DAY, HOUR, hashString, iso } from "./prng";
 import { applyStudioPending, studioApply, studioSuggest } from "./studio/ops";
+import { markTrendKnown } from "./trend-ops";
 import type { TenantData } from "./types";
 
 export type Ctx = { now: number; actor: Actor };
@@ -812,6 +813,6 @@ export function markRead(d: TenantData, _ctx: Ctx, { id }: { id: string | "all" 
 export const OPS = {
   takeover, handback, markRunWrong, sendMessage, closeConversation, skillify, runChecks, decide, rollback, runReadinessScheduler, uploadEvidence, requestGrant, revokeGrant,
   librarianPropose, experimentPreview, experimentStart, experimentConclude, experimentKeep, experimentDiscard, runOvernightReview, saveSkillDraft, promoteAgent,
-  revealPersonal, addTrackingItem, markRead, studioApply, studioSuggest,
+  revealPersonal, addTrackingItem, markRead, studioApply, studioSuggest, markTrendKnown,
 } as const;
 export type OpName = keyof typeof OPS;

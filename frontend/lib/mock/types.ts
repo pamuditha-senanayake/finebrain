@@ -38,6 +38,7 @@ import type {
   Tenant,
   TrackingPlanItem,
   TraceStep,
+  TrendCard,
 } from "@/contracts";
 
 export type ActivityDef = {
@@ -93,6 +94,7 @@ export type TenantData = {
   audit: AuditEvent[];
   notifications: Notification[];
   digest: Digest | null;
+  trends: TrendCard[];
   studio: StudioData;
   counter: number;
 };

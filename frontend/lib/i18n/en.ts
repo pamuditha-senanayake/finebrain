@@ -22,6 +22,7 @@ export const en = {
   "nav.entity": "Entity protection",
   "nav.evidence": "Evidence requests",
   "nav.analytics": "Progress and analytics",
+  "nav.trends": "Trends",
   "nav.audit": "Audit trail",
   "nav.graph": "Knowledge graph",
   "nav.versioning": "Versions",

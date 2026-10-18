@@ -95,6 +95,7 @@ const GETTERS: Record<string, Getter> = {
   },
   notifications: (d) => d.notifications,
   digest: (d) => d.digest,
+  trends: (d) => d.trends,
   overview: (d) => overview(d, db.now()),
   analytics: (d) => analytics(d, db.now()),
   search: (d, _p, url) => search(d, url.searchParams.get("q") ?? ""),

@@ -36,7 +36,7 @@ Three rules hold everywhere:
 
 | Tier | Who | Main screens |
 |---|---|---|
-| L1 Command | Founder, directors, DRIs | Brain overview, Ask the Brain, To review, Use in Claude, Workflow Studio, Entity protection, Analytics, Audit, Setup |
+| L1 Command | Founder, directors, DRIs | Brain overview, Ask the Brain, To review, Use in Claude, Workflow Studio, Entity protection, Analytics, Trends, Audit, Setup |
 | L2 Governance | Stewards, supervisor agents | Vault, Security, Knowledge graph (with Versions tab), Library, Policies, Skills, Resolver, Templates, Sensors, Loops, Readiness, L2 workflow studio |
 | L3 Operations | Operators, worker agents | Live conversations, Escalations, Fleet, Agent running history, Template board |
 
@@ -140,6 +140,7 @@ Shared types: `VersionRef`, `Money` (minor units, never floats: LKR 85,000 is `8
 | Workflow | `contracts/studio.ts` | name, criticality, dri, editors, members[], story { problem, today, scenarios[] } | Graph nodes on main |
 | StudioItem | `contracts/studio.ts` | kind (skill, agent, policy, template, sensor, scheduler, loop, tool), workflowId (null for tools), fields, version | Graph nodes, versioned |
 | Proposal + Review | `contracts/studio.ts` | changes[], verdict, criticality, findings, affected, otherWorkflows, authority route | Becomes a K13 commit and, if needed, a K8 approval |
+| TrendCard | `contracts/trends.ts` | metric, segment, ownerId, weeks[12], usual, latest, ratio, status (new, known), caseIds[] | One row per spike from the S13 weekly check |
 | Ask request | `ask-panel.tsx` | question, page { path, scope: page or system } | K4 with a human principal |
 
 ## 7. Storage
@@ -179,6 +180,20 @@ Shared types: `VersionRef`, `Money` (minor units, never floats: LKR 85,000 is `8
 | `ui.events` | tenant | S10 → SSE gateway |
 
 Each consumer group has its own `{topic}.dlq`. Every consumer is idempotent on `event_id`.
+
+### 7.1 Memory and trends
+
+The full design lives in `CB_Memory_Architecture.md`. These are the parts the backend still has to build.
+
+| Part | What it does | Where |
+|---|---|---|
+| Version chains | A new version of a document points to the old one; only the latest is searched | S11, Postgres facts |
+| Field dictionary | Core fields every project shares, extras kept as named fields | S11 extraction |
+| Narrowing first | Filters by tenant, domain, entity and time before any vector search | S5 |
+| Weekly counts | One row per week per metric and segment, written as runs close | `signal_counts` table, fed by `runs.completed` |
+| Spike check | Each week compares the latest count to the usual (median of 12 weeks); 3× or more opens a TrendCard and tells the owner | S13 |
+
+The Trends tab (L1) shows one TrendCard at a time. "Mark as known" sets status to known so the same spike stays quiet. Finebase HQ shows "No unusual weeks" until the spike check exists.
 
 ## 8. Failure rules
 
@@ -237,6 +252,7 @@ Keys: `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY` and the Google OAuth and Pub/Sub key
 | K13 Commit, ChangeRequest | Workflow Studio, Knowledge graph › Versions, L1 To review |
 | K14 ReleaseEvent | Versions history, Audit trail |
 | K15 GapDetected | L1 Entity protection, L1 To review › Evidence, L2 Readiness scheduler |
+| TrendCard (UI) | L1 Trends |
 
 ## 11. Where the backend stands
 
@@ -265,6 +281,7 @@ Keys: `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY` and the Google OAuth and Pub/Sub key
 | S9 Act (done) | `stages_act.py`, `tool_runners.py`: one runner per tool (payment gateway, email, escalate with no outside call); per tool and tenant rate limits (Valkey); finished results stored by idempotency key for 7 days so a retry after a crash never calls the tool again. Retryable errors get up to 6 attempts on the same key; not retryable fails the run and the console shows it; compensation hook per tool (none needed yet). Before acting on an approval, a newer released policy means S7 runs again: no stricter acts, stricter opens a new approval. Payment gateway and email stay fakes until open question 1 and connector OAuth |
 | S10 Record (done) | `stages_record.py`, `audit.py`, `ui_stream.py`: full run traces in S3 (`traces/{run_id}.json`); an append-only, hash-chained `audit_log` (Postgres + memory) over approvals, decisions, actions, runs and access decisions, with `verify_chain`; a per-tenant SSE stream app (`GET /api/stream`) with catch-up and a `delayed` notice; display text and step reasons scanned for leaked personal data. A trace failure publishes the run with the trace `pending:`; a recorder failure is retryable and replayable. Lane A S1 to S10 is now complete for steps 7 and 8 |
 | Step 9a (done): Finebase HQ | The console now has three tenants: demo-fbl and Scale Demo (mock data) and Finebase HQ (real backend). `backend/app/main.py` builds the HQ pipeline (`app/api/hq.py`: real infra where it answers, real Claude and Voyage when keys are set) and serves tenant, humans, clusters, runs, run detail, escalations, approvals with decide (S8 rules, 409 when refused), access decisions, audit and the live stream (`/api/t/finebase-hq/stream`). Unbuilt HQ screens answer [] or 501, never demo data. People: Pamuditha Senanayake (L1), Udayanga Weerakoon and Imashi Dissanayake (L2). Send test emails with `uv run python -m demos.send_to_hq`; check shapes with `npx tsx scripts/check-contracts.ts` |
+| Trends tab | Frontend only, on mock data for demo-fbl and Scale Demo. Backend counts and spike check come with S13 |
 | Still to come | OPA. In Postgres: graph, facts, chunks, outbox, encrypted vault columns |
 | Start all infra | `backend/scripts/dev_up.sh` |
 
