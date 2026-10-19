@@ -34,3 +34,7 @@ Every file lives in a folder that matches its job. No loose files at the repo ro
 - Only project config stays at the top of `backend/`: `pyproject.toml`, `uv.lock`, `README.md`, `.env`, `.env.example`, `.gitignore`, `.python-version`.
 - If a new file fits no folder above, ask before creating a new folder.
 - Scratch and temporary files go in the session scratchpad, never in the repo.
+
+## Commits and pull requests
+
+Do not add Claude attribution to commit messages or pull request descriptions: no `Co-Authored-By` line, no `Claude-Session` line, no "Generated with" line.
