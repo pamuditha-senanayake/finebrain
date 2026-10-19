@@ -27,7 +27,10 @@ type Props = {
 export function AskBubble({ items, voice, note, suggestions, onSend, onMic, onClose }: Props) {
   const [q, setQ] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  const feed = useRef<HTMLDivElement>(null);
   useEffect(() => input.current?.focus(), []);
+  // Keep the newest message in view; older ones scroll away above.
+  useEffect(() => feed.current?.scrollTo({ top: feed.current.scrollHeight, behavior: "smooth" }), [items, note]);
   const busy = voice === "thinking";
 
   function submit(text: string) {
@@ -37,7 +40,8 @@ export function AskBubble({ items, voice, note, suggestions, onSend, onMic, onCl
   }
 
   return (
-    <div role="dialog" aria-label="Ask the Brain" data-ask-ignore className="fixed bottom-24 right-4 z-40 flex w-[min(380px,calc(100vw-2rem))] flex-col gap-3 duration-200 animate-in fade-in slide-in-from-bottom-2 sm:bottom-26 sm:right-6">
+    <div role="dialog" aria-label="Ask the Brain" data-ask-ignore className="fixed bottom-24 right-4 z-40 flex max-h-[calc(100dvh-8rem)] w-[min(380px,calc(100vw-2rem))] flex-col gap-3 duration-200 animate-in fade-in slide-in-from-bottom-2 sm:bottom-26 sm:right-6">
+      <div ref={feed} className="scrollbar-thin flex min-h-0 flex-col gap-3 overflow-y-auto pr-1" aria-live="polite">
       {items.length === 0 && (
         <Blob>
           <p className="text-[15px] font-medium">{t("ask.greetingAsk")}</p>
@@ -50,11 +54,12 @@ export function AskBubble({ items, voice, note, suggestions, onSend, onMic, onCl
       )}
       {items.map((x) => (
         <Fragment key={x.id}>
-          <p className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-primary/10 px-4 py-2 text-[15px]">{x.q}</p>
+          <p className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-[color-mix(in_oklch,var(--primary)_12%,var(--card))] px-4 py-2 text-[15px] shadow-sm">{x.q}</p>
           {x.a ? <AnswerBlob a={x.a} /> : <Blob><Thinking /></Blob>}
         </Fragment>
       ))}
       {note && <p className="px-2 text-sm text-warn-fg">{note}</p>}
+      </div>
       <form className="flex items-center gap-1 rounded-full border bg-card p-1.5 pl-4 shadow-xl" onSubmit={(e) => { e.preventDefault(); submit(q); }}>
         <input ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about this page…" aria-label="Question" className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground" />
         <Button type="button" size="icon-sm" variant="ghost" className={cn("rounded-full", voice === "listening" && "text-primary")} onClick={onMic} aria-label={voice === "listening" ? "Stop listening" : "Talk"}>

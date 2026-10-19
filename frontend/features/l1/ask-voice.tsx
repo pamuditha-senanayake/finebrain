@@ -314,11 +314,11 @@ export function AskVoice() {
       </div>
 
       {earlier && (
-        <ol className="mx-auto w-full max-w-2xl space-y-3 px-6 pt-4">
+        <ol className="mx-auto flex w-full max-w-2xl flex-col gap-3 px-6 pt-4" aria-label="Earlier chat">
           {before.map((t, i) => (
-            <li key={i} className="rounded-xl border bg-surface px-5 py-4">
-              <p className="text-sm text-muted-foreground">{t.q}</p>
-              <p className="mt-1.5 text-[15px] leading-relaxed">{t.a.answer}</p>
+            <li key={i} className="flex flex-col gap-2">
+              <p className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-primary/10 px-4 py-2 text-[15px]">{t.q}</p>
+              <p className="max-w-[92%] rounded-3xl rounded-bl-md border bg-card px-5 py-3 text-[15px] leading-relaxed">{t.a.answer}</p>
             </li>
           ))}
         </ol>

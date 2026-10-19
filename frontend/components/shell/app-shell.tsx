@@ -17,6 +17,7 @@ import { navItemFor, useUsage } from "@/lib/usage";
 import { cn } from "@/lib/utils";
 import { AskOrb } from "./ask-orb";
 import { CommandPalette } from "./command-palette";
+import { HqOffline } from "./hq-offline";
 import { EnvSwitcher, NotificationsSheet, ShellMenu, TenantClusterSwitcher } from "./widgets";
 
 function useAreas() {
@@ -116,7 +117,7 @@ function useHoverPeek(enabled: boolean) {
 }
 
 export function AppShell({ area, children }: { area: Area; children: ReactNode }) {
-  const { user, isLoading } = useCurrentUser();
+  const { user, isLoading, error, retry } = useCurrentUser();
   const setPalette = useUi((s) => s.setPaletteOpen);
   const collapsed = useUi((s) => s.sidebarCollapsed);
   const toggleSidebar = useUi((s) => s.toggleSidebar);
@@ -179,7 +180,7 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
               <ShellMenu />
             </header>
             <main id="main" className={cn("w-full flex-1", fullBleed ? "px-3 py-4 sm:px-6 sm:py-5" : cn("mx-auto px-4 pb-16 pt-8 sm:px-8 sm:pt-10 lg:px-10", wide ? "max-w-[1440px]" : "max-w-[1120px]"))}>
-              {isLoading ? <LoadingState /> : !allowed ? <DeniedState reason={user ? `${user.name} (${user.tier}) cannot open ${area === "research" ? "the Research Console" : `${area} ${t(`tier.${area}`)}`}.` : "No persona selected."} home={homeFor(user)} /> : <Suspense fallback={<LoadingState />}>{children}</Suspense>}
+              {isLoading ? <LoadingState /> : error ? <HqOffline onRetry={retry} /> : !allowed ? <DeniedState reason={user ? `${user.name} (${user.tier}) cannot open ${area === "research" ? "the Research Console" : `${area} ${t(`tier.${area}`)}`}.` : "No persona selected."} home={homeFor(user)} /> : <Suspense fallback={<LoadingState />}>{children}</Suspense>}
             </main>
           </div>
         </div>

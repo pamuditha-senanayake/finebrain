@@ -11,10 +11,10 @@ import { usePersonaId } from "@/lib/store";
 export type AuthProviderKind = "mock" | "sso";
 export const authProvider: AuthProviderKind = process.env.NEXT_PUBLIC_AUTH_PROVIDER === "sso" ? "sso" : "mock";
 
-export function useCurrentUser(): { user: Human | null; isLoading: boolean } {
+export function useCurrentUser(): { user: Human | null; isLoading: boolean; error: unknown; retry: () => void } {
   const personaId = usePersonaId();
   const humans = useHumans();
-  return { user: humans.data?.find((h) => h.id === personaId) ?? null, isLoading: humans.isLoading };
+  return { user: humans.data?.find((h) => h.id === personaId) ?? null, isLoading: humans.isLoading, error: humans.error, retry: () => void humans.refetch() };
 }
 
 export type Area = Tier | "research";

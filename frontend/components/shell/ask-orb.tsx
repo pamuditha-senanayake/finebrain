@@ -11,6 +11,7 @@ import { useUi } from "@/lib/store";
 import { canRecord, openMic, recordQuestion, transcribe } from "@/lib/voice/mic";
 import { shortOf, speak, unlockAudio } from "@/lib/voice/speaker";
 import { AskBubble } from "./ask-bubble";
+import { AskHint } from "./ask-hint";
 
 export type Exchange = { id: number; q: string; a: AskAnswer | null };
 
@@ -122,6 +123,7 @@ export function AskOrb() {
       {open && (
         <AskBubble items={items} voice={voice} note={note} suggestions={guideFor(pathname).suggestions.slice(0, 2)} onSend={(q) => void send(q, false)} onMic={() => void listen()} onClose={() => setOpen(false)} />
       )}
+      {!open && <AskHint />}
       <button
         type="button"
         onClick={() => setOpen(!open)}

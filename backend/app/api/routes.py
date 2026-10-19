@@ -1,6 +1,8 @@
 # routes.py: the console API for Finebase HQ: GET /api/t/{tenant}/{resource}, POST ops/decide, the live stream, and
 # capture. Screens not built yet answer [] (lists) or 501 (single objects); they never fall back to demo data.
 # Used by: hq.py, tests/test_api.py. Uses: ask.py, documents.py, graph_map.py, studio_routes.py, versions_views.py, lists.py, views.py, capture_api.py, ui_stream.py, orchestrate.py.
+import os
+
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -15,7 +17,8 @@ from app.pipeline.contracts_run import Decision
 from app.pipeline.ui_stream import stream_events
 
 # Config
-CONSOLE_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
+# The deployed console's address goes in CONSOLE_ORIGINS (comma separated), for example https://brain.vercel.app
+CONSOLE_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", *filter(None, os.environ.get("CONSOLE_ORIGINS", "").replace(" ", "").split(","))]
 NOT_BUILT_OBJECTS = {"analytics"}  # single objects whose screens come later
 NULLABLE_OBJECTS = {"digest"}
 
