@@ -10,6 +10,7 @@ import { date } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { shortOf } from "@/lib/voice/speaker";
+import { ShowMe } from "./show-me";
 import type { Exchange } from "./ask-orb";
 
 type Props = {
@@ -81,8 +82,9 @@ function AnswerBlob({ a }: { a: AskAnswer }) {
   return (
     <Blob>
       <p className="text-[15px] leading-relaxed" data-testid="ask-answer">{more ? a.answer : short}</p>
-      {(rest || a.citations.length > 0) && (
-        <div className="mt-2 flex gap-1">
+      {(rest || a.citations.length > 0 || a.actions?.length) && (
+        <div className="mt-2 flex flex-wrap items-center gap-1">
+          <ShowMe answer={a} className="mr-1" />
           {rest && <Button variant="ghost" size="sm" className="-ml-2 text-muted-foreground" onClick={() => setMore(!more)}>{more ? "Less" : "More"}</Button>}
           {a.citations.length > 0 && <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setSources(!sources)}>{sources ? "Hide sources" : `${a.citations.length} ${a.citations.length === 1 ? "source" : "sources"}`}</Button>}
         </div>

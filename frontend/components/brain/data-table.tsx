@@ -15,8 +15,9 @@ import {
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, ArrowUp, ChevronsUpDown, Search } from "lucide-react";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Input } from "@/components/ui/input";
+import { useFocusTarget } from "@/lib/focus";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "./primitives";
 
@@ -54,10 +55,12 @@ type Props<T extends object> = {
   label: string;
   emptyText?: string;
   rowClassName?: (row: T) => string | undefined;
+  /** Marks each row as a focus target ("kind:id"), so a focus link scrolls to it and lights it (step 11). */
+  focusOf?: (row: T) => string;
 };
 
 /** Dense, virtualized, sortable, searchable table. Handles tens of thousands of rows. */
-export function DataTable<T extends object>({ data, columns, getRowId, onRowClick, height = 560, searchPlaceholder = "Filter…", initialSort, toolbar, rowHeight = 44, label, emptyText, rowClassName }: Props<T>) {
+export function DataTable<T extends object>({ data, columns, getRowId, onRowClick, height = 560, searchPlaceholder = "Filter…", initialSort, toolbar, rowHeight = 44, label, emptyText, rowClassName, focusOf }: Props<T>) {
   const [globalFilter, setGlobalFilter] = useState("");
   const helper = useMemo(() => createColumnHelper<typeof features, T>(), []);
   const tableColumns = useMemo(
@@ -90,6 +93,13 @@ export function DataTable<T extends object>({ data, columns, getRowId, onRowClic
   // TanStack Virtual returns functions the React Compiler cannot memoize. The component still works; it is just not auto memoized.
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({ count: rows.length, getScrollElement: () => scrollRef.current, estimateSize: () => rowHeight, overscan: 12, getItemKey: (i) => rows[i].id });
+  // A focus link lands on its row: the list is virtual, so scroll to the row's place before the shared runner lights it.
+  const target = useFocusTarget();
+  const wanted = target ? `${target.kind}:${target.id}` : null;
+  const wantedIndex = wanted && focusOf ? rows.findIndex((r) => focusOf(r.original as T) === wanted) : -1;
+  useEffect(() => {
+    if (wantedIndex >= 0) virtualizer.scrollToIndex(wantedIndex, { align: "center" });
+  }, [wantedIndex]); // eslint-disable-line react-hooks/exhaustive-deps
   const colIndex = new Map(columns.map((c, i) => [c.id, i]));
   const template = columns.map((c) => c.width ?? "minmax(0,1fr)").join(" ");
   const mobileTemplate = columns.filter((c) => !c.hideOnMobile).map((c) => c.width ?? "minmax(0,1fr)").join(" ");
@@ -144,6 +154,7 @@ export function DataTable<T extends object>({ data, columns, getRowId, onRowClic
                     role="row"
                     aria-rowindex={item.index + 2}
                     data-index={item.index}
+                    data-focus-id={focusOf?.(original)}
                     tabIndex={onRowClick ? 0 : undefined}
                     onClick={onRowClick ? () => onRowClick(original) : undefined}
                     onKeyDown={onRowClick ? (e) => e.key === "Enter" && onRowClick(original) : undefined}

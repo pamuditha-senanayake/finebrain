@@ -38,6 +38,8 @@ export const usePolicies = () => useResource("policies", list(C.Policy));
 export const usePolicyVersions = (key: string) => useResource(`policies/${key}`, list(C.Policy), { enabled: !!key });
 export const useFacts = () => useResource("facts", list(C.Fact));
 export const useDocuments = () => useResource("documents", list(C.Document));
+/** A document's text as filed, one entry per chunk (step 11: sentences inside can be lit). */
+export const useDocumentText = (id: string, enabled: boolean) => useResource(`documents/${id}/chunks`, list(z.object({ id: z.string(), text: z.string() })), { enabled: enabled && !!id });
 export const useFilingRules = () => useResource("filing-rules", list(C.FilingRule));
 export const useAccessRules = () => useResource("access-rules", list(C.AccessRule));
 export const useSensors = () => useResource("sensors", list(C.Sensor));

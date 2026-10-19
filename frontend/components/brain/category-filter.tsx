@@ -3,7 +3,7 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 /** Dropdown filter with a count per option. The value "all" means no filter. */
-export function CategoryFilter({ label, allLabel, value, onChange, options, className }: { label: string; allLabel: string; value: string; onChange: (v: string) => void; options: { value: string; count: number }[]; className?: string }) {
+export function CategoryFilter({ label, allLabel, value, onChange, options, className, labelOf }: { label: string; allLabel: string; value: string; onChange: (v: string) => void; options: { value: string; count: number }[]; className?: string; labelOf?: (value: string) => string }) {
   const total = options.reduce((s, o) => s + o.count, 0);
   return (
     <Select value={value} onValueChange={onChange}>
@@ -14,7 +14,7 @@ export function CategoryFilter({ label, allLabel, value, onChange, options, clas
         <SelectItem value="all">{allLabel} ({total})</SelectItem>
         {options.map((o) => (
           <SelectItem key={o.value} value={o.value} className="capitalize">
-            {o.value} ({o.count})
+            {(labelOf ?? ((v) => v.replaceAll("_", " ")))(o.value)} ({o.count})
           </SelectItem>
         ))}
       </SelectContent>

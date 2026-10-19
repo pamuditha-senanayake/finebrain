@@ -2,8 +2,9 @@
 
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
-import { useEffect, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { mocksReady } from "@/lib/api/mocks-ready";
+import { FocusRunner } from "@/components/shell/focus-runner";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { live } from "@/lib/live";
@@ -44,6 +45,9 @@ export function Providers({ children }: { children: ReactNode }) {
         <TooltipProvider delayDuration={250}>
           <MockStarter />
           <LiveBridge />
+          <Suspense fallback={null}>
+            <FocusRunner />
+          </Suspense>
           {children}
           <Toaster position="top-right" offset={56} />
         </TooltipProvider>

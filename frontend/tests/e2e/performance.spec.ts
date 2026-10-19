@@ -10,11 +10,11 @@ test("a table with more than 10,000 rows scrolls smoothly and stays virtualized"
   await expect(count).toBeVisible({ timeout: 30_000 });
   const total = Number((await count.textContent())!.replace(/[^\d]/g, ""));
   expect(total).toBeGreaterThanOrEqual(10_000);
-  const rendered = await page.locator('[role="table"][aria-label="Runs"] [role="row"]').count();
+  const rendered = await page.locator('[role="table"][aria-label="Agent running history"] [role="row"]').count();
   expect(rendered).toBeLessThan(120);
 
   const frames = await page.evaluate(async () => {
-    const el = document.querySelector('[role="table"][aria-label="Runs"] .overflow-auto') as HTMLElement;
+    const el = document.querySelector('[role="table"][aria-label="Agent running history"] [aria-label$="rows, scrollable"]') as HTMLElement;
     const gaps: number[] = [];
     let last = performance.now();
     const step = el.scrollHeight / 120;
@@ -30,6 +30,26 @@ test("a table with more than 10,000 rows scrolls smoothly and stays virtualized"
   });
   expect(frames.atBottom).toBe(true);
   expect(frames.p95).toBeLessThan(50);
+});
+
+// Step 12: the server pages the list, so a run deep in 10,000 is one request away, not a scroll.
+test("finding one run among more than 10,000 opens on its row in under a second", async ({ page }) => {
+  await setPersona(page, "sh-6", "scale");
+  await page.goto("/l3/runs");
+  await expect(page.getByText(/^[\d,]+ rows$/)).toBeVisible({ timeout: 30_000 });
+  const target = await page.evaluate(async () => {
+    const body = await (await fetch("/api/t/scale/lists/runs?limit=1&offset=7311", { headers: { "x-persona": "sh-6" } })).json();
+    return { id: body.items[0].id as string, subject: body.items[0].subject as string };
+  });
+  await page.keyboard.press("Control+k");
+  await page.locator("[cmdk-input]").fill(target.id);
+  const hit = page.locator("[cmdk-item]", { hasText: target.subject }).first();
+  await expect(hit).toBeVisible();
+  const started = Date.now();
+  await hit.click();
+  await expect(page.locator(`[data-focus-id="run:${target.id}"]`)).toBeVisible();
+  expect(Date.now() - started).toBeLessThan(1000);
+  await expect(page.locator(`[data-focus-id="run:${target.id}"][data-focus-lock]`)).toBeVisible();
 });
 
 test("a graph with more than 2,000 nodes stays interactive", async ({ page }) => {

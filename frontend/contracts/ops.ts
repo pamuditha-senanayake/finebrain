@@ -128,5 +128,20 @@ export type AskAnswer = z.infer<typeof AskAnswer>;
 export const AskTurn = z.object({ question: z.string(), answer: z.string(), at: IsoDate });
 export type AskTurn = z.infer<typeof AskTurn>;
 
-export const SearchHit = z.object({ id: z.string(), kind: z.string(), label: z.string(), href: z.string(), hint: z.string() });
+/** What to light up on the page a hit opens: the element (kind:id) and, inside a text, the sentence as a character span. */
+export const Focus = z.object({ kind: z.string(), id: z.string(), field: z.string().nullish(), span: z.tuple([z.number().int(), z.number().int()]).nullish() });
+export type Focus = z.infer<typeof Focus>;
+
+export const SearchHit = z.object({ id: z.string(), kind: z.string(), label: z.string(), href: z.string(), hint: z.string(), focus: Focus.nullish() });
 export type SearchHit = z.infer<typeof SearchHit>;
+
+/** One page of a list the server filters and sorts (step 12): the rows, the total, where a target sits, the matches of the search, and the count behind each filter value. */
+export const ListPage = <T extends z.ZodTypeAny>(item: T) =>
+  z.object({
+    items: z.array(item),
+    offset: z.number().int(),
+    total: z.number().int(),
+    position: z.number().int().nullable(),
+    facets: z.record(z.string(), z.record(z.string(), z.number().int())),
+    matches: z.object({ total: z.number().int(), positions: z.array(z.number().int()) }),
+  });

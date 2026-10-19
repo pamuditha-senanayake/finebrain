@@ -76,7 +76,7 @@ export function PolicyRegistry() {
     <div>
       <PageHeader title="Policy registry" description="Each version carries valid from, valid to, recorded at and superseded by. Freshness signals warn when a policy may be going stale. Nothing is invalidated without approval." />
       <QueryView query={policies}>
-        {() => <DataTable rowHeight={60} label="Policies" data={current.filter((p) => (category === "all" || policyCategory(p) === category) && (wf === "all" || (workflowsOf.get(p.key) ?? []).includes(wf)))} columns={columns} getRowId={(p) => p.id} onRowClick={(p) => router.push(`/l2/policies/${p.key}`)} initialSort={{ id: "signals", desc: true }} height="calc(100dvh - 240px)" toolbar={<><CategoryFilter label="Filter by category" allLabel="All categories" value={category} onChange={setCategory} options={countBy(current, policyCategory)} /><WorkflowFilter value={wf} onChange={setWf} options={countByMany(current, (p) => workflowsOf.get(p.key) ?? [])} /></>} />}
+        {() => <DataTable rowHeight={60} label="Policies" data={current.filter((p) => (category === "all" || policyCategory(p) === category) && (wf === "all" || (workflowsOf.get(p.key) ?? []).includes(wf)))} columns={columns} getRowId={(p) => p.id} focusOf={(p) => `policy:${p.key}`} onRowClick={(p) => router.push(`/l2/policies/${p.key}`)} initialSort={{ id: "signals", desc: true }} height="calc(100dvh - 240px)" toolbar={<><CategoryFilter label="Filter by category" allLabel="All categories" value={category} onChange={setCategory} options={countBy(current, policyCategory)} /><WorkflowFilter value={wf} onChange={setWf} options={countByMany(current, (p) => workflowsOf.get(p.key) ?? [])} /></>} />}
       </QueryView>
     </div>
   );
@@ -295,7 +295,7 @@ function PolicyTimeline({ versions, now, tz }: { versions: Policy[]; now: number
             {selected.branch !== "main" && <StatusChip tone="info">{selected.branch}</StatusChip>}
             {selected.supersededBy && <StatusChip tone="neutral">superseded by {selected.supersededBy.split("@")[1]}</StatusChip>}
           </div>
-          <p className="mt-1.5 text-sm">{selected.statement}</p>
+          <p className="mt-1.5 text-sm" data-focus-id={`policy:${selected.key}`}>{selected.statement}</p>
           <p className="mt-1.5 text-xs text-muted-foreground">
             Valid {date(selected.validFrom, tz)} → {selected.validTo ? date(selected.validTo, tz) : "open"} · recorded {date(selected.recordedAt, tz)}
           </p>

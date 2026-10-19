@@ -51,9 +51,12 @@ export function CommandPalette() {
         {(hits.data ?? []).length > 0 && (
           <CommandGroup heading="Entities">
             {hits.data!.map((h) => (
-              <CommandItem key={`${h.kind}-${h.id}`} value={`${h.kind} ${h.label} ${h.id}`} onSelect={() => go(h.href)}>
+              <CommandItem key={`${h.kind}-${h.id}`} value={`${h.kind} ${h.label} ${h.id}`} keywords={[q]} onSelect={() => go(h.href)}>
                 <span className="w-20 shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">{h.kind}</span>
-                <span className="truncate">{h.label}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">{h.label}</span>
+                  {h.hint && <span className="block truncate text-xs text-muted-foreground">{h.hint}</span>}
+                </span>
               </CommandItem>
             ))}
           </CommandGroup>

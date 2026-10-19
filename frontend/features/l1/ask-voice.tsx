@@ -2,6 +2,7 @@
 
 import { History, Keyboard, Mic, Plus, Send, Square, Volume2, VolumeX } from "lucide-react";
 import Link from "next/link";
+import { ShowMe } from "@/components/shell/show-me";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { AskAnswer } from "@/contracts";
@@ -338,7 +339,8 @@ export function AskVoice() {
               <p className="text-xl leading-relaxed text-muted-foreground" data-testid="ask-voice-answer">
                 {more ? last.a.answer : shortOf(last.a.answer).short}
               </p>
-              <div className="mt-4 flex justify-center gap-1">
+              <div className="mt-4 flex flex-wrap justify-center gap-1">
+                <ShowMe answer={last.a} className="mr-1" />
                 {shortOf(last.a.answer).rest && (
                   <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setMore(!more)} aria-expanded={more}>
                     {more ? "Less" : "More"}

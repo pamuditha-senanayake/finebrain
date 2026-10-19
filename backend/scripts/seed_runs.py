@@ -1,8 +1,10 @@
 # seed_runs.py: a dev script. Fills a memory pipeline with thousands of runs, to test lists of thousands (step 12).
-# Run it to serve Finebase HQ on port 8000 with N runs loaded:  uv run python scripts/seed_runs.py 10000
+# Run it to serve Finebase HQ on port 8000 with N runs loaded:  uv run python -m scripts.seed_runs 10000
 # Tests import add_runs. Uses: app/api (routes, hq), app/pipeline (orchestrate, fakes), tests/golden.py.
 import sys
-from datetime import datetime, timedelta
+import threading
+import time
+from datetime import timedelta
 
 from app.api.hq import load_hq
 from app.api.routes import create_api_app
@@ -36,6 +38,7 @@ def main(count: int) -> None:
     seed, hq = load_hq()
     lane = orchestrate.build_lane(seed, fakes.make_recorded_caller({})[0], fakes.make_fake_gateway()[0], NOW)
     add_runs(lane, count)
+    threading.Thread(target=lambda: [(lane.bus.drain(), time.sleep(0.3)) for _ in iter(int, 1)], daemon=True).start()  # uploads move through the bus
     print(f"{count} runs loaded; serving Finebase HQ on http://localhost:8000")
     uvicorn.run(create_api_app(lane, hq), host="127.0.0.1", port=8000, log_level="warning")
 

@@ -10,7 +10,8 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { useLookup } from "@/components/brain/names";
 import { SimpleTable } from "@/components/brain/simple-table";
 import { KeyValue, PageHeader, QueryView, Section, Status, StatusChip } from "@/components/brain/primitives";
-import { useDocuments, useFacts, useFilingRules, useTenantId } from "@/lib/api/hooks";
+import { useDocumentText, useDocuments, useFacts, useFilingRules, useTenantId } from "@/lib/api/hooks";
+import { useFocusTarget } from "@/lib/focus";
 import { ForgetCard, ReceiptList } from "./forget-card";
 import { date } from "@/lib/format";
 import { FOLDERS, folderOf, searchDocuments } from "@/lib/library";
@@ -133,7 +134,8 @@ function DocumentSheet({ doc, facts, onClose, onFolder }: { doc: Document | null
   const lookup = useLookup();
   const folder = doc ? folderOf(doc) : null;
   const [removing, setRemoving] = useState(false);
-  const removable = useTenantId() === "finebase-hq" && !!doc && (doc.extractionStatus === "done" || doc.extractionStatus === "retired");
+  const real = useTenantId() === "finebase-hq";
+  const removable = real && !!doc && (doc.extractionStatus === "done" || doc.extractionStatus === "retired");
   return (
     <Sheet open={!!doc} onOpenChange={(o) => !o && onClose()}>
       <SheetContent side="right" className="w-full gap-0 overflow-y-auto p-0 sm:max-w-lg">
@@ -148,6 +150,7 @@ function DocumentSheet({ doc, facts, onClose, onFolder }: { doc: Document | null
               {(doc.extractionStatus === "retired" || doc.extractionStatus === "erased") && <Status value={doc.extractionStatus} />}
             </SheetHeader>
             <div className="space-y-8 p-6">
+              {real && doc.extractionStatus !== "erased" && doc.extractionStatus !== "pending" && <DocumentText id={doc.id} />}
               {doc.receipt && (
                 <section>
                   <h3 className="mb-3 text-[15px] font-semibold">Receipt</h3>
@@ -236,6 +239,26 @@ function FilingRules() {
           )}
         </QueryView>
       </Section>
+    </details>
+  );
+}
+
+/** The text of a document as filed. Folded away, except when a focus link points into it: then it opens and the sentence is lit. */
+function DocumentText({ id }: { id: string }) {
+  const focus = useFocusTarget();
+  const [open, setOpen] = useState(focus?.kind === "chunk" && focus.id.startsWith(`${id}_`));
+  const text = useDocumentText(id, open);
+  return (
+    <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)} className="group">
+      <summary className="cursor-pointer list-none text-[15px] font-semibold">
+        <ChevronRight className="mr-1 inline size-4 transition-transform group-open:rotate-90" aria-hidden />
+        Text
+      </summary>
+      <div className="mt-3 space-y-2">
+        {(text.data ?? []).map((c) => (
+          <p key={c.id} data-focus-id={`chunk:${c.id}`} className="whitespace-pre-wrap rounded-lg border bg-card px-3 py-2.5 text-[14.5px] leading-relaxed">{c.text}</p>
+        ))}
+      </div>
     </details>
   );
 }

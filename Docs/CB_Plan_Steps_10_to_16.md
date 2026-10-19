@@ -55,7 +55,7 @@ Two kinds of removal:
 
 Done when: removing an uploaded document makes Ask stop citing it, the receipt lists every layer, an "as of" query still finds a retired item, and an erased item leaves only its tombstone.
 
-### Step 11: Find and highlight
+### Step 11: Find and highlight (done, see the status row in the system reference)
 
 | Sub-step | Builds | Files |
 |---|---|---|
@@ -67,7 +67,7 @@ Done when: removing an uploaded document makes Ask stop citing it, the receipt l
 
 Done when: asking "where is the refund window?" opens the policy page with that sentence lit, and a ⌘K result lands on the exact row.
 
-### Step 12: Lists of thousands
+### Step 12: Lists of thousands (done, see the status row in the system reference)
 
 | Sub-step | Builds | Files |
 |---|---|---|

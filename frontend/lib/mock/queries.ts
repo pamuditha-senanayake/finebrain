@@ -131,13 +131,13 @@ export function search(d: TenantData, q: string): SearchHit[] {
   const hits: SearchHit[] = [];
   const push = (h: SearchHit) => hits.length < 30 && hits.push(h);
   for (const a of d.agents) if (a.name.toLowerCase().includes(term)) push({ id: a.id, kind: "Agent", label: a.name, href: `/l3/agents/${a.id}`, hint: a.description });
-  for (const s of d.skills.filter((x) => x.branch === "main")) if (s.name.toLowerCase().includes(term) || s.id.includes(term)) push({ id: s.id, kind: "Skill", label: `${s.name} v${s.version}`, href: `/l2/skills/${s.id}`, hint: s.trigger });
-  for (const p of d.policies.filter((x) => !x.supersededBy)) if (p.name.toLowerCase().includes(term) || p.key.includes(term)) push({ id: p.id, kind: "Policy", label: `${p.name} v${p.version}`, href: `/l2/policies/${p.key}`, hint: p.statement });
+  for (const s of d.skills.filter((x) => x.branch === "main")) if (s.name.toLowerCase().includes(term) || s.id.includes(term)) push({ id: s.id, kind: "Skill", label: `${s.name} v${s.version}`, href: `/l2/skills/${s.id}?focus=skill:${s.id}`, hint: s.trigger, focus: { kind: "skill", id: s.id } });
+  for (const p of d.policies.filter((x) => !x.supersededBy)) if (p.name.toLowerCase().includes(term) || p.key.includes(term)) push({ id: p.id, kind: "Policy", label: `${p.name} v${p.version}`, href: `/l2/policies/${p.key}?focus=policy:${p.key}&q=${encodeURIComponent(term)}`, hint: p.statement, focus: { kind: "policy", id: p.key } });
   for (const f of d.facts) if (f.statement.toLowerCase().includes(term)) push({ id: f.id, kind: "Fact", label: f.statement, href: `/l2/vault?fact=${f.id}`, hint: f.status });
   for (const a of d.approvals.filter((x) => x.status === "pending")) if (a.title.toLowerCase().includes(term)) push({ id: a.id, kind: "Approval", label: a.title, href: `/l1/approvals/${a.id}`, hint: `C${a.criticality}` });
   for (const o of d.obligations) if (o.title.toLowerCase().includes(term)) push({ id: o.id, kind: "Obligation", label: o.title, href: "/l1/entity", hint: `${o.readiness}% ready` });
   for (const c of d.conversations) if (c.topic.toLowerCase().includes(term) || c.customer.toLowerCase().includes(term)) push({ id: c.id, kind: "Conversation", label: `${c.customer} · ${c.topic}`, href: `/l3/conversations/${c.id}`, hint: c.status });
-  for (const r of d.runs.slice(0, 3000)) if (r.id === term || r.subject.toLowerCase().includes(term)) push({ id: r.id, kind: "Run", label: r.subject, href: `/l3/runs/${r.id}`, hint: r.status });
+  for (const r of d.runs) if (r.id === term || r.subject.toLowerCase().includes(term)) push({ id: r.id, kind: "Run", label: r.subject, href: `/l3/runs?focus=run:${r.id}`, hint: r.status, focus: { kind: "run", id: r.id } });
   return hits;
 }
 

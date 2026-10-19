@@ -3,6 +3,7 @@ import { realTenants } from "@/lib/flags";
 import type { OpName } from "./ops";
 import { db, OpError, TENANTS } from "./db";
 import { analytics, ask, overview, researchSnapshots, search } from "./queries";
+import { listPage } from "./lists";
 import { generateSteps } from "./seed/build";
 import { chat, historyOf, reviewReply } from "./studio/chat";
 import { StudioError, detail, healthOf, scopeOf, summaries, workflowsUsingTool } from "./studio/engine";
@@ -46,6 +47,7 @@ const GETTERS: Record<string, Getter> = {
   resolver: (d) => d.resolver,
   graph: (d) => d.graph,
   librarian: (d) => d.librarian,
+  "lists/:name": (d, p, url) => listPage(d, str(p.name), url) ?? [],
   runs: (d, _p, url) => {
     const agentId = url.searchParams.get("agentId");
     const status = url.searchParams.get("status");

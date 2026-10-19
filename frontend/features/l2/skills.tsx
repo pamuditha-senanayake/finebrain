@@ -90,7 +90,7 @@ export function SkillsStudio() {
           <TabsTrigger value="academy">Academy</TabsTrigger>
         </TabsList>
         <TabsContent value="skills" className="mt-3">
-          <QueryView query={skills}>{() => <DataTable label="Skills" data={main.filter((s) => (category === "all" || categoryOf(s) === category) && (wf === "all" || (info.get(s.id)?.workflows ?? []).includes(wf)))} toolbar={<><CategoryFilter label="Filter by category" allLabel="All categories" value={category} onChange={setCategory} options={countBy(main, categoryOf)} /><WorkflowFilter value={wf} onChange={setWf} options={countByMany(main, (s) => info.get(s.id)?.workflows ?? [])} /></>} columns={columns} getRowId={(s) => `${s.id}@${s.branch}`} onRowClick={(s) => router.push(`/l2/skills/${s.id}`)} initialSort={{ id: "conf", desc: false }} height="calc(100dvh - 280px)" />}</QueryView>
+          <QueryView query={skills}>{() => <DataTable label="Skills" data={main.filter((s) => (category === "all" || categoryOf(s) === category) && (wf === "all" || (info.get(s.id)?.workflows ?? []).includes(wf)))} toolbar={<><CategoryFilter label="Filter by category" allLabel="All categories" value={category} onChange={setCategory} options={countBy(main, categoryOf)} /><WorkflowFilter value={wf} onChange={setWf} options={countByMany(main, (s) => info.get(s.id)?.workflows ?? [])} /></>} columns={columns} getRowId={(s) => `${s.id}@${s.branch}`} focusOf={(s) => `skill:${s.id}`} onRowClick={(s) => router.push(`/l2/skills/${s.id}`)} initialSort={{ id: "conf", desc: false }} height="calc(100dvh - 280px)" />}</QueryView>
         </TabsContent>
         <TabsContent value="drafts" className="mt-3">
           {drafts.length === 0 ? (

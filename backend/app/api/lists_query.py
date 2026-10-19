@@ -20,8 +20,8 @@ class Spec:
 
 
 LISTS = {
-    "runs": Spec(lists_rows.runs, ("subject", "id", "agentId", "status"), ("status", "agentId")),
-    "escalations": Spec(lists_rows.escalations, ("subject", "id", "agentId"), ("status", "agentId")),
+    "runs": Spec(lists_rows.runs, ("subject", "id", "agentId", "status"), ("status", "agentId", "clusterId")),
+    "escalations": Spec(lists_rows.escalations, ("subject", "id", "agentId"), ("status", "agentId", "clusterId")),
     "access-decisions": Spec(lists_rows.access, ("principal", "action", "resource", "reason", "ruleId"), ("decision", "principal")),
     "audit": Spec(lists_rows.audit, ("action", "detail"), ("action", "criticality")),
     "documents": Spec(lists_rows.docs, ("title", "type"), ("sensitivity", "type", "extractionStatus")),
