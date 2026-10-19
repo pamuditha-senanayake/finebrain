@@ -72,7 +72,7 @@ Done when: asking "where is the refund window?" opens the policy page with that 
 | Sub-step | Builds | Files |
 |---|---|---|
 | 12.1 Server side query | List endpoints take `q`, filters, `cursor` and `around=id`. They return a page, the total, and the target's position. Never filter thousands of rows in the browser. | `backend/app/api/lists.py` (runs, conversations, documents, audit, access decisions) |
-| 12.2 Jump to row | The virtualized `DataTable` takes a target index, scrolls to it and highlights the row with the step 11 focus ring | `frontend/components/brain/data-table.tsx` (or where `DataTable` lives) |
+| 12.2 Jump to row | The virtualized `DataTable` takes a target index, scrolls to it and highlights the row with the step 11 focus ring | `frontend/components/brain/data-table.tsx` |
 | 12.3 Match stepper | "3 of 23 matches", with Next and Back, one match at a time (the house rule). Filter chips show what is applied, with one clear button. | shared component in `frontend/components/brain/` |
 | 12.4 Facet counts | Counts per filter value come from the server | `lists.py` |
 | 12.5 Proof | Seed 10,000 runs in a test and measure | `backend/tests/`, `frontend/tests/e2e/performance.spec.ts` |
