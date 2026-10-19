@@ -9,7 +9,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.api import self_knowledge
+from app.api import self_knowledge, studio_approvals
+from app.api.studio_seed import extend_seed
 from app.api.routes import create_api_app
 from app.pipeline import fakes, llm, orchestrate
 from app.pipeline.adapters import ALL_REAL_PARTS, make_memory_adapters, missing_infra, real_adapters
@@ -27,7 +28,7 @@ def load_hq() -> tuple[dict, dict]:
     hq = json.loads((SAMPLES / "hq_tenant.json").read_text())
     golden = json.loads((SAMPLES / "golden_refund_run.json").read_text())
     knowledge = golden["seed"]["knowledge"] + list(self_knowledge.items())
-    return {**golden["seed"], **hq["seed_overrides"], "people": hq["people"], "knowledge": knowledge}, hq
+    return extend_seed({**golden["seed"], **hq["seed_overrides"], "people": hq["people"], "knowledge": knowledge}, hq), hq
 
 
 def choose_parts() -> frozenset[str]:
@@ -66,6 +67,7 @@ def keep_running(lane) -> None:
                 orchestrate.sweep_expired(lane, now)
             else:
                 lane.now = lane.bus.now = now
+            studio_approvals.sweep(lane)  # C4 Studio changes merge once their cooling period ends
             lane.bus.drain()
         except Exception as error:  # the loop must outlive any one bad message; the bus already dead-letters failures
             log_event("API", "loop_error", error=type(error).__name__)

@@ -11,7 +11,7 @@ from app.pipeline.contracts_signal import Criticality, Subject, VersionRef
 # Config: enum values
 NodeType = Literal[
     "skill", "agent", "policy", "template", "sensor", "scheduler", "loop", "tool",
-    "workflow", "access_rule", "fact",
+    "workflow", "access_rule", "fact", "knowledge", "resolver_rule",
 ]
 # close, not delete: nothing is overwritten, a node's valid time ends instead
 ChangeOp = Literal["add", "update", "close"]

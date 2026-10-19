@@ -1,12 +1,12 @@
 # routes.py: the console API for Finebase HQ: GET /api/t/{tenant}/{resource}, POST ops/decide, the live stream, and
 # capture. Screens not built yet answer [] (lists) or 501 (single objects); they never fall back to demo data.
-# Used by: hq.py, tests/test_api.py. Uses: ask.py, documents.py, graph_map.py, lists.py, views.py, capture_api.py, ui_stream.py, orchestrate.py.
+# Used by: hq.py, tests/test_api.py. Uses: ask.py, documents.py, graph_map.py, studio_routes.py, versions_views.py, lists.py, views.py, capture_api.py, ui_stream.py, orchestrate.py.
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.api import ask as asking
-from app.api import ask_memory, documents
+from app.api import ask_memory, documents, studio_approvals, studio_routes, versions_views
 from app.api import views
 from app.api.graph_map import graph_resource
 from app.api.lists import clusters_view, list_view, live_event, refusal_for, sensors_view, tenant_view
@@ -71,7 +71,8 @@ def create_api_app(lane, hq: dict, answerer=None) -> FastAPI:
         if resource == "humans":
             return [views.human_view(lane, pid, person).ui() for pid, person in lane.seed["people"].items()]
         try:
-            graph = graph_resource(lane, hq, resource, dict(request.query_params))
+            graph = studio_routes.resource(lane, resource, dict(request.query_params))
+            graph = graph if graph is not None else graph_resource(lane, hq, resource, dict(request.query_params))
         except LookupError:
             raise HTTPException(404, "not_found") from None
         if graph is not None:
@@ -88,10 +89,12 @@ def create_api_app(lane, hq: dict, answerer=None) -> FastAPI:
         if kind == "runs" and item_id and (run := lane.records.load("run", item_id)):
             return views.run_detail(lane, run).ui()
         if kind == "approvals" and item_id and (approval := lane.records.load("approval", item_id)):
-            return views.approval_view(lane, approval).ui()
+            return versions_views.approval_of(lane, approval)
         if item_id:
             raise HTTPException(404, "not_found")
         return None if resource in NULLABLE_OBJECTS else []
+
+    studio_routes.register(app, lane, check)  # before the general ops route, so studioApply and studioSuggest win
 
     @app.post("/api/t/{tenant}/ops/{op}")
     async def operation(tenant: str, op: str, request: Request, x_persona: str = Header(default="")):
@@ -101,7 +104,9 @@ def create_api_app(lane, hq: dict, answerer=None) -> FastAPI:
         body = await request.json()
         decision = Decision(approval_id=body["approvalId"], decision=body["decision"], decided_by=[x_persona], decided_at=lane.now,
                             comment=body.get("comment") or "", delegated_to=body.get("delegateTo"))
-        refused = refusal_for(lane, decision.approval_id, decision)
+        approval = lane.records.load("approval", decision.approval_id)
+        is_change = bool(approval) and approval["subject"]["kind"] == "change_request"
+        refused = studio_approvals.refusal_for(lane, approval, decision) if is_change else refusal_for(lane, decision.approval_id, decision)
         if refused:
             raise HTTPException(*refused)
         orchestrate.decide(lane, decision)

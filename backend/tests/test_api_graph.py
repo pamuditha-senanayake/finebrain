@@ -93,7 +93,3 @@ def test_graph_links_agents_skills_tools_policies_and_documents(client):
     assert all(source in ids and target in ids for source, target, _ in links)
     facts = [node for node in graph["nodes"] if node["type"] == "fact"]
     assert facts and all(node["sensitivity"] == "confidential" for node in facts)
-
-
-def test_studio_lists_are_empty_until_9d(client):
-    assert get(client, "studio/workflows") == (200, [])

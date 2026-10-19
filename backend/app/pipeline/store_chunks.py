@@ -50,6 +50,10 @@ class MemoryChunks:
     def add(self, item: dict, embedding: list[float]) -> None:
         self.items.setdefault(item["item_id"], (item, embedding))
 
+    def replace(self, item: dict, embedding: list[float]) -> None:
+        """A released new version of a knowledge item takes the place of the old one."""
+        self.items[item["item_id"]] = (item, embedding)
+
     def by_vector(self, embedding: list[float], kinds: list[str], valid, recorded, limit: int) -> list[dict]:
         """Nearest by cosine similarity (the vectors are already unit length)."""
         live = [(item, vector) for item, vector in self.items.values() if item["kind"] in kinds and true_at(item, valid, recorded)]
@@ -76,6 +80,16 @@ class PostgresChunks:
         self.connection.execute(
             """INSERT INTO chunks (tenant_id, item_id, kind, body, valid_from, valid_to, recorded_at, embedding)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s::vector) ON CONFLICT DO NOTHING""",
+            (self.tenant_id, item["item_id"], item["kind"], Jsonb(item), item.get("valid_from"), item.get("valid_to"), item["recorded_at"], json.dumps(embedding)),
+        )
+
+    def replace(self, item: dict, embedding: list[float]) -> None:
+        """A released new version of a knowledge item takes the place of the old one."""
+        self.connection.execute(
+            """INSERT INTO chunks (tenant_id, item_id, kind, body, valid_from, valid_to, recorded_at, embedding)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s::vector)
+               ON CONFLICT (tenant_id, item_id) DO UPDATE SET kind = EXCLUDED.kind, body = EXCLUDED.body, valid_from = EXCLUDED.valid_from,
+                 valid_to = EXCLUDED.valid_to, recorded_at = EXCLUDED.recorded_at, embedding = EXCLUDED.embedding""",
             (self.tenant_id, item["item_id"], item["kind"], Jsonb(item), item.get("valid_from"), item.get("valid_to"), item["recorded_at"], json.dumps(embedding)),
         )
 

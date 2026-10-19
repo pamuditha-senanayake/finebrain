@@ -5,6 +5,7 @@ from datetime import datetime
 from app.api import ui_models as ui
 from app.api import ui_models_work as work
 from app.api import views
+from app.api.versions_views import approval_of
 from app.pipeline import stages_decide
 from app.pipeline.observe import read_count, read_last_seen
 from app.pipeline.contracts_run import ApprovalRequest, Decision
@@ -54,7 +55,7 @@ def list_view(lane, resource: str, query: dict) -> list[dict] | None:
     if resource == "escalations":
         return [r for r in list_view(lane, "runs", {}) if r["status"] in ("escalated", "awaiting_approval")]
     if resource == "approvals":
-        return [views.approval_view(lane, approval).ui() for approval in lane.records.list_kind("approval")]
+        return [approval_of(lane, approval) for approval in lane.records.list_kind("approval")]
     if resource == "access-decisions":
         shown = [views.access_view(lane, entry).ui() for entry in views.audit_entries(lane, "access.decisions")]
         return [a for a in shown if (not query.get("principal") or a["principal"] == query["principal"]) and (not query.get("decision") or a["decision"] == query["decision"])]

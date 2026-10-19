@@ -1,6 +1,7 @@
 # store_graph.py: the minimal graph (S14 later owns writes): append-only node versions per branch.
 # Holds resolver rules, skills, agents, policies and knowledge. Used by: adapters.py, stages_route.py, tests.
-# Uses: nothing local. A version, once written, never changes; a newer version supersedes it.
+# Uses: nothing local. A version, once written, never changes; a newer version supersedes it. A version whose body
+# has "_closed" ends the node: latest() leaves it out, while history() and at_version() still show what it was.
 import psycopg
 from psycopg.types.json import Jsonb
 
@@ -19,6 +20,7 @@ CREATE TABLE IF NOT EXISTS graph_nodes (
 );
 """
 SEED_COMMIT = "cmt_seed"
+CLOSED = "_closed"
 
 
 def with_ref(body: dict, node_id: str, version: int, branch: str, commit_id: str) -> dict:
@@ -41,7 +43,15 @@ class MemoryGraph:
     def latest(self, node_type: str, branch: str = "main") -> list[dict]:
         """The newest version of every node of one type, ordered by id."""
         found = [(key[2], versions) for key, versions in sorted(self.nodes.items()) if key[:2] == (branch, node_type)]
-        return [versions[max(versions)] for _, versions in found]
+        return [node for node in (versions[max(versions)] for _, versions in found) if not node.get(CLOSED)]
+
+    def history(self, node_type: str, node_id: str, branch: str = "main") -> list[dict]:
+        """Every version of one node, oldest first, including a closing one."""
+        versions = self.nodes.get((branch, node_type, node_id), {})
+        return [versions[v] for v in sorted(versions)]
+
+    def at_version(self, node_type: str, node_id: str, version: int, branch: str = "main") -> dict | None:
+        return self.nodes.get((branch, node_type, node_id), {}).get(version)
 
 
 class PostgresGraph:
@@ -67,7 +77,19 @@ class PostgresGraph:
                WHERE tenant_id = %s AND branch = %s AND node_type = %s ORDER BY node_id, version DESC""",
             (self.tenant_id, branch, node_type),
         )
-        return [with_ref(body, node_id, version, branch, commit_id) for node_id, version, commit_id, body in rows]
+        return [with_ref(body, node_id, version, branch, commit_id) for node_id, version, commit_id, body in rows if not body.get(CLOSED)]
+
+    def history(self, node_type: str, node_id: str, branch: str = "main") -> list[dict]:
+        """Every version of one node, oldest first, including a closing one."""
+        rows = self.connection.execute(
+            """SELECT version, commit_id, body FROM graph_nodes WHERE tenant_id = %s AND branch = %s AND node_type = %s AND node_id = %s
+               ORDER BY version""",
+            (self.tenant_id, branch, node_type, node_id),
+        )
+        return [with_ref(body, node_id, version, branch, commit_id) for version, commit_id, body in rows]
+
+    def at_version(self, node_type: str, node_id: str, version: int, branch: str = "main") -> dict | None:
+        return next((node for node in self.history(node_type, node_id, branch) if node["_ref"]["version"] == version), None)
 
 
 def load_seed(graph, seed: dict) -> None:
@@ -82,3 +104,5 @@ def load_seed(graph, seed: dict) -> None:
     graph.put("policy", policy["policy_ref"]["id"], policy["policy_ref"]["version"], policy["policy_ref"]["commit_id"], policy)
     for item in seed["knowledge"]:
         graph.put("knowledge", item["item_id"], 1, SEED_COMMIT, item)
+    for node_type, node_id, body in seed.get("studio_nodes", []):  # Workflow Studio's workflows, tools and sensors (studio_seed.py)
+        graph.put(node_type, node_id, 1, SEED_COMMIT, body)

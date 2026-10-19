@@ -1,10 +1,12 @@
-# overview_views.py: the Brain overview for Finebase HQ: the map (clusters and one workflow per routing rule, with its
-# agent, skill, policies and tools) and the live numbers beside it. With no runs yet the numbers are zero, but the
+# overview_views.py: the Brain overview for Finebase HQ: the map (clusters and Studio's workflows, with their parts and
+# health) and the live numbers beside it. With no runs yet the numbers are zero, but the
 # map still draws, so the brain looks alive from the first day. Used by: graph_map.py (graph_resource), tests.
-# Uses: lists.py (runs as the console sees them), graph_views.py (agents), ui_models.py.
+# Uses: lists.py (runs as the console sees them), graph_views.py (agents), studio_state.py and studio_findings.py (workflows).
 from datetime import datetime, timedelta
 
 from app.api.graph_views import agents_view
+from app.api.studio_findings import health
+from app.api.studio_state import Studio
 from app.api.lists import list_view
 
 # Config
@@ -38,22 +40,16 @@ def kpi_of(lane, cluster_id: str, runs: list[dict]) -> dict:
 # --- The map
 
 def workflows_of(lane, hq: dict) -> list[dict]:
-    """One workflow per routing rule: who does it, how, under which rules, with which tools."""
-    agents = {a["id"]: a for a in agents_view(lane, hq)}
-    skills = {s["_ref"]["id"]: s for s in lane.graph.latest("skill")}
-    tool_use = [tool for skill in skills.values() for tool in skill["allowed_tools"]]
-    policies = hq["graph_labels"]["policies"]
+    """Studio's workflows with their parts and health, so a Studio edit shows on the map."""
+    st = Studio.of(lane)
     shown = []
-    for rule in lane.graph.latest("resolver_rule"):
-        skill, agent = skills.get(rule["skill_id"]), agents.get(rule["agent_id"])
-        items = [{"id": f"agent:{rule['agent_id']}", "kind": "agent", "name": agent["name"] if agent else rule["agent_id"], "description": agent["description"] if agent else "", "status": "active", "shared": False}]
-        if skill:
-            items.append({"id": f"skill:{rule['skill_id']}", "kind": "skill", "name": skill["name"], "description": " ".join(skill["steps"][:1]), "status": "active", "shared": False})
-            items += [{"id": f"tool:{tool}", "kind": "tool", "name": tool.replace("_", " "), "description": "", "status": "active", "shared": tool_use.count(tool) > 1} for tool in skill["allowed_tools"]]
-        items += [{"id": f"policy:{key}", "kind": "policy", "name": label.get("name", key), "description": "", "status": "active", "shared": False}
-                  for key, label in policies.items() if rule["skill_id"] in label.get("skills", [])]
-        shown.append({"id": f"wf_{rule['activity_id']}", "name": skill["name"] if skill else rule["description"], "description": rule["description"], "clusterId": lane.seed["cluster_id"],
-                      "status": "active", "criticality": rule["base_criticality"], "dri": agent["dri"] if agent else "", "health": {"breaks": 0, "warnings": 0}, "items": items})
+    for flow in st.flows.values():
+        found = health(st, flow)["findings"]
+        items = [{"id": i["id"], "kind": i["kind"], "name": i["name"], "description": i["description"], "status": i["status"],
+                  "shared": i["kind"] == "tool" and len(st.using_tool(i["id"])) > 1} for i in st.scope(flow)]
+        shown.append({"id": flow["id"], "name": flow["name"], "description": flow["description"], "clusterId": flow["clusterId"], "status": flow["status"],
+                      "criticality": flow["criticality"], "dri": flow["dri"], "items": items,
+                      "health": {"breaks": sum(f["severity"] == "break" for f in found), "warnings": sum(f["severity"] == "warn" for f in found)}})
     return shown
 
 

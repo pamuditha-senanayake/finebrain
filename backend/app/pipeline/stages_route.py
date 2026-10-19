@@ -93,7 +93,8 @@ def route(signal: Signal, routing: dict, choose, new_id, now: datetime) -> tuple
     """S3: (task, "routed"), or (None, reason) with reason lane_b, below_threshold or tie_unresolved."""
     if signal.kind in SKIP_KINDS:
         return None, "lane_b"
-    rule, score, reason = pick_rule(signal, routing["rules"], choose)
+    live = [rule for rule in routing["rules"] if not rule.get("paused")]  # Studio pauses a rule with its workflow or skill
+    rule, score, reason = pick_rule(signal, live, choose)
     count(f"s3.{reason}")
     log_event("S3", reason, signal_id=signal.signal_id, best_score=round(score, 2), rule_id=rule["rule_id"] if rule else None)
     if rule is None:

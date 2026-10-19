@@ -11,6 +11,12 @@ ACCESS_BY_TIER = {"L1": "restricted", "L2": "restricted", "L3": "confidential"} 
 WORKING_WINDOW = timedelta(minutes=5)  # an agent with a run this recent shows as working
 
 
+def place_in_document(item: dict) -> tuple[str, int]:
+    """Where an item sits in its source, so a policy reads in the document's own order."""
+    span = item["source"].get("span") or "0:0"
+    return item["source"]["document_id"], int(span.split(":")[0])
+
+
 # --- Run numbers
 
 def runs_where(lane, field: str, value: str) -> list[dict]:

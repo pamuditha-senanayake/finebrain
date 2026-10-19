@@ -4,21 +4,18 @@
 from pathlib import PurePosixPath
 
 from app.api import ui_models_graph as g
-from app.api.graph_views import agents_view, resolver_view, skills_view
+from app.api.graph_views import agents_view, place_in_document, resolver_view, skills_view
 from app.api.overview_views import brain_map, overview
 
 # Config
 COLUMNS = ["agent", "skill", "tool", "policy", "document", "fact"]  # left to right on the map
 COLUMN_GAP, ROW_GAP = 240, 120
 OPEN = {"capability": None, "roles": []}
-STUDIO_LISTS = {"studio/workflows", "studio/tools", "studio/pending", "studio/revisions"}  # Studio comes in 9d; empty until then
 
 
 def graph_resource(lane, hq: dict, resource: str, query: dict):
     """The 9c screens. Returns None when the resource is not one of them; raises LookupError for an unknown id."""
     kind, _, item_id = resource.partition("/")
-    if resource in STUDIO_LISTS:
-        return []
     if kind == "agents":
         shown = agents_view(lane, hq)
         if not item_id:
@@ -45,12 +42,6 @@ def not_found():
 
 
 # --- Policies
-
-def place_in_document(item: dict) -> tuple[str, int]:
-    """Where an item sits in its source, so a policy reads in the document's own order."""
-    span = item["source"].get("span") or "0:0"
-    return item["source"]["document_id"], int(span.split(":")[0])
-
 
 def policy_versions(lane, hq: dict, key: str) -> list[g.Policy]:
     """Every version of one policy, oldest first. Only the newest has its rule parameters in the graph."""

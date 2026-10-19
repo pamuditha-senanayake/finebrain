@@ -77,7 +77,7 @@ def propose_and_govern(lane, task: TaskRequest, bundle, principal: Principal, ru
     """S6 then S7. Reference doc section 8 (K7): a failed quality gate goes back to S6 once, then escalates."""
     signal = signal_of(lane, task.signal_ids[0])
     request_text = (signal.text_masked or "") if signal else ""
-    skill = {node["_ref"]["id"]: node for node in lane.graph.latest("skill")}.get(task.skill_ref.id, {})
+    skill = lane.graph.at_version("skill", task.skill_ref.id, task.skill_ref.version) or {}  # the version pinned at route time
     for _ in range(2):
         action = stages_reason.propose(task, bundle, request_text, skill, lane.model, run_id, ACTION_STEP_ID, lane.seed["cluster_id"], feedback, f"{lane.now:%d %B %Y}")
         decision, verdict = govern_once(lane, task, action, bundle, principal, cause, request_text)
