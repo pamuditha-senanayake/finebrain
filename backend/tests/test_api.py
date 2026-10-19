@@ -107,7 +107,7 @@ def test_unknown_tenant_and_ops_not_built(hq):
     client, _, _ = hq
     assert client.get("/api/t/demo-fbl/runs", headers={"x-persona": FOUNDER}).status_code == 404
     assert client.post(f"/api/t/{TENANT}/ops/takeover", json={}, headers={"x-persona": FOUNDER}).status_code == 501
-    assert client.post(f"/api/t/{TENANT}/studio/chat", json={}, headers={"x-persona": FOUNDER}).status_code == 501
+    assert client.post(f"/api/t/{TENANT}/evidence/upload", json={}, headers={"x-persona": FOUNDER}).status_code == 501
 
 
 # --- Live stream

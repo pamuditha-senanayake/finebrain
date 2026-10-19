@@ -22,7 +22,7 @@ NULLABLE_OBJECTS = {"digest"}
 
 # --- The app
 
-def create_api_app(lane, hq: dict, answerer=None) -> FastAPI:
+def create_api_app(lane, hq: dict, answerer=None, chatter=None) -> FastAPI:
     app = FastAPI(title="finebrain API")
     app.add_middleware(CORSMiddleware, allow_origins=CONSOLE_ORIGINS, allow_methods=["*"], allow_headers=["*"])
     capture_api.register(app, lane)
@@ -94,7 +94,7 @@ def create_api_app(lane, hq: dict, answerer=None) -> FastAPI:
             raise HTTPException(404, "not_found")
         return None if resource in NULLABLE_OBJECTS else []
 
-    studio_routes.register(app, lane, check)  # before the general ops route, so studioApply and studioSuggest win
+    studio_routes.register(app, lane, check, chatter)  # before the general ops route, so studioApply and studioSuggest win
 
     @app.post("/api/t/{tenant}/ops/{op}")
     async def operation(tenant: str, op: str, request: Request, x_persona: str = Header(default="")):

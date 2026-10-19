@@ -77,14 +77,14 @@ def make_chooser(client=None, model: str = FAST_MODEL) -> Chooser:
     return choose
 
 
-def make_tool_caller(client=None, model: str = REASON_MODEL):
-    """A function that sends one tool-use request. The system prompt asks for exactly one tool call."""
+def make_tool_caller(client=None, model: str = REASON_MODEL, max_tokens: int = REASON_MAX_TOKENS):
+    """A function that sends one tool-use request. The system prompt says which tools to call."""
     client = client or anthropic.Anthropic(timeout=REASON_TIMEOUT_SECONDS, max_retries=0)
 
     def call(system: str, messages: list[dict], tools: list[dict]):
         return call_with_retry(
             lambda: client.messages.create(
-                model=model, max_tokens=REASON_MAX_TOKENS, system=system,
+                model=model, max_tokens=max_tokens, system=system,
                 tools=tools, messages=messages,  # this model does not take a forced tool_choice; no tool means S6 escalates
             ),
             is_retryable, attempts=ATTEMPTS,

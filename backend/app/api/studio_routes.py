@@ -1,10 +1,11 @@
 # studio_routes.py: Workflow Studio and Versions on the Finebase HQ API. Reads go through resource(); writes are the
 # review (a read: nothing changes), studioApply and studioSuggest. Studio's consumer of approvals.decided merges
-# approved change requests. The chat assistant comes in step 9e. Used by: routes.py. Uses: studio_*.py, versions_views.py.
+# approved change requests. The assistant (studio/chat, step 9e) only drafts, through the same review. Used by: routes.py. Uses: studio_*.py, versions_views.py.
 from fastapi import FastAPI, Header, HTTPException, Request
 
 from app.api import studio_approvals, studio_views, versions_views
 from app.api.studio_apply import apply_op, suggest_op
+from app.api.studio_chat import chat
 from app.api.studio_draft import StudioError
 from app.api.studio_review import review
 from app.pipeline import stages_version
@@ -36,7 +37,7 @@ def not_found():
     raise LookupError("not_found")
 
 
-def register(app: FastAPI, lane, check) -> None:
+def register(app: FastAPI, lane, check, chatter=None) -> None:
     """Add Studio's POST routes. Must come before the general ops route, so these win."""
     lane.bus.subscribe("approvals.decided", "studio", "S14", lambda envelope: studio_approvals.on_decision(lane, envelope))
     stages_version.ensure_main(lane)  # main shows as the protected branch from the first day
@@ -53,6 +54,11 @@ def register(app: FastAPI, lane, check) -> None:
         """The review card for a change: a chat reply that carries the proposal. Body: {input, workflowId}."""
         return await run(tenant, request, x_persona, lambda body: {"answer": "", "bullets": [], "cards": [], "suggestions": [], "focus": None, "workflowId": None,
                                                                    "story": None, "proposal": review(lane, x_persona, body["input"])})
+
+    @app.post("/api/t/{tenant}/studio/chat")
+    async def studio_chat(tenant: str, request: Request, x_persona: str = Header(default="")):
+        """The assistant: Claude drafts, the person confirms. Body: ChatRequest."""
+        return await run(tenant, request, x_persona, lambda body: chat(lane, chatter, x_persona, body))
 
     @app.post("/api/t/{tenant}/ops/studioApply")
     async def studio_apply(tenant: str, request: Request, x_persona: str = Header(default="")):
