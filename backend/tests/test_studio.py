@@ -1,7 +1,10 @@
 # test_studio.py: Workflow Studio on the Finebase HQ API (step 9d): the workflows built from the running graph, their
 # health, the server review, low risk changes applied at once through S14, and Studio edits reaching what the
-# pipeline reads. Approvals are in test_studio_approvals.py. Uses: tests/studio_helpers.py.
-from tests.studio_helpers import FOUNDER, OPERATOR, REFUND_WF, STEWARD, TENANT, build, change, get, node, op
+# pipeline reads, and the repair of a store written before Studio. Approvals are in test_studio_approvals.py.
+# Uses: tests/studio_helpers.py, scripts/repair_studio_views.py.
+from app.pipeline.store_graph import MemoryGraph, load_seed
+from scripts.repair_studio_views import repair
+from tests.studio_helpers import BASE, FOUNDER, OPERATOR, REFUND_WF, STEWARD, TENANT, build, change, get, node, op
 
 
 # --- Reading
@@ -86,3 +89,24 @@ def test_breaking_needs_to_be_acknowledged():
 def test_nothing_to_change_is_refused():
     client, _ = build()
     assert op(client, "studioApply", {"input": change("workflow", REFUND_WF, {"name": "Refund handling"}, workflow=REFUND_WF)}).status_code == 422
+
+
+# --- Repairing a store written before Studio
+
+def test_the_repair_gives_old_nodes_their_view_once():
+    client, lane = build()
+    without_views = {**BASE, "skills": [strip(s) for s in BASE["skills"]], "agents": {k: strip(a) for k, a in BASE["agents"].items()},
+                     "refund_policy": strip(BASE["refund_policy"])}
+    lane.graph = MemoryGraph(TENANT)
+    load_seed(lane.graph, without_views)
+    review = lambda: client.post(f"/api/t/{TENANT}/studio/review", json={"input": change("policy", "policy_refund", {"fields": {"param.days": 45}})}, headers={"x-persona": FOUNDER})  # noqa: E731
+    assert review().status_code == 404
+    done = repair(lane, BASE)
+    assert "policy_refund v4" in done["repaired"] and len(done["repaired"]) == 5 and not done["skipped"]
+    assert node(lane, "policy", "policy_refund")["window_days"] == 30
+    assert review().status_code == 200
+    assert repair(lane, BASE)["commit"] is None
+
+
+def strip(body: dict) -> dict:
+    return {key: value for key, value in body.items() if key != "studio"}
