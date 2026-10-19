@@ -1,10 +1,10 @@
 # ready_routes.py: step 16, readiness from the console. "Check now" runs S15's check at once (the screens also run it when it is
 # over an hour old); a steward (L2) or a leader (L1) may run it. Uploading to an evidence request files the document with what it
 # was asked for, so extraction looks for that fact; a person still accepts it in the Vault before the gap closes.
-# Used by: routes.py (registers before the general ops route). Uses: ready_views.py, documents.py, stages_ready.py.
+# Used by: routes.py (registers before the general ops route). Uses: ready_notices.py, documents.py, stages_ready.py.
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 
-from app.api import documents, ready_views
+from app.api import documents, ready_notices
 from app.pipeline import stages_ready
 
 # Config
@@ -19,7 +19,7 @@ def register(app: FastAPI, lane, check) -> None:
         check(tenant, x_persona)
         if lane.seed["people"][x_persona]["tier"] not in MAY_CHECK:
             raise HTTPException(403, "not_a_steward")
-        return ready_views.run_check(lane, x_persona)
+        return ready_notices.run_check(lane, x_persona)
 
     @app.post("/api/t/{tenant}/evidence-requests/{request_id}/upload", status_code=202)
     async def upload(tenant: str, request_id: str, file: UploadFile = File(...), x_persona: str = Header(default="")) -> dict:

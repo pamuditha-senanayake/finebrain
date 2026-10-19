@@ -1,6 +1,6 @@
 # hq.py: builds the Finebase HQ pipeline the API serves: seed and people from samples, real infra where it answers,
 # real Claude and Voyage when keys are set, and a background loop that keeps the clock moving and every consumer running.
-# Used by: main.py. Uses: orchestrate.py, adapters.py, llm.py, fakes.py, routes.py. Reads env: HQ_REAL_PARTS, HQ_USE_CLAUDE.
+# Used by: main.py. Uses: orchestrate.py, adapters.py, llm.py, fakes.py, routes.py, ready_notices.py, temporal_ready.py. Reads env: HQ_REAL_PARTS, HQ_USE_CLAUDE.
 import json
 import os
 import threading
@@ -9,10 +9,10 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.api import self_knowledge, studio_approvals
+from app.api import ready_notices, self_knowledge, studio_approvals
 from app.api.studio_seed import extend_seed
 from app.api.routes import create_api_app
-from app.pipeline import fakes, llm, orchestrate
+from app.pipeline import fakes, llm, orchestrate, temporal_ready
 from app.pipeline.adapters import ALL_REAL_PARTS, make_memory_adapters, missing_infra, real_adapters
 from app.pipeline.observe import log_event
 
@@ -102,6 +102,8 @@ def build_hq_app():
     make_adapters = real_adapters(parts) if parts else make_memory_adapters
     lane = orchestrate.build_lane(seed, model, fakes.make_fake_gateway()[0], datetime.now(timezone.utc), make_adapters, choose, grade, new_id=unique_id,
                                    classify=classify, extract=choose_extractor(), resolve=choose_resolver())
+    if lane.runner is not None:  # S15's hourly tick on Temporal (step 16); without it the screens check when over an hour old
+        temporal_ready.start(lane.runner, lane.seed["tenant_id"], lambda: ready_notices.run_check(lane, "schedule"))
     log_event("API", "hq_started", parts=sorted(parts), claude=choose is not None)
     threading.Thread(target=keep_running, args=(lane,), daemon=True).start()
     return create_api_app(lane, hq, choose_answerer(), choose_chatter())

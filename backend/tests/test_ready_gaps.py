@@ -53,9 +53,9 @@ def test_checking_again_opens_nothing_new():
 
 
 def test_a_request_close_to_its_day_has_escalated():
-    client, _ = build()  # VAT's prepare-by day is 13 October, under three full days after the test clock: past all four steps
+    client, _ = build()  # VAT falls due on 20 October, nine full days after the test clock: past the 21 and 14 day steps
     vat = next(r for r in get(client, "evidence-requests") if r["id"] == "er_ob_vat_2026_09_input_invoices")
-    assert vat["escalationLevel"] == 4 and vat["obligationId"] == "ob_vat:2026-09"
+    assert vat["escalationLevel"] == 2 and vat["obligationId"] == "ob_vat:2026-09"
 
 
 # --- When the proof arrives
