@@ -100,7 +100,8 @@ Laws, market data and competitor news are the same for many tenants. So we store
 | Tier budgets and value scores | Next, in S13 nightly |
 | Summary ladder | Next, in S12 and S13 |
 | Shared commons tenant | Later |
-| Version chains, field dictionary | Next, in S11 |
+| Version chains | Built in S11 (step 14) |
+| Field dictionary | Next |
 | Four tags and narrow first | Built (steps 13a and 13b): domain and entity tags, scoped search with widening |
 | Weekly signal counts and spike check | Next, in S13; Trends tab shows them |
 

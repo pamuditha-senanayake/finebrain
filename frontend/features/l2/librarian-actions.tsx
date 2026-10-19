@@ -21,7 +21,7 @@ export function LibrarianActions({ item }: { item: LibrarianItem }) {
       if (id) router.push(`/l2/versioning/${id}`);
     };
     return (
-      <Button size="xs" onClick={() => propose.mutate({ itemId: item.id }, { onSuccess: opened })} disabled={propose.isPending} data-testid={`propose-${item.id}`}>
+      <Button size="sm" onClick={() => propose.mutate({ itemId: item.id }, { onSuccess: opened })} disabled={propose.isPending} data-testid={`propose-${item.id}`}>
         <GitPullRequest /> Propose fix
       </Button>
     );
@@ -29,10 +29,10 @@ export function LibrarianActions({ item }: { item: LibrarianItem }) {
   const busy = accept.isPending || reject.isPending;
   return (
     <div className="flex flex-wrap gap-1.5">
-      <Button size="xs" onClick={() => accept.mutate({ itemId: item.id })} disabled={busy} data-testid={`accept-${item.id}`}>
+      <Button size="sm" onClick={() => accept.mutate({ itemId: item.id })} disabled={busy} data-testid={`accept-${item.id}`}>
         <Check /> Accept
       </Button>
-      <Button size="xs" variant="outline" onClick={() => reject.mutate({ itemId: item.id })} disabled={busy} data-testid={`reject-${item.id}`}>
+      <Button size="sm" variant="outline" onClick={() => reject.mutate({ itemId: item.id })} disabled={busy} data-testid={`reject-${item.id}`}>
         <X /> Reject
       </Button>
     </div>

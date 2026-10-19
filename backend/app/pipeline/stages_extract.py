@@ -32,7 +32,8 @@ class ExtractionRecord(BaseModel):
 def parts_of(lane, record: dict) -> list[dict]:
     """The document's chunks in order, without the title S11 puts in front, as the Library shows them."""
     prefix = f"{record['title']}: "
-    bodies = sorted(lane.chunks.of_document(record["document_id"]), key=lambda body: int(body["item_id"].rsplit("_c", 1)[-1]))
+    own = [body for body in lane.chunks.of_document(record["document_id"]) if body["kind"] == "chunk"]  # not the verified facts it sourced
+    bodies = sorted(own, key=lambda body: int(body["item_id"].rsplit("_c", 1)[-1]))
     return [{"id": body["item_id"], "text": body["text"].removeprefix(prefix)} for body in bodies]
 
 

@@ -91,7 +91,7 @@ Done when: finding one run among 10,000 opens on its row in under a second, and 
 
 Done when: retrieval cost stays flat as stored data grows (measured), nightly summaries appear, and forgetting an item also clears it from summaries.
 
-### Step 14: Lane B (documents into verified facts)
+### Step 14: Lane B (documents into verified facts) (done, see the status row in the system reference)
 
 Full S11 filing rules, S12 fact extraction with evidence, the librarian queue and the ground-truth vault on the HQ backend. It replaces the thin S11 from step 9b. Done when an uploaded contract becomes reviewed facts in the vault.
 

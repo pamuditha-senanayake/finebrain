@@ -95,7 +95,7 @@ test("3. policy drift: librarian proposes invalidation, dependents update in one
   await page.getByRole("button", { name: /Observed behaviour shows a drift point/ }).click();
   await expect(page.getByRole("region", { name: "Freshness signal" })).toContainText("Observed behaviour shows a drift point");
 
-  await page.goto("/l2/vault");
+  await page.goto("/l2/vault?item=lib-refund-window"); // the queue shows one card at a time; this opens it on the drift item
   await page.getByTestId("propose-lib-refund-window").click();
   await expect(page).toHaveURL(/\/l2\/versioning\//);
   await expect(page.getByText(/Refund window changes from 30 to 14 days for annual plans, valid from 1 November/)).toBeVisible();

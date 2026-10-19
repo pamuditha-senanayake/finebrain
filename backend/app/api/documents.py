@@ -94,7 +94,7 @@ def chunks_view(lane, document_id: str) -> list[dict]:
     if record is None:
         raise HTTPException(404, "not_found")
     prefix = f"{record['title']}: "
-    return [{"id": body["item_id"], "text": body["text"].removeprefix(prefix)} for body in lane.chunks.of_document(document_id)]
+    return [{"id": body["item_id"], "text": body["text"].removeprefix(prefix)} for body in lane.chunks.of_document(document_id) if body["kind"] == "chunk"]
 
 
 def accept(lane, persona: str, filename: str, data: bytes, sensitivity: str) -> dict:
