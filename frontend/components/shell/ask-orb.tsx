@@ -1,10 +1,12 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { AskAnswer } from "@/contracts";
 import { VoiceOrb, type VoiceState } from "@/features/l1/voice-orb";
 import { useAsk } from "@/lib/api/conversation";
+import { findPage } from "@/lib/ask-go";
+import { useCurrentUser } from "@/lib/auth";
 import { guideFor } from "@/lib/page-context";
 import { snapshotPage } from "@/lib/page-snapshot";
 import { useUi } from "@/lib/store";
@@ -24,6 +26,8 @@ export function AskOrb() {
   const open = useUi((s) => s.askOpen);
   const setOpen = useUi((s) => s.setAskOpen);
   const pathname = usePathname();
+  const router = useRouter();
+  const { user } = useCurrentUser();
   const ask = useAsk();
   const [voice, setVoice] = useState<VoiceState>("idle");
   const [items, setItems] = useState<Exchange[]>([]);
@@ -59,6 +63,15 @@ export function AskOrb() {
     unlockAudio();
     const id = ++seq.current;
     setNote("");
+    // "Go to the library" goes there at once; no model call.
+    const page = findPage(q, user);
+    if (page) {
+      const answer: AskAnswer = { question: q, answer: `Opening ${page.label}.`, citations: [], withheld: 0 };
+      setItems((list) => [...list.slice(-1), { id, q, a: answer }]);
+      router.push(page.href);
+      setTimeout(() => setOpen(false), 500);
+      return;
+    }
     setItems((list) => [...list.slice(-1), { id, q, a: null }]); // the bubble keeps the last two exchanges
     setVoice("thinking");
     let answer: AskAnswer;

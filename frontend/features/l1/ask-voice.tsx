@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { ConnectorPicker } from "@/features/connect/connector-picker";
 import { Interview } from "@/features/setup/interview";
 import { useAsk, useConversation } from "@/lib/api/conversation";
+import { findPage } from "@/lib/ask-go";
+import { useCurrentUser } from "@/lib/auth";
 import { canRecord, openMic, recordQuestion, transcribe, type Mic as OpenMic } from "@/lib/voice/mic";
 import { shortOf, speak, unlockAudio } from "@/lib/voice/speaker";
 import { date } from "@/lib/format";
@@ -73,6 +75,7 @@ export function AskVoice() {
   const [setup, setSetup] = useState(false);
   const [picker, setPicker] = useState(false);
   const router = useRouter();
+  const { user } = useCurrentUser();
   const level = useRef(0);
   const rec = useRef<Recognition | null>(null);
   const recording = useRef<{ stop: () => void } | null>(null);
@@ -169,6 +172,9 @@ export function AskVoice() {
 
   async function answer(q: string) {
     unlockAudio();
+    // "Go to the library" goes there at once; no model call.
+    const page = findPage(q, user);
+    if (page) return void router.push(page.href);
     setHeard(q);
     setSources(false);
     setMore(false);
