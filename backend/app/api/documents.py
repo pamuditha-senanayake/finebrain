@@ -35,6 +35,22 @@ class Document(g.UiModel):
     uploaded_at: str
     size_kb: int
     personal_data: bool
+    receipt: dict | None = None  # step 10: what removing it cleared, once it was retired or erased
+
+
+def receipt_of(lane, document_id: str) -> dict | None:
+    """The receipt of the finished removal of this document, if there is one."""
+    done = [r for r in lane.records.list_kind("forget_request") if r["document_id"] == document_id and r["status"] == "done"]
+    return done[-1]["receipt"] if done else None
+
+
+def erased_view(lane, tombstone: dict) -> dict:
+    """An erased document leaves a row with no content: no title, no file name, only the receipt."""
+    return Document(
+        id=tombstone["document_id"], tenant_id=lane.seed["tenant_id"], cluster_id=lane.seed["cluster_id"], title="Removed", source="Ask the Brain upload",
+        type="file", sensitivity="internal", extraction_status="erased", linked_facts=[], retention_days=0, filing_rule="uploads",
+        uploaded_by=tombstone["erased_by"], uploaded_at=str(tombstone["erased_at"]), size_kb=0, personal_data=False, receipt=receipt_of(lane, tombstone["document_id"]),
+    ).ui()
 
 
 def document_view(lane, record: dict) -> dict:
@@ -43,12 +59,15 @@ def document_view(lane, record: dict) -> dict:
         type=record["kind"].lstrip(".") or "file", sensitivity=record["sensitivity"], extraction_status=record["status"], linked_facts=[],
         retention_days=RETENTION_DAYS, filing_rule="uploads", uploaded_by=record["uploaded_by"], uploaded_at=str(record["uploaded_at"]),
         size_kb=max(1, record["size_bytes"] // 1024), personal_data=record["personal_data"],
+        receipt=receipt_of(lane, record["document_id"]) if record["status"] == "retired" else None,
     ).ui()
 
 
 def documents_view(lane) -> list[dict]:
     """The Library: newest first."""
-    return sorted((document_view(lane, record) for record in lane.records.list_kind("document")), key=lambda d: d["uploadedAt"], reverse=True)
+    shown = [document_view(lane, record) for record in lane.records.list_kind("document")]
+    shown += [erased_view(lane, tombstone) for tombstone in lane.records.list_kind("tombstone")]
+    return sorted(shown, key=lambda d: d["uploadedAt"], reverse=True)
 
 
 def accept(lane, persona: str, filename: str, data: bytes, sensitivity: str) -> dict:

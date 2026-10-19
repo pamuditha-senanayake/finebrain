@@ -24,11 +24,13 @@ class DocumentRecord(BaseModel):
     uploaded_by: str
     uploaded_at: datetime
     sensitivity: str
-    status: str  # pending, done, failed
+    status: str  # pending, done, failed, retired
     original_uri: str
     chunk_ids: list[str] = []
     personal_data: bool = False
     flags: list[str] = []
+    pii_tokens: list[str] = []  # vault tokens this document put there, so erasing it can clear them (step 10)
+    retired_at: datetime | None = None  # set by step 10 when the document is no longer true
 
 
 def chunks_of(text: str) -> list[str]:
@@ -57,8 +59,8 @@ def file_document(lane, signal: Signal) -> None:
         return
     document_id = signal.dedup_key.rsplit(":", 1)[-1]
     stored = lane.records.load("document", document_id)
-    if stored is None or stored["status"] == "done":
-        return  # not uploaded through the console, or already filed (a redelivery)
+    if stored is None or stored["status"] in ("done", "retired"):
+        return  # not uploaded through the console, already filed (a redelivery), or later retired; an erased record is gone
     record = DocumentRecord.model_validate(stored)
     sensitivity = stricter(record.sensitivity, signal.sensitivity)
     items = [{
@@ -72,7 +74,7 @@ def file_document(lane, signal: Signal) -> None:
         lane.chunks.add(item, vector)
     lane.records.save("document", document_id, record.model_copy(update={
         "status": "done", "sensitivity": sensitivity, "chunk_ids": [item["item_id"] for item in items],
-        "personal_data": bool(signal.pii_tokens), "flags": signal.flags,
+        "personal_data": bool(signal.pii_tokens), "flags": signal.flags, "pii_tokens": list(signal.pii_tokens),
     }))
     count("s11.filed")
     log_event("S11", "filed", document_id=document_id, chunks=len(items), sensitivity=sensitivity)

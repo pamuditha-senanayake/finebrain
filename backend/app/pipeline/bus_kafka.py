@@ -77,6 +77,10 @@ class KafkaBus:
 
     # --- Consuming
 
+    def drop_messages(self, mark: str) -> int | None:
+        """Erase (step 10): a Kafka log cannot be edited; messages leave when the topic's retention ends. None says so."""
+        return None
+
     def subscribe(self, topic: str, group: str, stage: str, handler: Handler) -> None:
         """One consumer group per stage. Partitions are assigned directly, so there is no rebalance wait."""
         self.ensure_topics([topic])

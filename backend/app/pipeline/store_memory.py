@@ -28,3 +28,7 @@ class MemoryRecords:
     def list_kind(self, kind: str) -> list[dict]:
         """The latest version of every record of one kind, ordered by id like Postgres."""
         return [history[-1] for (entry_kind, _), history in sorted(self.versions.items()) if entry_kind == kind]
+
+    def purge(self, kind: str, record_id: str) -> list[dict]:
+        """Erase every version of one record and return what it held, so the caller can save a scrubbed copy."""
+        return self.versions.pop((kind, record_id), [])

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.api import ask as asking
-from app.api import ask_memory, documents, studio_approvals, studio_routes, versions_views
+from app.api import ask_memory, documents, forget_routes, studio_approvals, studio_routes, versions_views
 from app.api import views
 from app.api.graph_map import graph_resource
 from app.api.lists import clusters_view, list_view, live_event, refusal_for, sensors_view, tenant_view
@@ -128,6 +128,7 @@ def create_api_app(lane, hq: dict, answerer=None, chatter=None) -> FastAPI:
             raise HTTPException(403, "not_your_conversation") from None
 
     documents.register(app, lane, check)
+    forget_routes.register(app, lane, check)
 
     @app.post("/api/t/{tenant}/{rest:path}")
     def not_built(tenant: str, rest: str, x_persona: str = Header(default="")):

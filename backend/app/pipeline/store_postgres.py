@@ -132,3 +132,9 @@ class PostgresRecords:
             (self.tenant_id, kind),
         )
         return [row[0] for row in rows]
+
+    def purge(self, kind: str, record_id: str) -> list[dict]:
+        """Erase every version of one record and return what it held, so the caller can save a scrubbed copy."""
+        history = self.history(kind, record_id)
+        self.connection.execute("DELETE FROM records WHERE tenant_id = %s AND kind = %s AND record_id = %s", (self.tenant_id, kind, record_id))
+        return history

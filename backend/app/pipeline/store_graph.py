@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS graph_nodes (
 """
 SEED_COMMIT = "cmt_seed"
 CLOSED = "_closed"
+ERASED = "_erased"  # a purged node: every version keeps its place in the history, none keeps its content
 
 
 def with_ref(body: dict, node_id: str, version: int, branch: str, commit_id: str) -> dict:
@@ -49,6 +50,12 @@ class MemoryGraph:
         """Every version of one node, oldest first, including a closing one."""
         versions = self.nodes.get((branch, node_type, node_id), {})
         return [versions[v] for v in sorted(versions)]
+
+    def purge(self, node_type: str, node_id: str, branch: str = "main") -> None:
+        """Erase: every version of the node loses its content and stays closed. Only the forgetting job calls this."""
+        versions = self.nodes.get((branch, node_type, node_id), {})
+        for version, node in versions.items():
+            versions[version] = with_ref({CLOSED: True, ERASED: True}, node_id, version, branch, node["_ref"]["commit_id"])
 
     def at_version(self, node_type: str, node_id: str, version: int, branch: str = "main") -> dict | None:
         return self.nodes.get((branch, node_type, node_id), {}).get(version)
@@ -87,6 +94,12 @@ class PostgresGraph:
             (self.tenant_id, branch, node_type, node_id),
         )
         return [with_ref(body, node_id, version, branch, commit_id) for version, commit_id, body in rows]
+
+    def purge(self, node_type: str, node_id: str, branch: str = "main") -> None:
+        """Erase: every version of the node loses its content and stays closed. Only the forgetting job calls this."""
+        self.connection.execute(
+            "UPDATE graph_nodes SET body = %s WHERE tenant_id = %s AND branch = %s AND node_type = %s AND node_id = %s",
+            (Jsonb({CLOSED: True, ERASED: True}), self.tenant_id, branch, node_type, node_id))
 
     def at_version(self, node_type: str, node_id: str, version: int, branch: str = "main") -> dict | None:
         return next((node for node in self.history(node_type, node_id, branch) if node["_ref"]["version"] == version), None)

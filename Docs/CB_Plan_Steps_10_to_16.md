@@ -36,7 +36,7 @@ Rules that held so far: commit after each sub-step, keep each test file next to 
 
 Suggested order: 10, then 11 and 12 (either order), then 13, then 14 to 16. Step 10 comes first so every memory layer in step 13 is built with a way to forget.
 
-### Step 10: Forgetting knowledge across every layer
+### Step 10: Forgetting knowledge across every layer (done, see the status row in the system reference)
 
 Two kinds of removal:
 

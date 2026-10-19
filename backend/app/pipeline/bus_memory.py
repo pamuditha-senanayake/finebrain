@@ -1,5 +1,6 @@
 # bus_memory.py: in-memory event bus with the shape the Kafka adapter will keep (step 5).
 # Used by: orchestrate.py, tests/test_chain.py. Uses: contracts_signal.py (Envelope), contracts_failure.py (DeadLetter).
+import json
 from collections import deque
 from collections.abc import Callable, MutableSet
 from datetime import datetime
@@ -38,6 +39,12 @@ class MemoryBus:
         self.topics.setdefault(topic, []).append(envelope)
         self.queue.append((topic, envelope))
         return envelope
+
+    def drop_messages(self, mark: str) -> int | None:
+        """Erase (step 10): remove every kept message whose payload holds `mark`. Returns how many went."""
+        before = sum(len(kept) for kept in self.topics.values())
+        self.topics = {topic: [e for e in kept if mark not in json.dumps(e.payload, default=str)] for topic, kept in self.topics.items()}
+        return before - sum(len(kept) for kept in self.topics.values())
 
     def subscribe(self, topic: str, group: str, stage: str, handler: Handler) -> None:
         """One consumer group per stage, as on Kafka."""

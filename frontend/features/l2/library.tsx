@@ -5,11 +5,13 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { Document, Fact } from "@/contracts";
+import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useLookup } from "@/components/brain/names";
 import { SimpleTable } from "@/components/brain/simple-table";
 import { KeyValue, PageHeader, QueryView, Section, Status, StatusChip } from "@/components/brain/primitives";
-import { useDocuments, useFacts, useFilingRules } from "@/lib/api/hooks";
+import { useDocuments, useFacts, useFilingRules, useTenantId } from "@/lib/api/hooks";
+import { ForgetCard, ReceiptList } from "./forget-card";
 import { date } from "@/lib/format";
 import { FOLDERS, folderOf, searchDocuments } from "@/lib/library";
 import { cn } from "@/lib/utils";
@@ -130,6 +132,8 @@ export function LibraryView() {
 function DocumentSheet({ doc, facts, onClose, onFolder }: { doc: Document | null; facts: Fact[]; onClose: () => void; onFolder: (folderId: string) => void }) {
   const lookup = useLookup();
   const folder = doc ? folderOf(doc) : null;
+  const [removing, setRemoving] = useState(false);
+  const removable = useTenantId() === "finebase-hq" && !!doc && (doc.extractionStatus === "done" || doc.extractionStatus === "retired");
   return (
     <Sheet open={!!doc} onOpenChange={(o) => !o && onClose()}>
       <SheetContent side="right" className="w-full gap-0 overflow-y-auto p-0 sm:max-w-lg">
@@ -141,9 +145,16 @@ function DocumentSheet({ doc, facts, onClose, onFolder }: { doc: Document | null
               </button>
               <SheetTitle className="text-lg leading-snug">{doc.title}</SheetTitle>
               <SheetDescription>Added {date(doc.uploadedAt, lookup.tz)} by {lookup.name(doc.uploadedBy)}</SheetDescription>
+              {(doc.extractionStatus === "retired" || doc.extractionStatus === "erased") && <Status value={doc.extractionStatus} />}
             </SheetHeader>
             <div className="space-y-8 p-6">
-              <section>
+              {doc.receipt && (
+                <section>
+                  <h3 className="mb-3 text-[15px] font-semibold">Receipt</h3>
+                  <ReceiptList receipt={doc.receipt} />
+                </section>
+              )}
+              {doc.extractionStatus !== "erased" && <section>
                 <h3 className="mb-3 text-[15px] font-semibold">What it says</h3>
                 {facts.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No facts taken from this document yet.</p>
@@ -169,8 +180,8 @@ function DocumentSheet({ doc, facts, onClose, onFolder }: { doc: Document | null
                     ))}
                   </ul>
                 )}
-              </section>
-              <section>
+              </section>}
+              {doc.extractionStatus !== "erased" && <section>
                 <h3 className="mb-3 text-[15px] font-semibold">Details</h3>
                 <KeyValue
                   items={[
@@ -183,7 +194,13 @@ function DocumentSheet({ doc, facts, onClose, onFolder }: { doc: Document | null
                     ["Area", lookup.cluster(doc.clusterId)],
                   ]}
                 />
-              </section>
+              </section>}
+              {removable && (
+                <Button variant="outline" onClick={() => setRemoving(true)}>
+                  Remove
+                </Button>
+              )}
+              {removing && <ForgetCard documentId={doc.id} retired={doc.extractionStatus === "retired"} onClose={() => setRemoving(false)} />}
             </div>
           </>
         )}

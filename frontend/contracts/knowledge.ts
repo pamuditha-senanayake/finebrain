@@ -102,6 +102,31 @@ export const Fact = z.object({
 });
 export type Fact = z.infer<typeof Fact>;
 
+/** What removing a document did, layer by layer (step 10). */
+export const ForgetReceipt = z.object({
+  mode: z.enum(["retire", "erase"]),
+  at: IsoDate,
+  by: z.string(),
+  layers: z.array(z.object({ layer: z.string(), result: z.enum(["cleared", "kept", "nothing"]), note: z.string() })),
+  verified: z.boolean(),
+  failed: z.array(z.string()),
+});
+export type ForgetReceipt = z.infer<typeof ForgetReceipt>;
+
+/** The review before a document is removed: what depends on it, the level, and the next warning. */
+export const ForgetReview = z.object({
+  requestId: z.string(),
+  documentId: z.string(),
+  mode: z.enum(["retire", "erase"]),
+  level: z.number().int(),
+  status: z.enum(["review", "done", "incomplete"]),
+  dependents: z.array(z.object({ type: z.string(), id: z.string(), label: z.string() })),
+  confirmationsLeft: z.number().int(),
+  warning: z.string(),
+  receipt: ForgetReceipt.nullable(),
+});
+export type ForgetReview = z.infer<typeof ForgetReview>;
+
 export const Document = z.object({
   id: z.string(),
   tenantId: z.string(),
@@ -110,7 +135,7 @@ export const Document = z.object({
   source: z.string(),
   type: z.string(),
   sensitivity: Sensitivity,
-  extractionStatus: z.enum(["pending", "extracting", "done", "failed"]),
+  extractionStatus: z.enum(["pending", "extracting", "done", "failed", "retired", "erased"]),
   linkedFacts: z.array(z.string()),
   retentionDays: z.number().int(),
   filingRule: z.string(),
@@ -118,6 +143,7 @@ export const Document = z.object({
   uploadedAt: IsoDate,
   sizeKb: z.number().int(),
   personalData: z.boolean(),
+  receipt: ForgetReceipt.nullish(),
 });
 export type Document = z.infer<typeof Document>;
 
