@@ -144,6 +144,9 @@ export const Document = z.object({
   sizeKb: z.number().int(),
   personalData: z.boolean(),
   receipt: ForgetReceipt.nullish(),
+  /** Step 14: its place in a version chain, and the newer version that replaced it. */
+  version: z.number().int().nullish(),
+  replacedBy: z.string().nullish(),
 });
 export type Document = z.infer<typeof Document>;
 

@@ -8,7 +8,17 @@
     "locale": "en-LK",
     "brand": {"primary": "#4338ca", "mark": "FH"}
   },
-  "seed_overrides": {"tenant_id": "finebase-hq", "env": "production"},
+  "seed_overrides": {
+    "tenant_id": "finebase-hq", "env": "production",
+    "filing_rules": [
+      {"id": "fr_contracts", "match": "contract|agreement|\\bmsa\\b|\\bnda\\b", "type": "contract", "sensitivity": "confidential", "retention_days": 2555, "is_sample": true},
+      {"id": "fr_invoices", "match": "invoice|receipt|\\bbill\\b", "type": "invoice", "sensitivity": "confidential", "retention_days": 2555, "is_sample": true},
+      {"id": "fr_statements", "match": "bank statement|statement", "type": "statement", "sensitivity": "restricted", "retention_days": 2555, "is_sample": true},
+      {"id": "fr_policies", "match": "policy|terms|handbook|procedure", "type": "policy", "sensitivity": "internal", "retention_days": 1825, "is_sample": true},
+      {"id": "fr_pricing", "match": "pric(e|ing)|rate card", "type": "pricing", "sensitivity": "internal", "retention_days": 1095, "is_sample": true},
+      {"id": "fr_reports", "match": "report|export", "type": "report", "sensitivity": "internal", "retention_days": 1095, "is_sample": true}
+    ]
+  },
   "people": {
     "h-pamuditha": {"tier": "L1", "roles": ["founder", "dri", "leader", "head_of_cs"], "delegate": null, "name": "Pamuditha Senanayake", "title": "Founder", "color": "#4338ca", "address": "sir"},
     "h-udayanga": {"tier": "L2", "roles": ["steward"], "delegate": "h-pamuditha", "name": "Udayanga Weerakoon", "title": "Steward", "color": "#0f766e"},

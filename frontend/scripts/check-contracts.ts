@@ -29,6 +29,7 @@ const CHECKS: [string, z.ZodType][] = [
   ["overview", C.Overview],
   ["studio/map", C.BrainMap],
   ["documents", z.array(C.Document)],
+  ["filing-rules", z.array(C.FilingRule)],
   ["lists/runs?limit=20", C.ListPage(C.Run)],
   ["lists/escalations", C.ListPage(C.Run)],
   ["lists/audit?limit=20", C.ListPage(C.AuditEvent)],

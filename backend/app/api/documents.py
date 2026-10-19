@@ -1,13 +1,14 @@
 # documents.py: uploads from the console (Ask the Brain) and the Library list. An upload keeps the original file in S3,
 # writes a pending Library record, then goes through S1 and S2 like any signal, so personal data is masked before S11
-# files it as searchable knowledge. Used by: routes.py, tests/test_documents.py. Uses: extract.py, stages_file.py, capture_api.py.
+# files it as searchable knowledge. Used by: routes.py, lists.py (filing rules), tests/test_documents.py.
+# Uses: extract.py, stages_file.py, filing.py, capture_api.py.
 import uuid
 from datetime import datetime
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 
 from app.api import ui_models_graph as g
-from app.pipeline import capture_api
+from app.pipeline import capture_api, filing
 from app.pipeline.extract import UnreadableFile, kind_of, text_of
 from app.pipeline.stages_file import DocumentRecord
 from app.pipeline.stages_normalize import UNSAFE_FILENAME
@@ -16,7 +17,6 @@ from app.pipeline.stages_normalize import UNSAFE_FILENAME
 CONNECTOR_ID = "conn_upload_console"
 LARGEST_UPLOAD = 10 * 1024 * 1024  # 10 MB
 UPLOAD_SENSITIVITIES = {"public", "internal", "confidential", "restricted"}
-RETENTION_DAYS = 365  # sample filing rule until open question 5 is answered
 
 
 class Document(g.UiModel):
@@ -36,6 +36,17 @@ class Document(g.UiModel):
     size_kb: int
     personal_data: bool
     receipt: dict | None = None  # step 10: what removing it cleared, once it was retired or erased
+    version: int | None = None  # step 14: its place in a version chain
+    replaced_by: str | None = None  # step 14: the newer version that replaced it, while that one is filed
+
+
+class FilingRule(g.UiModel):
+    id: str
+    match: str
+    cluster_id: str
+    type: str
+    sensitivity: str
+    retention_days: int
 
 
 def receipt_of(lane, document_id: str) -> dict | None:
@@ -56,10 +67,11 @@ def erased_view(lane, tombstone: dict) -> dict:
 def document_view(lane, record: dict) -> dict:
     return Document(
         id=record["document_id"], tenant_id=lane.seed["tenant_id"], cluster_id=lane.seed["cluster_id"], title=record["title"], source="Ask the Brain upload",
-        type=record["kind"].lstrip(".") or "file", sensitivity=record["sensitivity"], extraction_status=record["status"], linked_facts=[],
-        retention_days=RETENTION_DAYS, filing_rule="uploads", uploaded_by=record["uploaded_by"], uploaded_at=str(record["uploaded_at"]),
-        size_kb=max(1, record["size_bytes"] // 1024), personal_data=record["personal_data"],
-        receipt=receipt_of(lane, record["document_id"]) if record["status"] == "retired" else None,
+        type=record.get("doc_type") or record["kind"].lstrip(".") or "file", sensitivity=record["sensitivity"], extraction_status=record["status"],
+        linked_facts=[], retention_days=record.get("retention_days", filing.FALLBACK_RULE["retention_days"]), filing_rule=record.get("filing_rule", "uploads"),
+        uploaded_by=record["uploaded_by"], uploaded_at=str(record["uploaded_at"]), size_kb=max(1, record["size_bytes"] // 1024),
+        personal_data=record["personal_data"], receipt=receipt_of(lane, record["document_id"]) if record["status"] == "retired" else None,
+        version=record.get("version", 1), replaced_by=filing.replaced_by(lane.records, record),
     ).ui()
 
 
@@ -68,6 +80,12 @@ def documents_view(lane) -> list[dict]:
     shown = [document_view(lane, record) for record in lane.records.list_kind("document")]
     shown += [erased_view(lane, tombstone) for tombstone in lane.records.list_kind("tombstone")]
     return sorted(shown, key=lambda d: d["uploadedAt"], reverse=True)
+
+
+def filing_rules_view(lane) -> list[dict]:
+    """How new documents are filed, in the order the rules are tried."""
+    return [FilingRule(id=rule["id"], match=rule["match"], cluster_id=lane.seed["cluster_id"], type=rule["type"] or "file kind", sensitivity=rule["sensitivity"],
+                       retention_days=rule["retention_days"]).ui() for rule in filing.rules_of(lane.seed)]
 
 
 def chunks_view(lane, document_id: str) -> list[dict]:

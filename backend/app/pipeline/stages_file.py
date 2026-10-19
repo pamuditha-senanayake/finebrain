@@ -1,12 +1,13 @@
 # stages_file.py: S11 File, a thin first version. A document that S2 masked becomes searchable knowledge: its text is
 # split into chunks, each chunk is a knowledge node in the graph and an embedded chunk for S5, and its Library record
-# moves to done. Each chunk carries the signal's domain and the entities it names (step 13a).
-# Used by: orchestrate.py (consumer of signals.normalized). Uses: contracts_signal.py, item_tags.py, observe.py.
+# moves to done. Each chunk carries the signal's domain and the entities it names (step 13a). Filing rules and version
+# chains (step 14) set its type, retention and version, announced on docs.filed and docs.extracted.
+# Used by: orchestrate.py (consumer of signals.normalized). Uses: contracts_signal.py, filing.py, item_tags.py, observe.py.
 from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.pipeline import item_tags
+from app.pipeline import filing, item_tags
 from app.pipeline.contracts_signal import Signal
 from app.pipeline.observe import count, log_event
 
@@ -34,6 +35,13 @@ class DocumentRecord(BaseModel):
     pii_tokens: list[str] = []  # vault tokens this document put there, so erasing it can clear them (step 10)
     retired_at: datetime | None = None  # set by step 10 when the document is no longer true
     domain: str = "general"  # set by S11 from the signal's domain (step 13a); older records read as general
+    filing_rule: str = "uploads"  # step 14: the rule that filed it; older records read as the fallback
+    doc_type: str = ""  # step 14: its Library folder type, like contract or invoice
+    retention_days: int = 365
+    chain_key: str = ""  # step 14: type and title stem; documents sharing it are versions of one document
+    chain_id: str = ""
+    version: int = 1
+    superseded_by: str | None = None  # the newer version that replaced it
 
 
 def chunks_of(text: str) -> list[str]:
@@ -56,8 +64,35 @@ def stricter(a: str, b: str) -> str:
     return max(a, b, key=SENSITIVITY_ORDER.index)
 
 
+def placement(lane, record: DocumentRecord, signal: Signal) -> dict:
+    """Where the document lives: its rule, sensitivity (never lowered), domain, and place in a version chain. Announced on docs.filed."""
+    rule = filing.rule_for(lane.seed, record.title, record.filename)
+    key = filing.chain_key(rule["type"], record.title)
+    chain_id, version, replaces = filing.chain_for(lane.records, record.document_id, key)
+    placed = {"sensitivity": stricter(stricter(record.sensitivity, signal.sensitivity), rule["sensitivity"]), "domain": signal.domain or item_tags.FALLBACK,
+              "filing_rule": rule["id"], "doc_type": rule["type"], "retention_days": rule["retention_days"], "chain_key": key, "chain_id": chain_id, "version": version}
+    filed = {k: v for k, v in placed.items() if k != "chain_key"}
+    lane.bus.publish("docs.filed", "doc.filed", filing.DocFiled(document_id=record.document_id, **filed), "ingest")
+    return {**placed, "replaces": replaces}
+
+
+def index_chunks(lane, record: DocumentRecord, text: str, sensitivity: str, domain: str) -> list[dict]:
+    """Chunk the masked text, tag each chunk, and put it in the graph and the search index."""
+    is_customer = item_tags.customer_check(lane.entities)
+    items = [item_tags.tagged({
+        "item_id": f"{record.document_id}_c{i}", "kind": "chunk", "text": f"{record.title}: {part}",
+        "source": {"document_id": record.document_id, "uri": record.original_uri, "span": f"chunk:{i}"},
+        "valid_from": record.uploaded_at.isoformat(), "valid_to": None, "recorded_at": lane.now.isoformat(), "verified_by": None,
+        "version_ref": None, "score": 0.0, "sensitivity": sensitivity,
+    }, domain, is_customer) for i, part in enumerate(chunks_of(text), start=1)]
+    for item, vector in zip(items, lane.embed([item["text"] for item in items], "document")):
+        lane.graph.put("knowledge", item["item_id"], 1, f"cmt_upload_{record.document_id}", item)
+        lane.chunks.add(item, vector)
+    return items
+
+
 def file_document(lane, signal: Signal) -> None:
-    """S11: chunk the masked text into the graph and the search index, then mark the Library record done."""
+    """S11: file the document by its rule and chain, index its text, then mark it done and the version it replaces as replaced."""
     if signal.kind != "document_arrived":
         return
     document_id = signal.dedup_key.rsplit(":", 1)[-1]
@@ -65,20 +100,18 @@ def file_document(lane, signal: Signal) -> None:
     if stored is None or stored["status"] in ("done", "retired"):
         return  # not uploaded through the console, already filed (a redelivery), or later retired; an erased record is gone
     record = DocumentRecord.model_validate(stored)
-    sensitivity = stricter(record.sensitivity, signal.sensitivity)
-    domain, is_customer = signal.domain or item_tags.FALLBACK, item_tags.customer_check(lane.entities)
-    items = [item_tags.tagged({
-        "item_id": f"{document_id}_c{i}", "kind": "chunk", "text": f"{record.title}: {text}",
-        "source": {"document_id": document_id, "uri": record.original_uri, "span": f"chunk:{i}"},
-        "valid_from": record.uploaded_at.isoformat(), "valid_to": None, "recorded_at": lane.now.isoformat(), "verified_by": None,
-        "version_ref": None, "score": 0.0, "sensitivity": sensitivity,
-    }, domain, is_customer) for i, text in enumerate(chunks_of(signal.text_masked or ""), start=1)]
-    for item, vector in zip(items, lane.embed([item["text"] for item in items], "document")):
-        lane.graph.put("knowledge", item["item_id"], 1, f"cmt_upload_{document_id}", item)
-        lane.chunks.add(item, vector)
-    lane.records.save("document", document_id, record.model_copy(update={
-        "status": "done", "sensitivity": sensitivity, "domain": domain, "chunk_ids": [item["item_id"] for item in items],
-        "personal_data": bool(signal.pii_tokens), "flags": signal.flags, "pii_tokens": list(signal.pii_tokens),
-    }))
+
+    # Step 1: file it, then index its text
+    placed = placement(lane, record, signal)
+    replaces = placed.pop("replaces")
+    items = index_chunks(lane, record, signal.text_masked or "", placed["sensitivity"], placed["domain"])
+
+    # Step 2: mark it done, and the version it replaces as replaced
+    lane.records.save("document", document_id, record.model_copy(update={**placed, "status": "done", "chunk_ids": [item["item_id"] for item in items],
+                      "personal_data": bool(signal.pii_tokens), "flags": signal.flags, "pii_tokens": list(signal.pii_tokens)}))
+    if replaces:
+        older = DocumentRecord.model_validate(lane.records.load("document", replaces))
+        lane.records.save("document", replaces, older.model_copy(update={"superseded_by": document_id}))
+    lane.bus.publish("docs.extracted", "doc.extracted", filing.DocExtracted(document_id=document_id, chunk_count=len(items), characters=len(signal.text_masked or "")), "ingest")
     count("s11.filed")
-    log_event("S11", "filed", document_id=document_id, chunks=len(items), sensitivity=sensitivity, domain=domain)
+    log_event("S11", "filed", document_id=document_id, chunks=len(items), domain=placed["domain"], rule=placed["filing_rule"], version=placed["version"])

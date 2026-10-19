@@ -146,7 +146,10 @@ function DocumentSheet({ doc, facts, onClose, onFolder }: { doc: Document | null
                 <FolderIcon className="size-3.5" aria-hidden /> {folder.name}
               </button>
               <SheetTitle className="text-lg leading-snug">{doc.title}</SheetTitle>
-              <SheetDescription>Added {date(doc.uploadedAt, lookup.tz)} by {lookup.name(doc.uploadedBy)}</SheetDescription>
+              <SheetDescription>
+                Added {date(doc.uploadedAt, lookup.tz)} by {lookup.name(doc.uploadedBy)}{doc.version && doc.version > 1 ? ` · version ${doc.version}` : ""}
+              </SheetDescription>
+              {doc.replacedBy && <Link href={`?doc=${doc.replacedBy}`} className="w-fit text-sm text-primary hover:underline" data-testid="newer-version">Newer version</Link>}
               {(doc.extractionStatus === "retired" || doc.extractionStatus === "erased") && <Status value={doc.extractionStatus} />}
             </SheetHeader>
             <div className="space-y-8 p-6">
