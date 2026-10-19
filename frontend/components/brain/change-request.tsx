@@ -66,8 +66,12 @@ export function ImpactAndTests({ cr }: { cr: ChangeRequest }) {
           <>
             <p className="text-sm" data-testid="impact-summary">{cr.impactPreview.summary}</p>
             <div className="mt-2 flex flex-wrap gap-2 text-xs">
-              <Badge variant="secondary">{cr.impactPreview.runsReplayed.toLocaleString()} runs replayed</Badge>
-              <Badge variant="secondary">{cr.impactPreview.decisionsChanged} decisions change</Badge>
+              {cr.impactPreview.runsReplayed > 0 && (
+                <>
+                  <Badge variant="secondary">{cr.impactPreview.runsReplayed.toLocaleString()} runs replayed</Badge>
+                  <Badge variant="secondary">{cr.impactPreview.decisionsChanged} decisions change</Badge>
+                </>
+              )}
               <StatusChip tone={cr.impactPreview.predictedRisk === "high" ? "risk" : cr.impactPreview.predictedRisk === "medium" ? "warn" : "ok"}>risk {cr.impactPreview.predictedRisk}</StatusChip>
             </div>
             {cr.impactPreview.examples.map((ex) => (
@@ -89,7 +93,7 @@ export function ImpactAndTests({ cr }: { cr: ChangeRequest }) {
             <p className="text-sm">
               <span className={cn("font-semibold", cr.tests.failed ? "text-risk" : "text-ok")}>{cr.tests.passed} of {cr.tests.total} passed</span> in <Mono>{cr.tests.suite}</Mono>
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">Consistency pass^{cr.tests.k}: {(cr.tests.passK * 100).toFixed(0)}%</p>
+            {cr.tests.k > 1 && <p className="mt-1 text-xs text-muted-foreground">Consistency pass^{cr.tests.k}: {(cr.tests.passK * 100).toFixed(0)}%</p>}
           </>
         ) : (
           <p className="text-xs text-muted-foreground">Not run yet.</p>

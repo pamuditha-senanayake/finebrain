@@ -1,9 +1,10 @@
 # studio_approvals.py: Studio changes that need a person. The change waits as a draft commit on its own branch with an
 # S8 approval (K8). Decisions follow S8's rules (who may approve, nobody approves their own change, C4 needs two
 # leaders and a cooling period); an approval merges it through S14, unless a node moved on (a conflict).
-# Used by: studio_apply.py, routes.py, hq.py (sweep). Uses: studio_changes.py, stages_decide.py, stages_version.py.
+# Used by: studio_apply.py, routes.py, hq.py (sweep). Uses: studio_changes.py, studio_checks.py, stages_decide.py, stages_version.py.
 from datetime import timedelta
 
+from app.api.studio_checks import checks
 from app.api.studio_changes import CR_KIND, ChangeRecord, commit_change, drafts_of, notify
 from app.api.studio_state import Studio
 from app.pipeline import stages_decide, stages_version
@@ -27,6 +28,8 @@ def open_change(lane, person_id: str, change: dict, proposal: dict, note: str) -
     commit = stages_version.draft_on_branch(lane, CommitAuthor(kind="studio", id=person_id), proposal["title"], drafts, level, branch)
     dri = (flow or {}).get("dri") or person_id
     due = lane.now + timedelta(hours=DUE_HOURS)
+    tests, impact = checks(proposal["review"], lane.now)  # the console asks for both before anyone may approve
+    proposal = {**proposal, "tests": tests, "impact": impact}
     approval = ApprovalRequest(approval_id=lane.new_id("apr"), subject=ApprovalSubject(kind="change_request", ref=cr_id), criticality=level,
                                summary_plain=f"{proposal['title']}. {proposal['review']['summary']}", diff_ref=commit.commit_id, evidence_refs=[],
                                required_approvers=APPROVERS[level], dri_id=dri, due_at=due, expires_at=due)
