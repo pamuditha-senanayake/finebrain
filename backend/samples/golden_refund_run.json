@@ -603,13 +603,14 @@
       "about": "S15 finds the VAT return is missing September sales invoices",
       "data": {
         "gap_id": "gap_0001",
-        "obligation_id": "obl_vat_2026_q3",
-        "target": {"entity_type": "tax_filing", "entity_ref": "vat_return_2026_q3"},
+        "target": {"kind": "obligation", "id": "ob_vat:2026-09"},
         "required_item": "September 2026 sales invoices",
         "due_at": "2026-10-20T17:00:00+05:30",
-        "action": "request_evidence",
+        "prepare_by": "2026-10-13T17:00:00+05:30",
+        "action": "request_dri",
         "dri_id": "finance_lead",
-        "escalation_days": 5,
+        "escalation_days": [21, 14, 7, 2],
+        "is_sample": true,
         "detected_at": "2026-10-10T08:00:00+05:30"
       }
     },

@@ -4,13 +4,14 @@ from datetime import datetime
 
 from app.api import ui_models as ui
 from app.api import ui_models_work as work
-from app.api import documents, vault_views, views
+from app.api import documents, ready_views, vault_views, views
 from app.api.versions_views import approval_of
 from app.pipeline import stages_decide
 from app.pipeline.observe import read_count, read_last_seen
 from app.pipeline.contracts_run import ApprovalRequest, Decision
 
 # Config
+READINESS = {"obligations": ready_views.obligations_view, "readiness-rules": ready_views.rules_view, "risks": ready_views.risks_view}  # step 16
 LIVE_RESOURCES = {"run.updated": ["runs", "escalations"], "approval.created": ["approvals", "escalations"], "approval.decided": ["approvals", "escalations", "runs"]}
 
 
@@ -54,6 +55,8 @@ def list_view(lane, resource: str, query: dict) -> list[dict] | None:
         return shown[: int(query["limit"])] if query.get("limit") else shown
     if resource == "filing-rules":
         return documents.filing_rules_view(lane)
+    if resource in READINESS:
+        return READINESS[resource](lane)
     if resource in ("facts", "librarian"):
         return vault_views.facts_view(lane) if resource == "facts" else vault_views.librarian_view(lane)
     if resource == "escalations":

@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.pipeline.contracts_signal import Criticality, Subject, VersionRef
+from app.pipeline.contracts_signal import Criticality, VersionRef
 
 # Config: enum values
 NodeType = Literal[
@@ -18,7 +18,8 @@ ChangeOp = Literal["add", "update", "close"]
 CommitAuthorKind = Literal["librarian", "learn", "skillify", "studio", "human"]
 Verdict = Literal["minimal", "moderate", "breaking"]
 ChangeRequestStatus = Literal["draft", "open", "approved", "merged", "rejected", "blocked"]
-GapAction = Literal["request_evidence", "create_task", "escalate"]
+GapAction = Literal["dispatch_agent", "request_dri", "request_grant"]  # as the design and the console name them (step 16)
+GapTargetKind = Literal["obligation", "template", "loop"]
 
 
 # --- K13 Commit (S12, S13, Skillify, Workflow Studio to S14)
@@ -83,13 +84,19 @@ class ReleaseEvent(BaseModel):
 
 # --- K15 GapDetected (S15 to S3 and S8, topic evidence.gaps)
 
+class GapTarget(BaseModel):
+    kind: GapTargetKind
+    id: str  # for an obligation, its instance id, like ob_vat:2026-09
+
+
 class GapDetected(BaseModel):
     gap_id: str
-    obligation_id: str
-    target: Subject  # what the evidence is for, for example a tax filing
-    required_item: str
+    target: GapTarget  # what the evidence is for
+    required_item: str  # in plain words, like "September 2026 input VAT invoices"
     due_at: datetime
+    prepare_by: datetime
     action: GapAction
     dri_id: str
-    escalation_days: int = Field(ge=0)  # days before due_at when the DRI is told
+    escalation_days: list[int] = [21, 14, 7, 2]  # days before due_at when the request escalates; sample values
+    is_sample: bool  # true for every seed obligation
     detected_at: datetime

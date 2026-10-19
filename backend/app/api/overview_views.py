@@ -8,6 +8,7 @@ from app.api.graph_views import agents_view
 from app.api.studio_findings import health
 from app.api.studio_state import Studio
 from app.api.lists import list_view
+from app.api.ready_views import obligations_view, risks_view
 
 # Config
 TREND_DAYS = 14
@@ -62,6 +63,12 @@ def brain_map(lane, hq: dict) -> dict:
 
 # --- The numbers
 
+def entity_counts(lane) -> dict:
+    """Entity protection at a glance (step 16): obligations red and amber, risks on the register. Requests come with slice 2."""
+    statuses = [ob["status"] for ob in obligations_view(lane)]
+    return {"red": statuses.count("red"), "amber": statuses.count("amber"), "risks": len(risks_view(lane)), "evidenceOpen": 0}
+
+
 def overview(lane, hq: dict) -> dict:
     runs = list_view(lane, "runs", {})
     kpis = [kpi_of(lane, c["id"], runs) for c in hq["clusters"]]
@@ -88,5 +95,5 @@ def overview(lane, hq: dict) -> dict:
                    "pendingApprovals": sum(a["status"] == "pending" for a in approvals), "activeAgents": sum(a["status"] == "working" for a in agents)},
         "legibility": legibility, "trend": trend, "runSeries": series, "runningNow": sum(run["status"] == "running" for run in runs),
         "costs": {"weekUsd": costs[0], "prevWeekUsd": costs[1], "monthUsd": costs[2], "prevMonthUsd": costs[3]},
-        "entity": {"red": 0, "amber": 0, "risks": 0, "evidenceOpen": 0},
+        "entity": entity_counts(lane),
     }

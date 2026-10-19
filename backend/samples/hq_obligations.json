@@ -1,0 +1,35 @@
+{
+  "_about": "Step 16: Finebase HQ's sample obligations, readiness rules and risks. Every one is a sample: real due days, evidence and owners come from the company. Monthly obligations fall due on a day of the month for the month before; the renewal falls due when the contract's verified term ends. Each required item is proven by a verified fact with this predicate (and, for monthly ones, a fact about that month).",
+  "obligations": [
+    {"id": "ob_vat", "title": "VAT return", "jurisdiction": "Sri Lanka (sample)", "category": "tax", "dri": "h-pamuditha",
+     "due": {"every": "month", "day": 20}, "prepare_days": 7, "note": "Sample: due on the 20th for the month before.",
+     "items": [{"key": "input_invoices", "label": "Input VAT invoices", "predicate": "vat_input_invoices"},
+               {"key": "sales_invoices", "label": "Sales invoices", "predicate": "vat_sales_invoices"}]},
+    {"id": "ob_epf", "title": "EPF and ETF contributions", "jurisdiction": "Sri Lanka (sample)", "category": "statutory", "dri": "h-pamuditha",
+     "due": {"every": "month", "day": 30}, "prepare_days": 7, "note": "Sample: due by the end of the month after the wages.",
+     "items": [{"key": "payroll_summary", "label": "Payroll summary", "predicate": "payroll_total"},
+               {"key": "contribution_slip", "label": "Contribution slip", "predicate": "epf_contribution"}]},
+    {"id": "ob_apit", "title": "APIT remittance", "jurisdiction": "Sri Lanka (sample)", "category": "tax", "dri": "h-pamuditha",
+     "due": {"every": "month", "day": 15}, "prepare_days": 5, "note": "Sample: due on the 15th for the month before.",
+     "items": [{"key": "apit_deductions", "label": "APIT deductions", "predicate": "apit_deducted"}]},
+    {"id": "ob_annual_return", "title": "Annual return to the Registrar", "jurisdiction": "Sri Lanka (sample)", "category": "statutory", "dri": "h-pamuditha",
+     "due": {"every": "year", "month": 6, "day": 30}, "prepare_days": 30, "note": "Sample: due once a year.",
+     "items": [{"key": "financial_statements", "label": "Audited financial statements", "predicate": "audited_financial_statements"},
+               {"key": "shareholder_register", "label": "Shareholder register", "predicate": "shareholders"}]},
+    {"id": "ob_lanka_print_renewal", "title": "Lanka Print contract renewal", "jurisdiction": "Contract (sample)", "category": "renewal", "dri": "h-pamuditha",
+     "due": {"fact": {"subject": ["contract", "supplier agreement lanka print and finebase"], "predicates": ["term", "end_date", "contract_term", "expiry_date", "term_end"]}},
+     "prepare_days": 60, "note": "Sample: falls due when the verified term of the sample supplier contract ends.",
+     "items": [{"key": "renewal_decision", "label": "Decision to renew or end", "predicate": "renewal_decision",
+                "subject": ["contract", "supplier agreement lanka print and finebase"]}]}
+  ],
+  "rules": [
+    {"id": "rr_filings", "target": "Tax and statutory filings", "requires": "Each item proven by a verified fact for that month", "check_every": "Hourly", "escalation_days": [21, 14, 7, 2]},
+    {"id": "rr_contracts", "target": "Contract renewals", "requires": "A decision before the verified term ends", "check_every": "Hourly", "escalation_days": [60, 30, 14, 7]}
+  ],
+  "risks": [
+    {"id": "risk_late_vat", "title": "A VAT return is filed late", "likelihood": "medium", "impact": "high", "owner": "h-pamuditha",
+     "mitigation": "Readiness asks for invoices a week before the due day.", "linked_obligation": "ob_vat"},
+    {"id": "risk_supplier_lapse", "title": "The manuals supplier contract lapses", "likelihood": "low", "impact": "medium", "owner": "h-pamuditha",
+     "mitigation": "The renewal comes up 60 days before the term ends.", "linked_obligation": "ob_lanka_print_renewal"}
+  ]
+}

@@ -26,11 +26,13 @@ EXTRACT_MAX_TOKENS = 4000  # one window of a document can state a few dozen fact
 
 
 def load_hq() -> tuple[dict, dict]:
-    """The golden seed with Finebase HQ's tenant id, people and clusters on top, plus the brain's knowledge about itself."""
+    """The golden seed with Finebase HQ's tenant id, people and clusters on top, the brain's knowledge about itself, and the
+    sample obligations readiness watches (step 16)."""
     hq = json.loads((SAMPLES / "hq_tenant.json").read_text())
     golden = json.loads((SAMPLES / "golden_refund_run.json").read_text())
     knowledge = golden["seed"]["knowledge"] + list(self_knowledge.items())
-    return extend_seed({**golden["seed"], **hq["seed_overrides"], "people": hq["people"], "knowledge": knowledge}, hq), hq
+    readiness = json.loads((SAMPLES / "hq_obligations.json").read_text())
+    return extend_seed({**golden["seed"], **hq["seed_overrides"], "people": hq["people"], "knowledge": knowledge, "readiness": readiness}, hq), hq
 
 
 def choose_parts() -> frozenset[str]:
