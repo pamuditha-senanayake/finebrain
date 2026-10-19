@@ -1,10 +1,11 @@
-# ready_views.py: step 16, readiness for the console: each obligation's next instance with how ready it is, the readiness
-# rules, and the risk register. Shapes copy contracts/entity.ts (Obligation, ReadinessRule, Risk). All of it is sample data.
-# Used by: lists.py (GET obligations, readiness-rules, risks), overview_views.py (counts), tests. Uses: readiness_model.py, readiness_facts.py.
+# ready_views.py: step 16, readiness for the console (sample data, shapes from contracts/entity.ts): obligations and how ready they are,
+# gaps, evidence requests (S15's check runs first when over an hour old, and tells the DRI of new ones), rules and risks.
+# Used by: lists.py, overview_views.py, ready_routes.py (Check now), tests. Uses: readiness_*.py, stages_ready.py, studio_changes.py.
 from datetime import datetime
 
 from app.api import ui_models_graph as g
-from app.pipeline import readiness_facts, readiness_model
+from app.api.studio_changes import notify
+from app.pipeline import readiness_facts, readiness_model, stages_ready
 from app.pipeline.readiness_model import Instance
 
 
@@ -29,6 +30,38 @@ class Obligation(g.UiModel):
     dri: str
     is_sample: bool
     note: str
+
+
+class GapTarget(g.UiModel):
+    kind: str
+    id: str
+    label: str
+
+
+class ReadinessGap(g.UiModel):
+    id: str
+    target: GapTarget
+    missing: str
+    due_at: str
+    action: str
+    dri: str
+    escalation_days: list[int]
+    request_id: str | None
+
+
+class EvidenceRequest(g.UiModel):
+    id: str
+    tenant_id: str
+    obligation_id: str
+    evidence_key: str
+    item: str
+    requested_from: str
+    status: str
+    due_at: str
+    created_at: str
+    escalation_level: int
+    suggested_grant: dict | None
+    fulfilled_by: dict | None
 
 
 class ReadinessRule(g.UiModel):
@@ -81,3 +114,37 @@ def rules_view(lane) -> list[dict]:
 
 def risks_view(lane) -> list[dict]:
     return [Risk(**risk).ui() for risk in lane.seed.get("readiness", {}).get("risks", [])]
+
+
+# --- The check, its gaps and requests (slice 2)
+
+def run_check(lane, by: str) -> dict:
+    """S15's check now, and a notice to the DRI for each request it opened."""
+    opened = stages_ready.check(lane, lane.now, by)
+    for request in opened:
+        notify(lane, request.requested_from, f"Evidence needed: {request.item}", f"Please add it by {request.due_at.date().isoformat()} (sample).", "/l1/digest?tab=evidence", "evidence")
+    return {"gaps": len(stages_ready.gaps(lane, lane.now)), "requestsCreated": len(opened)}
+
+
+def fresh(lane) -> None:
+    if stages_ready.is_stale(lane, lane.now):
+        run_check(lane, stages_ready.CHECKER)
+
+
+def gaps_view(lane) -> list[dict]:
+    """Every item not proven yet, with its owner and the request asking for it."""
+    fresh(lane)
+    asked = {r["request_id"] for r in lane.records.list_kind(stages_ready.REQUEST_KIND)}
+    return [ReadinessGap(id=stages_ready.gap_id_of(i.instance_id, item.key), target=GapTarget(kind="obligation", id=i.instance_id, label=i.obligation.title + period_label(i.period)),
+                         missing=item.label, due_at=i.due_at.isoformat(), action="request_dri", dri=i.obligation.dri, escalation_days=stages_ready.ESCALATION_DAYS,
+                         request_id=rid if (rid := stages_ready.request_id_of(i.instance_id, item.key)) in asked else None).ui() for i, item in stages_ready.gaps(lane, lane.now)]
+
+
+def requests_view(lane) -> list[dict]:
+    """The evidence requests, newest first, with how far each has escalated."""
+    fresh(lane)
+    stored = sorted(lane.records.list_kind(stages_ready.REQUEST_KIND), key=lambda r: str(r["created_at"]), reverse=True)
+    return [EvidenceRequest(id=r["request_id"], tenant_id=lane.seed["tenant_id"], obligation_id=r["instance_id"], evidence_key=r["evidence_key"], item=r["item"],
+                            requested_from=r["requested_from"], status=r["status"], due_at=str(r["due_at"]), created_at=str(r["created_at"]), suggested_grant=None,
+                            escalation_level=stages_ready.escalation_level(stages_ready.when(r["due_at"]), lane.now) if r["status"] == "open" else 0,
+                            fulfilled_by={"kind": "upload", "ref": r["fulfilled_by"]} if r.get("fulfilled_by") else None).ui() for r in stored]

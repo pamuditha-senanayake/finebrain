@@ -8,7 +8,7 @@ from app.api.graph_views import agents_view
 from app.api.studio_findings import health
 from app.api.studio_state import Studio
 from app.api.lists import list_view
-from app.api.ready_views import obligations_view, risks_view
+from app.api.ready_views import obligations_view, requests_view, risks_view
 
 # Config
 TREND_DAYS = 14
@@ -64,9 +64,10 @@ def brain_map(lane, hq: dict) -> dict:
 # --- The numbers
 
 def entity_counts(lane) -> dict:
-    """Entity protection at a glance (step 16): obligations red and amber, risks on the register. Requests come with slice 2."""
+    """Entity protection at a glance (step 16): obligations red and amber, risks on the register, evidence requests still open."""
     statuses = [ob["status"] for ob in obligations_view(lane)]
-    return {"red": statuses.count("red"), "amber": statuses.count("amber"), "risks": len(risks_view(lane)), "evidenceOpen": 0}
+    open_requests = sum(r["status"] == "open" for r in requests_view(lane))
+    return {"red": statuses.count("red"), "amber": statuses.count("amber"), "risks": len(risks_view(lane)), "evidenceOpen": open_requests}
 
 
 def overview(lane, hq: dict) -> dict:

@@ -11,7 +11,8 @@ from app.pipeline.observe import read_count, read_last_seen
 from app.pipeline.contracts_run import ApprovalRequest, Decision
 
 # Config
-READINESS = {"obligations": ready_views.obligations_view, "readiness-rules": ready_views.rules_view, "risks": ready_views.risks_view}  # step 16
+READINESS = {"obligations": ready_views.obligations_view, "readiness-rules": ready_views.rules_view, "risks": ready_views.risks_view,  # step 16
+             "gaps": ready_views.gaps_view, "evidence-requests": ready_views.requests_view, "grants": lambda lane: []}  # grants come with slice 5
 LIVE_RESOURCES = {"run.updated": ["runs", "escalations"], "approval.created": ["approvals", "escalations"], "approval.decided": ["approvals", "escalations", "runs"]}
 
 

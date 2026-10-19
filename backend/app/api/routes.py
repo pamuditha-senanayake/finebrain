@@ -1,6 +1,6 @@
 # routes.py: the console API for Finebase HQ: GET /api/t/{tenant}/{resource}, POST ops/decide, the live stream, and
 # capture. Screens not built yet answer [] (lists) or 501 (single objects); they never fall back to demo data.
-# Used by: hq.py, tests/test_api.py. Uses: ask.py, documents.py, graph_map.py, studio_routes.py, vault_routes.py, versions_views.py, lists.py, views.py, capture_api.py, ui_stream.py, orchestrate.py.
+# Used by: hq.py, tests/test_api.py. Uses: ask.py, documents.py, graph_map.py, studio_routes.py, vault_routes.py, ready_routes.py, versions_views.py, lists.py, views.py, capture_api.py, ui_stream.py, orchestrate.py.
 import os
 
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.api import ask as asking
-from app.api import ask_memory, documents, forget_routes, lists_query, search, studio_approvals, studio_routes, vault_routes, versions_views, views
+from app.api import ask_memory, documents, forget_routes, lists_query, ready_routes, search, studio_approvals, studio_routes, vault_routes, versions_views, views
 from app.api.graph_map import graph_resource
 from app.api.lists import clusters_view, list_view, live_event, refusal_for, sensors_view, tenant_view
 from app.pipeline import capture_api, orchestrate
@@ -106,7 +106,8 @@ def create_api_app(lane, hq: dict, answerer=None, chatter=None) -> FastAPI:
         return None if resource in NULLABLE_OBJECTS else []
 
     studio_routes.register(app, lane, check, chatter)  # before the general ops route, so studioApply and studioSuggest win
-    vault_routes.register(app, lane, check)  # the same, for librarianAccept and librarianReject
+    for module in (vault_routes, ready_routes, documents, forget_routes):  # the librarian's answers, Check now, uploads, forgetting
+        module.register(app, lane, check)
 
     @app.post("/api/t/{tenant}/ops/{op}")
     async def operation(tenant: str, op: str, request: Request, x_persona: str = Header(default="")):
@@ -139,8 +140,6 @@ def create_api_app(lane, hq: dict, answerer=None, chatter=None) -> FastAPI:
         except ask_memory.NotYourConversation:
             raise HTTPException(403, "not_your_conversation") from None
 
-    documents.register(app, lane, check)
-    forget_routes.register(app, lane, check)
 
     @app.post("/api/t/{tenant}/{rest:path}")
     def not_built(tenant: str, rest: str, x_persona: str = Header(default="")):

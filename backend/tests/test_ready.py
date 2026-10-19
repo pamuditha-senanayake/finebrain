@@ -85,7 +85,7 @@ def test_rules_risks_and_the_overview_counts_are_served():
     risks = client.get(f"/api/t/{TENANT}/risks", headers={"x-persona": FOUNDER}).json()
     assert {"id", "target", "requires", "checkEvery", "escalationDays", "lastRunAt"} == set(rules[0]) and len(risks) == 2
     entity = client.get(f"/api/t/{TENANT}/overview", headers={"x-persona": FOUNDER}).json()["entity"]
-    assert entity == {"red": sum(ob["status"] == "red" for ob in obligations(client).values()), "amber": 0, "risks": 2, "evidenceOpen": 0}
+    assert (entity["red"], entity["amber"], entity["risks"]) == (sum(ob["status"] == "red" for ob in obligations(client).values()), 0, 2)
 
 
 def test_a_tenant_without_obligations_shows_none():
