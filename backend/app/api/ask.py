@@ -1,10 +1,10 @@
 # ask.py: Ask the Brain for Finebase HQ. A person's question goes through S5 with that person's own rights, then Claude
 # answers from only the documents they may read, plus the brain's own "who I am", and what was said earlier in the
 # conversation. Each turn is remembered. Without a Claude key it lists the closest documents.
-# Used by: routes.py, tests/test_api_brain.py. Uses: ask_memory.py, self_knowledge.py, stages_retrieve.py, retry.py.
+# Used by: routes.py, tests/test_api_brain.py. Uses: ask_memory.py, self_knowledge.py, retrieve_scope.py, stages_retrieve.py, retry.py.
 from app.api import ask_memory, search, self_knowledge
 from app.api.ui_models_work import AskAnswer, Citation
-from app.pipeline import stages_retrieve
+from app.pipeline import retrieve_scope, stages_retrieve
 from app.pipeline.contracts_reason import ContextItem, ContextQuery
 from app.pipeline.contracts_signal import Principal
 from app.pipeline.retry import call_with_retry
@@ -47,10 +47,11 @@ def address_of(person: dict) -> str:
 
 
 def read_for(lane, persona: str, question: str):
-    """S5 as the person: their tier decides what they may read. The access decision goes to the audit log."""
+    """S5 as the person, narrowed to the things the question names: their tier decides what they may read. The access decision goes to the audit log."""
     person = lane.seed["people"][persona]
     query = ContextQuery(run_id=lane.new_id("ask"), principal=Principal(type="human", id=persona, capabilities=["kb.read"], tier=person["tier"]),
-                         on_behalf_of=None, query_text=question, branch="main", top_k=ASK_TOP_K, max_tokens=ASK_MAX_TOKENS)
+                         on_behalf_of=None, query_text=question, branch="main", top_k=ASK_TOP_K, max_tokens=ASK_MAX_TOKENS,
+                         entity_ids=retrieve_scope.entities_in_question(lane, question))  # narrow to what it names; every domain
     try:
         bundle, decision = call_with_retry(
             lambda: stages_retrieve.retrieve(query, lane.chunks, lane.embed, lane.rerank, lane.seed["people"], lane.new_id, lane.now),

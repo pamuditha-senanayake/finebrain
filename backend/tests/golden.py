@@ -1,5 +1,5 @@
 # golden.py: loads the golden refund runs and raw samples once, for every test file.
-# Used by: tests/test_stages.py, tests/test_chain.py. Uses: samples/golden_refund_run.json, samples/pipeline_samples.json.
+# Used by: tests/test_stages.py, test_chain.py, test_retrieve.py, test_scope.py. Uses: samples/golden_refund_run.json, samples/pipeline_samples.json.
 import json
 from datetime import datetime
 from pathlib import Path
@@ -43,3 +43,22 @@ def released_policies() -> dict[str, dict]:
     from app.pipeline.store_graph import MemoryGraph
 
     return {node["_ref"]["id"]: node for node in seeded(MemoryGraph(SEED["tenant_id"]), SEED).latest("policy")}
+
+
+def tagged_knowledge() -> list[dict]:
+    """The seed's knowledge with its step 13a tags, as load_chunks stores it."""
+    from app.pipeline import item_tags
+    from app.pipeline.store_entities import MemoryEntities
+
+    tag = item_tags.tagger(SEED, MemoryEntities())
+    return [tag(item) for item in SEED["knowledge"]]
+
+
+def scoped_query(run_key: str):
+    """The golden ContextQuery with the scope S6 now sends (step 13b): its payment and its cluster's domain."""
+    from app.pipeline import item_tags
+    from app.pipeline.contracts_reason import ContextQuery
+    from app.pipeline.entity_match import entity_id_of
+
+    query = ContextQuery.model_validate(golden(run_key, "ContextQuery"))
+    return query.model_copy(update={"entity_ids": [entity_id_of("payment", ref) for ref in query.entity_refs], "domains": [item_tags.default_domain(SEED)]})

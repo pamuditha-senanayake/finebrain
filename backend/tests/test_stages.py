@@ -2,15 +2,16 @@
 # Uses: app/pipeline/stages_*.py, app/pipeline/fakes.py, tests/golden.py.
 import pytest
 
-from app.pipeline import access, fakes, stages_act, stages_decide, stages_govern, stages_intake, stages_normalize, stages_reason, stages_record, stages_retrieve, stages_route
+from app.pipeline import access, fakes, item_tags, stages_act, stages_decide, stages_govern, stages_intake, stages_normalize, stages_reason, stages_record, stages_retrieve, stages_route
 from app.pipeline.contracts_reason import ContextBundle, ContextQuery, ProposedAction
 from app.pipeline.contracts_run import GovernanceVerdict, RunRecord
 from app.pipeline.adapters import seeded
 from app.pipeline.contracts_signal import Principal, TaskRequest
 from app.pipeline.store_chunks import MemoryChunks
+from app.pipeline.store_entities import MemoryEntities
 from app.pipeline.store_graph import MemoryGraph
 from app.pipeline.tool_runners import MemoryRateLimiter, MemoryResults
-from tests.golden import NOW, SEED, golden, raw_sample, recorded_answer, released_policies
+from tests.golden import NOW, SEED, golden, raw_sample, recorded_answer, released_policies, scoped_query
 
 # Config
 AGENT = Principal.model_validate(SEED["agents"]["agent_refund_worker"])
@@ -24,8 +25,9 @@ PERSONAL_VALUES = {
 # --- Helpers
 
 def retrieve(query: ContextQuery, knowledge: list[dict]):
-    """S5 over these knowledge items, with fake embeddings and rerank."""
-    chunks = MemoryChunks()
+    """S5 over these knowledge items, tagged as load_chunks tags them, with fake embeddings and rerank."""
+    chunks, tag = MemoryChunks(), item_tags.tagger(SEED, MemoryEntities())
+    knowledge = [tag(item) for item in knowledge]
     for item, vector in zip(knowledge, fakes.fake_embed([item["text"] for item in knowledge])):
         chunks.add(item, vector)
     return stages_retrieve.retrieve(query, chunks, fakes.fake_embed, fakes.fake_rerank, SEED["people"], fakes.make_id_maker(), NOW)
@@ -106,7 +108,7 @@ def test_s3_leaves_invoice_chat_unrouted():
 
 @pytest.mark.parametrize("run_key", ["s2", "s3"])
 def test_s5_bundle_holds_what_s6_cites(run_key):
-    query = ContextQuery.model_validate(golden(run_key, "ContextQuery"))
+    query = scoped_query(run_key)
     bundle, _ = retrieve(query, SEED["knowledge"])
     item_ids = {item.item_id for item in bundle.items}
     assert set(golden(run_key, "ProposedAction")["citations"]) <= item_ids
@@ -114,7 +116,7 @@ def test_s5_bundle_holds_what_s6_cites(run_key):
 
 
 def test_s5_counts_restricted_items_as_denied():
-    query = ContextQuery.model_validate(golden("s2", "ContextQuery"))
+    query = scoped_query("s2")
     current = next(item for item in SEED["knowledge"] if item["item_id"] == "item_policy_window")
     secret = {**current, "item_id": "item_secret", "sensitivity": "restricted"}
     bundle, _ = retrieve(query, SEED["knowledge"] + [secret])

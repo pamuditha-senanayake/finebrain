@@ -10,17 +10,18 @@ from app.pipeline.contracts_reason import ContextQuery
 from app.pipeline.store_chunks import MemoryChunks
 from app.pipeline.store_chunks_pg import PostgresChunks
 from app.pipeline.store_postgres import connect, database_is_up
-from tests.golden import NOW, RAW, SEED, golden, recorded_answers
+from tests.golden import NOW, RAW, SEED, golden, recorded_answers, scoped_query, tagged_knowledge
 
 # Config
-S2_QUERY = ContextQuery.model_validate(golden("s2", "ContextQuery"))
+S2_QUERY = scoped_query("s2")
 REFUND_CITATIONS = set(golden("s2", "ProposedAction")["citations"])
 
 
 # --- Helpers
 
 def fill(chunks):
-    for item, vector in zip(SEED["knowledge"], fakes.fake_embed([item["text"] for item in SEED["knowledge"]])):
+    knowledge = tagged_knowledge()
+    for item, vector in zip(knowledge, fakes.fake_embed([item["text"] for item in knowledge])):
         chunks.add(item, vector)
     return chunks
 

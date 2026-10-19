@@ -1,8 +1,8 @@
 # run_steps.py: the S4 run steps (S5 to S10 for one task), shared by the in-process runner and Temporal.
-# Used by: orchestrate.py, temporal_flow.py, run_approvals.py (the S8 part). Uses: stages_*.py, contracts_*.py.
+# Used by: orchestrate.py, temporal_flow.py, run_approvals.py (the S8 part). Uses: stages_*.py, retrieve_scope.py, contracts_*.py.
 from pydantic import BaseModel
 
-from app.pipeline import stages_act, stages_govern, stages_reason, stages_record, stages_retrieve
+from app.pipeline import retrieve_scope, stages_act, stages_govern, stages_reason, stages_record, stages_retrieve
 from app.pipeline.retry import call_with_retry
 from app.pipeline.contracts_reason import ContextBundle, ContextQuery, ProposedAction
 from app.pipeline.contracts_run import Decision, GovernanceVerdict, RunStep
@@ -95,7 +95,9 @@ def start_run(lane, envelope: Envelope) -> RunState | None:
     principal = Principal.model_validate(lane.seed["agents"][task.agent_id])
     signal = signal_of(lane, task.signal_ids[0])
     refs = [entity.value_or_token for entity in signal.entities if entity.type == "payment_ref"] if signal else []
-    query = ContextQuery(run_id=run_id, principal=principal, on_behalf_of=task.on_behalf_of, query_text=QUERY_TEXT, entity_refs=refs, branch="main", node_types=["policy", "fact"])
+    scope = {"entity_ids": retrieve_scope.linked(lane.entities, signal.entity_ids), "domains": [signal.domain] if signal.domain else []} if signal else {}
+    query = ContextQuery(run_id=run_id, principal=principal, on_behalf_of=task.on_behalf_of, query_text=QUERY_TEXT, entity_refs=refs, branch="main",
+                         node_types=["policy", "fact"], **scope)
     try:
         bundle = retrieve_with_retry(lane, query, envelope)
     except stages_retrieve.ContextUnavailable:

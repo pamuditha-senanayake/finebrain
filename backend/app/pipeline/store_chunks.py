@@ -5,6 +5,9 @@
 import re
 from datetime import datetime
 
+# Config
+GENERAL = "general"  # a domain every scope may read
+
 
 def search_words(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", text.lower())
@@ -14,6 +17,15 @@ def true_at(item: dict, valid, recorded) -> bool:
     """Bitemporal check: valid at `valid`, and already known at `recorded`."""
     start, end, known = (datetime.fromisoformat(item[key]) if item.get(key) else None for key in ("valid_from", "valid_to", "recorded_at"))
     return (start is None or start <= valid) and (end is None or end > valid) and known <= recorded
+
+
+def in_scope(item: dict, scope: dict | None) -> bool:
+    """Inside the scope's domains (or general, or untagged), and about its entities (or about no entity at all)."""
+    if not scope:
+        return True
+    domain, tags = item.get("domain"), item.get("entity_ids") or []
+    domain_ok = not scope["domains"] or domain in (None, GENERAL, *scope["domains"])
+    return domain_ok and (not scope["entity_ids"] or not tags or bool(set(tags) & set(scope["entity_ids"])))
 
 
 class MemoryChunks:
@@ -50,16 +62,19 @@ class MemoryChunks:
     def untagged(self) -> list[dict]:
         return sorted((item for item, _ in self.items.values() if item.get("domain") is None), key=lambda item: item["item_id"])
 
-    def by_vector(self, embedding: list[float], kinds: list[str], valid, recorded, limit: int) -> list[dict]:
-        """Nearest by cosine similarity (the vectors are already unit length)."""
-        live = [(item, vector) for item, vector in self.items.values() if item["kind"] in kinds and true_at(item, valid, recorded)]
+    def live(self, kinds: list[str], valid, recorded, scope: dict | None) -> list[tuple[dict, list[float]]]:
+        return [(item, vector) for item, vector in self.items.values() if item["kind"] in kinds and true_at(item, valid, recorded) and in_scope(item, scope)]
+
+    def by_vector(self, embedding: list[float], kinds: list[str], valid, recorded, limit: int, scope: dict | None = None) -> list[dict]:
+        """Nearest by cosine similarity (the vectors are already unit length), inside the scope."""
+        live = self.live(kinds, valid, recorded, scope)
         ranked = sorted(live, key=lambda pair: -sum(a * b for a, b in zip(embedding, pair[1])))
         return [item for item, _ in ranked[:limit]]
 
-    def by_text(self, query: str, kinds: list[str], valid, recorded, limit: int) -> list[dict]:
-        """Items sharing any query word, most shared words first."""
+    def by_text(self, query: str, kinds: list[str], valid, recorded, limit: int, scope: dict | None = None) -> list[dict]:
+        """Items sharing any query word, most shared words first, inside the scope."""
         asked = set(search_words(query))
-        live = [item for item, _ in self.items.values() if item["kind"] in kinds and true_at(item, valid, recorded)]
+        live = [item for item, _ in self.live(kinds, valid, recorded, scope)]
         scored = [(len(asked & set(search_words(item["text"]))), item) for item in live]
         return [item for hits, item in sorted(scored, key=lambda pair: -pair[0]) if hits][:limit]
 

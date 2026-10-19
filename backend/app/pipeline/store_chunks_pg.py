@@ -7,7 +7,7 @@ from datetime import datetime
 import psycopg
 from psycopg.types.json import Jsonb
 
-from app.pipeline.store_chunks import search_words
+from app.pipeline.store_chunks import GENERAL, search_words
 
 # Config
 EMBEDDING_SIZE = 1024
@@ -34,6 +34,9 @@ CREATE INDEX IF NOT EXISTS chunks_entities ON chunks USING gin (entity_ids);
 TIME_FILTER = """kind = ANY(%(kinds)s)
     AND (valid_from IS NULL OR valid_from <= %(valid)s) AND (valid_to IS NULL OR valid_to > %(valid)s)
     AND recorded_at <= %(recorded)s"""
+# Inside the scope's domains (or general, or untagged), and about its entities (or about no entity at all)
+SCOPE_FILTER = """(cardinality(%(domains)s::text[]) = 0 OR domain IS NULL OR domain = %(general)s OR domain = ANY(%(domains)s::text[]))
+    AND (cardinality(%(ids)s::text[]) = 0 OR cardinality(entity_ids) = 0 OR entity_ids && %(ids)s::text[])"""
 UPSERT = """INSERT INTO chunks (tenant_id, item_id, kind, body, valid_from, valid_to, recorded_at, embedding, domain, entity_ids)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s::vector, %s, %s)"""
 
@@ -87,20 +90,27 @@ class PostgresChunks:
     def delete(self, item_id: str) -> None:
         self.connection.execute("DELETE FROM chunks WHERE tenant_id = %s AND item_id = %s", (self.tenant_id, item_id))
 
-    def by_vector(self, embedding: list[float], kinds: list[str], valid, recorded, limit: int) -> list[dict]:
-        """Nearest by cosine distance."""
+    def filters(self, kinds: list[str], valid, recorded, limit: int, scope: dict | None) -> dict:
+        """The parameters every search shares: tenant, kinds, as-of times, limit and the scope."""
+        scope = scope or {"domains": [], "entity_ids": []}
+        return {"tenant": self.tenant_id, "kinds": kinds, "valid": valid, "recorded": recorded, "limit": limit,
+                "domains": scope["domains"], "ids": scope["entity_ids"], "general": GENERAL}
+
+    def by_vector(self, embedding: list[float], kinds: list[str], valid, recorded, limit: int, scope: dict | None = None) -> list[dict]:
+        """Nearest by cosine distance, inside the scope."""
         rows = self.connection.execute(
-            f"SELECT body FROM chunks WHERE tenant_id = %(tenant)s AND {TIME_FILTER} ORDER BY embedding <=> %(vector)s::vector LIMIT %(limit)s",
-            {"tenant": self.tenant_id, "kinds": kinds, "valid": valid, "recorded": recorded, "vector": json.dumps(embedding), "limit": limit},
+            f"""SELECT body FROM chunks WHERE tenant_id = %(tenant)s AND {TIME_FILTER} AND {SCOPE_FILTER}
+                ORDER BY embedding <=> %(vector)s::vector LIMIT %(limit)s""",
+            {**self.filters(kinds, valid, recorded, limit, scope), "vector": json.dumps(embedding)},
         )
         return [row[0] for row in rows]
 
-    def by_text(self, query: str, kinds: list[str], valid, recorded, limit: int) -> list[dict]:
-        """Full-text match on any query word, best rank first."""
+    def by_text(self, query: str, kinds: list[str], valid, recorded, limit: int, scope: dict | None = None) -> list[dict]:
+        """Full-text match on any query word, best rank first, inside the scope."""
         terms = " | ".join(search_words(query)) or "nothing"
         rows = self.connection.execute(
             f"""SELECT body FROM chunks, to_tsquery('english', %(terms)s) AS asked
-                WHERE tenant_id = %(tenant)s AND {TIME_FILTER} AND tsv @@ asked ORDER BY ts_rank(tsv, asked) DESC LIMIT %(limit)s""",
-            {"tenant": self.tenant_id, "kinds": kinds, "valid": valid, "recorded": recorded, "terms": terms, "limit": limit},
+                WHERE tenant_id = %(tenant)s AND {TIME_FILTER} AND {SCOPE_FILTER} AND tsv @@ asked ORDER BY ts_rank(tsv, asked) DESC LIMIT %(limit)s""",
+            {**self.filters(kinds, valid, recorded, limit, scope), "terms": terms},
         )
         return [row[0] for row in rows]

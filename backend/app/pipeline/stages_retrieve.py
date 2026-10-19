@@ -1,7 +1,8 @@
-# stages_retrieve.py: S5 Retrieve (K4 query to K4 bundle). Hybrid search (meaning + exact words), as-of time,
-# access by tier and on_behalf_of, rerank, and a token budget. Denied items are counted, never shown.
-# Used by: run_steps.py, tests. Uses: contracts_reason.py, observe.py, a chunks store (store_chunks.py), embed and rerank.
-from app.pipeline.contracts_reason import AccessDecision, ContextBundle, ContextItem, ContextQuery, DeniedReason
+# stages_retrieve.py: S5 Retrieve (K4 query to K4 bundle). Narrow first (step 13b), then hybrid search (meaning + exact
+# words), as-of time, access by tier and on_behalf_of, rerank, and a token budget. Denied items are counted, never shown.
+# Used by: run_steps.py, tests. Uses: contracts_reason.py, retrieve_scope.py, observe.py, a chunks store, embed and rerank.
+from app.pipeline import retrieve_scope
+from app.pipeline.contracts_reason import AccessDecision, ContextBundle, ContextItem, ContextQuery, DeniedReason, SearchScope
 from app.pipeline.observe import count, log_event
 
 # Config
@@ -41,22 +42,35 @@ def fuse(ranked_lists: list[list[dict]]) -> list[tuple[dict, float]]:
     return sorted(((items[item_id], score) for item_id, score in scores.items()), key=lambda pair: -pair[1])
 
 
-def find_candidates(query: ContextQuery, chunks, embed, valid, recorded) -> list[tuple[dict, float]]:
-    """Exact-word and meaning search over items true at `valid` and known at `recorded`."""
-    kinds, text = query.node_types or ALL_KINDS, " ".join([query.query_text, *query.entity_refs])
-    ranked_lists = [chunks.by_text(text, kinds, valid, recorded, CANDIDATES_PER_LIST)]
-    vector = embed_query(embed, text)
+def search_level(chunks, text: str, vector, kinds: list[str], valid, recorded, scope: dict) -> list[tuple[dict, float]]:
+    """Exact-word and meaning search inside one scope, over items true at `valid` and known at `recorded`."""
+    ranked_lists = [chunks.by_text(text, kinds, valid, recorded, CANDIDATES_PER_LIST, scope)]
     if vector is not None:
-        ranked_lists.append(chunks.by_vector(vector, kinds, valid, recorded, CANDIDATES_PER_LIST))
+        ranked_lists.append(chunks.by_vector(vector, kinds, valid, recorded, CANDIDATES_PER_LIST, scope))
     return fuse(ranked_lists)
+
+
+def find_candidates(query: ContextQuery, chunks, embed, valid, recorded) -> tuple[list[tuple[dict, float]], SearchScope]:
+    """Search the narrowest level first; widen only when it finds too little. Returns the candidates and where they came from."""
+    kinds, text = query.node_types or ALL_KINDS, " ".join([query.query_text, *query.entity_refs])
+    vector = embed_query(embed, text)
+    levels = retrieve_scope.ladder(query)
+    for position, (level, scope) in enumerate(levels, start=1):
+        found = search_level(chunks, text, vector, kinds, valid, recorded, scope)
+        if len(found) >= retrieve_scope.WIDEN_BELOW or position == len(levels):
+            break
+        count("s5.widened")
+        log_event("S5", "widened", run_id=query.run_id, level=level, found=len(found))
+    count(f"s5.scope.{level}")
+    return found, SearchScope(level=level, domains=scope["domains"], entity_count=len(scope["entity_ids"]))
 
 
 # --- Filtering and ordering
 
 def is_relevant(item: dict, query: ContextQuery) -> bool:
-    """A fact is about a specific thing, so it counts only when it names an entity in the query.
-    That also keeps one customer's payment out of another customer's run."""
-    return item["kind"] != "fact" or any(ref in item["text"] for ref in query.entity_refs)
+    """A fact is about a specific thing, so it counts only when it is tagged with an entity of the query, even after
+    widening. That keeps one customer's payment out of another customer's run."""
+    return item["kind"] != "fact" or bool(set(item.get("entity_ids") or []) & set(query.entity_ids))
 
 
 def readable_for(query: ContextQuery, people: dict) -> set[str]:
@@ -97,9 +111,9 @@ def fit_budget(scored: list[tuple[dict, float]], top_k: int, max_tokens: int) ->
 
 def retrieve(query: ContextQuery, chunks, embed, rerank, people: dict, new_id, now) -> tuple[ContextBundle, AccessDecision]:
     """S5: the bundle the principal may see, and one access decision for the audit log."""
-    # Step 1: candidates true and known at the asked time
+    # Step 1: candidates true and known at the asked time, from the narrowest scope that finds enough
     try:
-        candidates = find_candidates(query, chunks, embed, query.as_of_valid or now, query.as_of_recorded or now)
+        candidates, scope = find_candidates(query, chunks, embed, query.as_of_valid or now, query.as_of_recorded or now)
     except Exception as error:
         raise ContextUnavailable(type(error).__name__) from None
 
@@ -112,12 +126,12 @@ def retrieve(query: ContextQuery, chunks, embed, rerank, people: dict, new_id, n
     # Step 3: best first, within budget
     kept = fit_budget(rerank_items(query, allowed, rerank), query.top_k, query.max_tokens)
     decision = AccessDecision(
-        decision_id=new_id("acc"), decision="allow", rule_id=SENSITIVITY_RULE_ID, reason=f"{len(kept)} shown, {denied} withheld", latency_ms=0,
+        decision_id=new_id("acc"), decision="allow", rule_id=SENSITIVITY_RULE_ID, reason=f"{len(kept)} shown, {denied} withheld, searched {scope.level}", latency_ms=0,
         principal_id=query.principal.id, on_behalf_of=query.on_behalf_of, action="kb.read", resource="knowledge", run_id=query.run_id,
     )
     bundle = ContextBundle(
         items=[ContextItem.model_validate({**item, "score": round(score, 4)}) for item, score in kept],
         denied_count=denied, denied_reasons=[DeniedReason(rule_id=SENSITIVITY_RULE_ID, count=denied)] if denied else [],
-        access_decision_ids=[decision.decision_id], latency_ms=0,
+        access_decision_ids=[decision.decision_id], latency_ms=0, scope=scope,
     )
     return bundle, decision

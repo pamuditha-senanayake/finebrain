@@ -24,7 +24,9 @@ class ContextQuery(BaseModel):
     principal: Principal
     on_behalf_of: str | None  # effective rights are the intersection with this human
     query_text: str
-    entity_refs: list[str] = []
+    entity_refs: list[str] = []  # words that name the case, added to the text search
+    entity_ids: list[str] = []  # step 13b: search narrows to these things and general knowledge; empty means no entity filter
+    domains: list[str] = []  # step 13b: and to these domains plus general; empty means every domain
     as_of_valid: datetime | None = None  # None means now
     as_of_recorded: datetime | None = None
     branch: str
@@ -59,12 +61,20 @@ class DeniedReason(BaseModel):
     count: int
 
 
+class SearchScope(BaseModel):
+    """Where S5 looked (step 13b): the narrowest level that found enough, after widening if it had to."""
+    level: Literal["entity", "domain", "tenant"]
+    domains: list[str]
+    entity_count: int
+
+
 class ContextBundle(BaseModel):
     items: list[ContextItem]  # only allowed items, denied ones are just counted
     denied_count: int
     denied_reasons: list[DeniedReason]
     access_decision_ids: list[str]
     latency_ms: int
+    scope: SearchScope | None = None  # optional so bundles from before step 13b validate
 
 
 # --- K5 ProposedAction (S6 to S7)
