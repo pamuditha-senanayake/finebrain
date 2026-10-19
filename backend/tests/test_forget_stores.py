@@ -8,7 +8,8 @@ import psycopg
 import pytest
 
 from app.pipeline.contracts_run import RunRecord
-from app.pipeline.store_chunks import MemoryChunks, PostgresChunks
+from app.pipeline.store_chunks import MemoryChunks
+from app.pipeline.store_chunks_pg import PostgresChunks
 from app.pipeline.store_graph import MemoryGraph, PostgresGraph
 from app.pipeline.store_memory import MemoryRecords
 from app.pipeline.store_postgres import PostgresRecords, connect, database_is_up

@@ -7,7 +7,8 @@ import pytest
 
 from app.pipeline import fakes, observe, orchestrate, stages_retrieve
 from app.pipeline.contracts_reason import ContextQuery
-from app.pipeline.store_chunks import MemoryChunks, PostgresChunks
+from app.pipeline.store_chunks import MemoryChunks
+from app.pipeline.store_chunks_pg import PostgresChunks
 from app.pipeline.store_postgres import connect, database_is_up
 from tests.golden import NOW, RAW, SEED, golden, recorded_answers
 

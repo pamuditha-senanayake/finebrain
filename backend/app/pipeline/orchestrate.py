@@ -1,9 +1,9 @@
 # orchestrate.py: S4 Orchestrate. Wires S2, S3 and the task consumers onto a bus, given its adapters.
-# Used by: tests, demos, capture_api.py. Uses: lane.py, adapters.py, run_steps.py, run_approvals.py, recorder.py, audit.py, ui_stream.py, entity_match.py, stages_*.py.
+# Used by: tests, demos, capture_api.py. Uses: lane.py, adapters.py, run_steps.py, run_approvals.py, recorder.py, audit.py, ui_stream.py, entity_match.py, item_tags.py, stages_*.py.
 # Each task runs in-process, or as a Temporal workflow when the adapters include a Temporal runner.
 from datetime import datetime
 
-from app.pipeline import entity_match, run_approvals, run_steps, stages_file, stages_intake, stages_normalize, stages_route, stages_version
+from app.pipeline import entity_match, item_tags, run_approvals, run_steps, stages_file, stages_intake, stages_normalize, stages_route, stages_version
 from app.pipeline.adapters import make_memory_adapters
 from app.pipeline.audit import subscribe_audit
 from app.pipeline.contracts_run import Decision
@@ -17,11 +17,13 @@ from app.pipeline.ui_stream import subscribe_broadcaster
 
 # --- Wiring
 
-def build_lane(seed: dict, model: Model, gateway: Gateway, now: datetime, make_adapters=make_memory_adapters, choose=None, grade=None, new_id=None) -> Lane:
+def build_lane(seed: dict, model: Model, gateway: Gateway, now: datetime, make_adapters=make_memory_adapters, choose=None, grade=None, new_id=None,
+               classify=None) -> Lane:
     """Build the adapters, then subscribe one consumer group per stage. A live tenant passes new_id so ids stay unique across restarts."""
     new_id = new_id or make_id_maker()
     adapters = make_adapters(seed, now, new_id)
-    lane = Lane(seed=seed, model=model, gateway=gateway, now=now, new_id=new_id, choose=choose or no_tie_break, grade=grade or pass_grader, **adapters)
+    lane = Lane(seed=seed, model=model, gateway=gateway, now=now, new_id=new_id, choose=choose or no_tie_break, grade=grade or pass_grader,
+                classify=classify, **adapters)
     entity_match.seed_known(lane.entities, seed, now)
     lane.bus.subscribe("signals.raw", "normalizer", "S2", lambda envelope: on_raw(lane, envelope))
     lane.bus.subscribe("signals.normalized", "resolver", "S3", lambda envelope: on_signal(lane, envelope))
@@ -58,13 +60,13 @@ def close_lane(lane: Lane) -> None:
 # --- S2 and S3 consumers
 
 def on_raw(lane: Lane, envelope: Envelope) -> None:
-    """S2: normalize and match entities, or drop silently when it is a redelivery."""
+    """S2: normalize and tag (entities and domain), or drop silently when it is a redelivery."""
     k1 = RawSignalEnvelope.model_validate(envelope.payload)
     signal = stages_normalize.normalize(k1, envelope.event_id, lane.seed["tenant_id"], lane.object_store, lane.vault, lane.seen_keys, lane.new_id)
     if signal is None:
         return
     try:
-        signal = signal.model_copy(update={"entity_ids": entity_match.record_entities(lane.entities, signal, lane.now)})
+        signal = item_tags.tag_signal(lane, signal)
     except Exception:
         lane.seen_keys.discard(signal.dedup_key)  # release the claim, so a retry or replay can run
         raise

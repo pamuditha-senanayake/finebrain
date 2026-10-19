@@ -4,13 +4,14 @@
 import os
 import time
 
-from app.pipeline import access, embeddings, store_postgres, store_s3, store_valkey
+from app.pipeline import access, embeddings, item_tags, store_postgres, store_s3, store_valkey
 from app.pipeline.audit import MemoryAudit, PostgresAudit
 from app.pipeline.fakes import fake_embed, fake_rerank, make_fake_sender
 from app.pipeline.bus_kafka import KafkaBus
 from app.pipeline.kafka_admin import broker_is_up
 from app.pipeline.bus_memory import MemoryBus
-from app.pipeline.store_chunks import MemoryChunks, PostgresChunks, load_chunks
+from app.pipeline.store_chunks import MemoryChunks, load_chunks
+from app.pipeline.store_chunks_pg import PostgresChunks
 from app.pipeline.store_entities import MemoryEntities, PostgresEntities
 from app.pipeline.store_graph import MemoryGraph, PostgresGraph, load_seed
 from app.pipeline.store_memory import MemoryRecords
@@ -56,7 +57,7 @@ def make_memory_adapters(seed: dict, now, new_id) -> dict:
         "broadcaster": Broadcaster(),
         "entities": MemoryEntities(),
     }
-    load_chunks(adapters["chunks"], adapters["graph"], adapters["embed"])
+    load_chunks(adapters["chunks"], adapters["graph"], adapters["embed"], item_tags.tagger(seed, adapters["entities"]))
     return adapters
 
 
@@ -103,7 +104,7 @@ def real_adapters(parts: frozenset[str] = ALL_REAL_PARTS, topic_prefix: str = ""
             adapters["check_access"] = access.make_opa_checker(seed["people"])
         if "voyage" in parts:
             adapters["embed"], adapters["rerank"] = embeddings.voyage_embed, embeddings.voyage_rerank
-        load_chunks(adapters["chunks"], adapters["graph"], adapters["embed"])
+        load_chunks(adapters["chunks"], adapters["graph"], adapters["embed"], item_tags.tagger(seed, adapters["entities"]))
         if "temporal" in parts:
             adapters["runner"] = TemporalRunner()  # build_lane starts it once the lane exists
         return adapters

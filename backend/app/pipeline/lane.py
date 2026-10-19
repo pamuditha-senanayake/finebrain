@@ -30,6 +30,7 @@ class Lane:
     entities: object  # step 13a: the entity registry (store_entities.py)
     grade: object = None  # S7 grader (llm.make_grader); defaults to the fake that passes cited rationales
     choose: object = None  # S3 tie-break (llm.make_chooser); None means close calls go unrouted
+    classify: object = None  # S2 domain of an upload (llm.make_chooser with DOMAIN_SYSTEM); None files it under general
     runner: object = None  # TemporalRunner, or None to run tasks in-process
     signals: dict = field(default_factory=dict)  # signal_id to K2, so S4 can read entities
     approvals: dict = field(default_factory=dict)  # approval_id to its cause and task

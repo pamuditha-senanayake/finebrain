@@ -1,11 +1,12 @@
 # stages_version.py: S14 Version, git for the graph. A commit (K13) numbers its node changes; applying it writes the new
 # versions on main and releases them (K14 on graph.released). A change request holds a draft commit on its own branch
 # until it is approved, then merges, unless a node moved on since it was drafted (a conflict, never a silent overwrite).
-# Used by: app/api/studio_apply.py, orchestrate.py (release consumer), tests/test_version.py. Uses: contracts_graph.py.
+# Used by: app/api/studio_apply.py, orchestrate.py (release consumer), tests/test_version.py. Uses: contracts_graph.py, item_tags.py.
 from datetime import datetime
 
 from pydantic import BaseModel
 
+from app.pipeline import item_tags
 from app.pipeline.contracts_graph import Commit, CommitAuthor, NodeChange, ReleaseEvent
 from app.pipeline.contracts_signal import Criticality, VersionRef
 from app.pipeline.observe import count, log_event
@@ -107,7 +108,8 @@ def on_release(lane, envelope) -> None:
     release = ReleaseEvent.model_validate(envelope.payload)
     commit = lane.records.load("commit", release.commit_id) or {"changes": []}
     knowledge = [c for c in commit["changes"] if c["node_type"] == "knowledge" and c["op"] != "close"]
-    items = [{key: value for key, value in c["fields"].items() if key != "_ref"} for c in knowledge]
+    tag = item_tags.tagger(lane.seed, lane.entities)  # a released item keeps its domain and is tagged again by its new text
+    items = [tag({key: value for key, value in c["fields"].items() if key != "_ref"}) for c in knowledge]
     if not items:
         return
     for item, vector in zip(items, lane.embed([item["text"] for item in items], "document")):

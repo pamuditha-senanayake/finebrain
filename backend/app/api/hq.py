@@ -44,10 +44,11 @@ def choose_parts() -> frozenset[str]:
 
 
 def choose_models():
-    """Real Claude for S3, S6 and S7 when a key is set; otherwise a model that declines, so every case escalates to a person."""
+    """Real Claude for S2 (an upload's domain), S3, S6 and S7 when a key is set; otherwise a model that declines, so every case
+    escalates to a person, and uploads are filed under general."""
     if USE_CLAUDE and os.environ.get("ANTHROPIC_API_KEY"):
-        return llm.make_tool_caller(), llm.make_chooser(), llm.make_grader()
-    return fakes.make_recorded_caller({})[0], None, None
+        return llm.make_tool_caller(), llm.make_chooser(), llm.make_grader(), llm.make_chooser(system=llm.DOMAIN_SYSTEM)
+    return fakes.make_recorded_caller({})[0], None, None, None
 
 
 def choose_answerer():
@@ -84,9 +85,10 @@ def build_hq_app():
     """The API app for Finebase HQ, with its pipeline running in the background."""
     seed, hq = load_hq()
     parts = choose_parts()
-    model, choose, grade = choose_models()
+    model, choose, grade, classify = choose_models()
     make_adapters = real_adapters(parts) if parts else make_memory_adapters
-    lane = orchestrate.build_lane(seed, model, fakes.make_fake_gateway()[0], datetime.now(timezone.utc), make_adapters, choose, grade, new_id=unique_id)
+    lane = orchestrate.build_lane(seed, model, fakes.make_fake_gateway()[0], datetime.now(timezone.utc), make_adapters, choose, grade, new_id=unique_id,
+                                   classify=classify)
     log_event("API", "hq_started", parts=sorted(parts), claude=choose is not None)
     threading.Thread(target=keep_running, args=(lane,), daemon=True).start()
     return create_api_app(lane, hq, choose_answerer(), choose_chatter())

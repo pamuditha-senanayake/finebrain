@@ -1,10 +1,12 @@
 # stages_file.py: S11 File, a thin first version. A document that S2 masked becomes searchable knowledge: its text is
 # split into chunks, each chunk is a knowledge node in the graph and an embedded chunk for S5, and its Library record
-# moves to done. Used by: orchestrate.py (consumer of signals.normalized). Uses: contracts_signal.py, observe.py.
+# moves to done. Each chunk carries the signal's domain and the entities it names (step 13a).
+# Used by: orchestrate.py (consumer of signals.normalized). Uses: contracts_signal.py, item_tags.py, observe.py.
 from datetime import datetime
 
 from pydantic import BaseModel
 
+from app.pipeline import item_tags
 from app.pipeline.contracts_signal import Signal
 from app.pipeline.observe import count, log_event
 
@@ -31,6 +33,7 @@ class DocumentRecord(BaseModel):
     flags: list[str] = []
     pii_tokens: list[str] = []  # vault tokens this document put there, so erasing it can clear them (step 10)
     retired_at: datetime | None = None  # set by step 10 when the document is no longer true
+    domain: str = "general"  # set by S11 from the signal's domain (step 13a); older records read as general
 
 
 def chunks_of(text: str) -> list[str]:
@@ -63,18 +66,19 @@ def file_document(lane, signal: Signal) -> None:
         return  # not uploaded through the console, already filed (a redelivery), or later retired; an erased record is gone
     record = DocumentRecord.model_validate(stored)
     sensitivity = stricter(record.sensitivity, signal.sensitivity)
-    items = [{
+    domain, is_customer = signal.domain or item_tags.FALLBACK, item_tags.customer_check(lane.entities)
+    items = [item_tags.tagged({
         "item_id": f"{document_id}_c{i}", "kind": "chunk", "text": f"{record.title}: {text}",
         "source": {"document_id": document_id, "uri": record.original_uri, "span": f"chunk:{i}"},
         "valid_from": record.uploaded_at.isoformat(), "valid_to": None, "recorded_at": lane.now.isoformat(), "verified_by": None,
         "version_ref": None, "score": 0.0, "sensitivity": sensitivity,
-    } for i, text in enumerate(chunks_of(signal.text_masked or ""), start=1)]
+    }, domain, is_customer) for i, text in enumerate(chunks_of(signal.text_masked or ""), start=1)]
     for item, vector in zip(items, lane.embed([item["text"] for item in items], "document")):
         lane.graph.put("knowledge", item["item_id"], 1, f"cmt_upload_{document_id}", item)
         lane.chunks.add(item, vector)
     lane.records.save("document", document_id, record.model_copy(update={
-        "status": "done", "sensitivity": sensitivity, "chunk_ids": [item["item_id"] for item in items],
+        "status": "done", "sensitivity": sensitivity, "domain": domain, "chunk_ids": [item["item_id"] for item in items],
         "personal_data": bool(signal.pii_tokens), "flags": signal.flags, "pii_tokens": list(signal.pii_tokens),
     }))
     count("s11.filed")
-    log_event("S11", "filed", document_id=document_id, chunks=len(items), sensitivity=sensitivity)
+    log_event("S11", "filed", document_id=document_id, chunks=len(items), sensitivity=sensitivity, domain=domain)

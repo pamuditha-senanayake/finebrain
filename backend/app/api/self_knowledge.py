@@ -30,7 +30,7 @@ def items() -> tuple[dict, ...]:
             "item_id": slug(title), "kind": "chunk", "text": f"{title}. {body.strip()}",
             "source": {"document_id": DOCUMENT_ID, "uri": "samples/brain_self_knowledge.md", "span": f"{at + 1}:{end if end != -1 else len(text)}"},
             "valid_from": WRITTEN_AT, "valid_to": None, "recorded_at": WRITTEN_AT, "verified_by": "finebrain", "version_ref": None,
-            "score": 0.0, "sensitivity": "public",
+            "score": 0.0, "sensitivity": "public", "domain": "general",  # about the brain itself, so every domain may read it
         })
         at = end
     return tuple(found)
