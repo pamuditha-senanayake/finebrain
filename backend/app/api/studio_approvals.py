@@ -90,7 +90,10 @@ def on_decision(lane, envelope) -> None:
 def merge(lane, record: ChangeRecord) -> ChangeRecord:
     """S14 merges the approved drafts to main. A node that moved on since the draft makes it a conflict instead."""
     try:
-        commit_change(lane, record.drafter, record.input, record.proposal, record.drafts, record.before, record.after, record.cr_id)
+        if record.kind == "fact":  # a librarian change (step 14): plain S14, no Studio revision
+            stages_version.apply(lane, CommitAuthor(kind="librarian", id=record.drafter), record.title, record.drafts, record.criticality)
+        else:
+            commit_change(lane, record.drafter, record.input, record.proposal, record.drafts, record.before, record.after, record.cr_id)
     except stages_version.MergeConflict as error:
         log_event("S14", "merge_conflict", cr_id=record.cr_id, nodes=str(error))
         return record.model_copy(update={"status": "conflict"})

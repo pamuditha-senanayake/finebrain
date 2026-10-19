@@ -12,6 +12,7 @@ from app.pipeline.retry import call_with_retry
 # Config
 FAST_MODEL = os.environ.get("ANTHROPIC_FAST_MODEL", "claude-haiku-5-5")
 REASON_MODEL = os.environ.get("ANTHROPIC_REASON_MODEL", "claude-sonnet-5-5")
+CAREFUL_MODEL = os.environ.get("ANTHROPIC_CAREFUL_MODEL", "claude-opus-5-5")  # rare, high-stakes calls: a fact conflict (S12)
 REASON_MAX_TOKENS = 1024
 SHORT_MAX_TOKENS = 400  # short answers, with room for a thinking block first
 GRADER_MAX_TOKENS = 1024

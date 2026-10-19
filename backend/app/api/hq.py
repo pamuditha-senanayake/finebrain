@@ -67,6 +67,11 @@ def choose_extractor():
     return llm.make_tool_caller(model=llm.FAST_MODEL, max_tokens=EXTRACT_MAX_TOKENS) if USE_CLAUDE and os.environ.get("ANTHROPIC_API_KEY") else None
 
 
+def choose_resolver():
+    """Claude Opus with the resolution tool for S12 conflicts when a key is set; None lets the newer source win."""
+    return llm.make_tool_caller(model=llm.CAREFUL_MODEL) if USE_CLAUDE and os.environ.get("ANTHROPIC_API_KEY") else None
+
+
 def unique_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
@@ -94,7 +99,7 @@ def build_hq_app():
     model, choose, grade, classify = choose_models()
     make_adapters = real_adapters(parts) if parts else make_memory_adapters
     lane = orchestrate.build_lane(seed, model, fakes.make_fake_gateway()[0], datetime.now(timezone.utc), make_adapters, choose, grade, new_id=unique_id,
-                                   classify=classify, extract=choose_extractor())
+                                   classify=classify, extract=choose_extractor(), resolve=choose_resolver())
     log_event("API", "hq_started", parts=sorted(parts), claude=choose is not None)
     threading.Thread(target=keep_running, args=(lane,), daemon=True).start()
     return create_api_app(lane, hq, choose_answerer(), choose_chatter())

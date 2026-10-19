@@ -45,7 +45,7 @@ def change_request_view(lane, record: ChangeRecord) -> dict:
             "commits": [record.commit_id], "plainDiff": plain,
             "changes": [{"op": "modify", "nodeType": f"studio.{record.input['kind']}", "nodeId": target, "label": proposal["targetName"], "field": c["field"],
                          "before": c["before"], "after": c["after"]} for c in proposal["changes"]],
-            "impactPreview": None, "tests": None, "approvalId": record.approval_id, "status": record.status, "criticality": record.criticality,
+            "impactPreview": proposal.get("impact"), "tests": proposal.get("tests"), "approvalId": record.approval_id, "status": record.status, "criticality": record.criticality,
             "criticalityReasons": [*rv["criticalityReasons"], f"{rv['reviewer']}: {rv['verdict']}"], "drafter": actor(lane, record.drafter), "dri": record.dri,
             "clusters": [lane.seed["cluster_id"]], "createdAt": record.created_at.isoformat(), "mergedAt": record.merged_at.isoformat() if record.merged_at else None,
             "coolingUntil": record.cooling_until.isoformat() if record.cooling_until else None, "correlationId": f"studio:{record.cr_id}"}

@@ -32,6 +32,7 @@ class Lane:
     choose: object = None  # S3 tie-break (llm.make_chooser); None means close calls go unrouted
     classify: object = None  # S2 domain of an upload (llm.make_chooser with DOMAIN_SYSTEM); None files it under general
     extract: object = None  # S11 fact extraction (llm.make_tool_caller on Haiku); None proposes no facts
+    resolve: object = None  # S12 conflict proposals (llm.make_tool_caller on Opus); None lets the newer source win
     runner: object = None  # TemporalRunner, or None to run tasks in-process
     signals: dict = field(default_factory=dict)  # signal_id to K2, so S4 can read entities
     approvals: dict = field(default_factory=dict)  # approval_id to its cause and task

@@ -2,7 +2,7 @@
 # through S14, so it has a version, a commit and a release that puts it in the search index); Reject closes the item and writes
 # nothing. A conflict waits for slice 4's change request. Used by: api/vault_routes.py, tests. Uses: stages_librarian.py,
 # stages_extract.py, stages_version.py, contracts_signal.py.
-from app.pipeline import stages_extract, stages_version
+from app.pipeline import stages_extract, stages_librarian, stages_version
 from app.pipeline.contracts_graph import CommitAuthor
 from app.pipeline.contracts_signal import FactCandidate
 from app.pipeline.stages_librarian import FACT_NODE, ITEM_KIND, LibrarianItem
@@ -61,6 +61,7 @@ def accept(lane, item_id: str, person: str) -> str:
     message = f"Verify {fields['item_id']} from {candidate.evidence.document_id}"  # no words of the fact: commits outlive an erase
     stages_version.apply(lane, CommitAuthor(kind="human", id=person), message, [draft], ACCEPT_LEVEL)
     settle(lane, item, "accepted", person, [fields["item_id"]])
+    stages_librarian.reclassify(lane, candidate.subject.entity_ref, candidate.predicate)  # a waiting claim may now be a conflict
     return fields["item_id"]
 
 

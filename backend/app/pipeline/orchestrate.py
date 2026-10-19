@@ -18,12 +18,12 @@ from app.pipeline.ui_stream import subscribe_broadcaster
 # --- Wiring
 
 def build_lane(seed: dict, model: Model, gateway: Gateway, now: datetime, make_adapters=make_memory_adapters, choose=None, grade=None, new_id=None,
-               classify=None, extract=None) -> Lane:
+               classify=None, extract=None, resolve=None) -> Lane:
     """Build the adapters, then subscribe one consumer group per stage. A live tenant passes new_id so ids stay unique across restarts."""
     new_id = new_id or make_id_maker()
     adapters = make_adapters(seed, now, new_id)
     lane = Lane(seed=seed, model=model, gateway=gateway, now=now, new_id=new_id, choose=choose or no_tie_break, grade=grade or pass_grader,
-                classify=classify, extract=extract, **adapters)
+                classify=classify, extract=extract, resolve=resolve, **adapters)
     entity_match.seed_known(lane.entities, seed, now)
     lane.bus.subscribe("signals.raw", "normalizer", "S2", lambda envelope: on_raw(lane, envelope))
     lane.bus.subscribe("signals.normalized", "resolver", "S3", lambda envelope: on_signal(lane, envelope))

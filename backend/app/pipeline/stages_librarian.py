@@ -24,11 +24,12 @@ class LibrarianItem(BaseModel):
     candidate_id: str
     document_id: str
     fact_ids: list[str]  # the facts it duplicates or conflicts with, then the fact it became
-    status: str  # open, resolved
+    status: str  # open, proposed (a change request waits), resolved
     resolution: str | None = None  # accepted, rejected, duplicate
     decided_by: str | None = None
     decided_at: datetime | None = None
     change_request_id: str | None = None  # slice 4: a conflict's change request
+    proposal: dict | None = None  # slice 4: which source wins, from when, and what relied on the current fact
     created_at: datetime
 
 
@@ -65,6 +66,17 @@ def detail_of(lane, candidate: FactCandidate) -> str:
     page = f", page {candidate.evidence.page}" if candidate.evidence.page else ""
     unsure = " Claude was unsure of this one." if "low_confidence" in candidate.flags else ""
     return f"“{stages_extract.quote_of(lane, candidate.evidence.model_dump())}” in {record['title']}{page}.{unsure}"
+
+
+def reclassify(lane, subject_ref: str, predicate: str) -> None:
+    """Once a fact is true, open items about the same thing and predicate are compared again: duplicates close, others conflict."""
+    for stored in lane.records.list_kind(ITEM_KIND):
+        candidate = lane.records.load(stages_extract.CANDIDATE_KIND, stored["candidate_id"]) if stored["status"] == "open" else None
+        if candidate is None or candidate["subject"]["entity_ref"] != subject_ref or candidate["predicate"] != predicate:
+            continue
+        kind, fact_ids = classify(lane, FactCandidate.model_validate(candidate))
+        lane.records.save(ITEM_KIND, stored["item_id"], LibrarianItem.model_validate(stored).model_copy(update={
+            "kind": kind, "fact_ids": fact_ids, "status": "resolved" if kind == "duplicate" else "open", "resolution": "duplicate" if kind == "duplicate" else None}))
 
 
 # --- S12 Librarian

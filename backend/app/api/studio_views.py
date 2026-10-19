@@ -55,7 +55,7 @@ def revisions_view(lane, query: dict) -> list[dict]:
 
 
 def pending_view(lane) -> list[dict]:
-    records = [ChangeRecord.model_validate(r) for r in lane.records.list_kind("change_request")]
+    records = [ChangeRecord.model_validate(r) for r in lane.records.list_kind("change_request") if r["kind"] != "fact"]  # Studio's own changes only
     return [{"id": r.cr_id, "changeRequestId": r.cr_id, "workflowId": r.workflow_id, "input": r.input, "title": r.title, "verdict": r.proposal["review"]["verdict"],
              "criticality": r.criticality, "by": r.drafter, "at": r.created_at.isoformat(), "status": PENDING_STATUS.get(r.status, "rejected")}
             for r in sorted(records, key=lambda r: r.created_at, reverse=True)]

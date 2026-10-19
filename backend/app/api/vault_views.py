@@ -1,7 +1,8 @@
 # vault_views.py: step 14 slice 3, the Ground truth vault for the console: verified facts with their evidence, and the
 # librarian's review queue. Shapes copy the console's Fact and LibrarianItem (contracts/knowledge.ts).
-# Used by: lists.py (GET facts, GET librarian), tests/test_librarian.py. Uses: ui_models_graph.py (UiModel), stages_librarian.py.
+# Used by: lists.py (GET facts, GET librarian), tests. Uses: ui_models_graph.py (UiModel), stages_librarian.py, studio_changes.py (ChangeRecord).
 from app.api import ui_models_graph as g
+from app.api.studio_changes import ChangeRecord
 from app.pipeline.stages_librarian import FACT_NODE, ITEM_KIND
 
 
@@ -80,10 +81,24 @@ def facts_view(lane) -> list[dict]:
 
 # --- The review queue
 
+def status_of(lane, item: dict) -> str:
+    """A proposed item is settled once its change request is: merged, rejected or blocked by a conflict."""
+    if item["status"] != "proposed":
+        return item["status"]
+    stored = lane.records.load("change_request", item.get("change_request_id") or "")
+    return "proposed" if stored is None or ChangeRecord.model_validate(stored).status in ("awaiting_approval", "approved") else "resolved"
+
+
+def proposal_of(item: dict) -> dict | None:
+    """Which source wins, from when, and what relied on the current fact, in the console's shape."""
+    p = item.get("proposal")
+    return {"winningSource": p["winningSource"], "newValidFrom": p["newValidFrom"], "dependents": p["dependents"]} if p else None
+
+
 def librarian_view(lane) -> list[dict]:
     """The librarian's items, open ones first, then newest first."""
     items = sorted(lane.records.list_kind(ITEM_KIND), key=lambda item: str(item["created_at"]), reverse=True)
     items = sorted(items, key=lambda item: item["status"] != "open")
     return [LibrarianItem(id=item["item_id"], kind=item["kind"], title=item["title"], detail=item["detail"], fact_ids=item["fact_ids"], policy_id=None,
-                          document_id=item["document_id"], proposal=None, status=item["status"], change_request_id=item.get("change_request_id"),
+                          document_id=item["document_id"], proposal=proposal_of(item), status=status_of(lane, item), change_request_id=item.get("change_request_id"),
                           created_at=str(item["created_at"])).ui() for item in items]
