@@ -121,7 +121,7 @@ def test_erasing_the_document_removes_its_candidates():
     client, lane = build(answering(FEE)[0])
     document_id = filed(client, lane)
     answer = remove(client, document_id, "erase")
-    assert next(layer for layer in answer["receipt"]["layers"] if layer["layer"] == "Fact candidates")["result"] == "cleared"
+    assert next(layer for layer in answer["receipt"]["layers"] if layer["layer"] == "Facts")["result"] == "cleared"
     assert candidates(lane) == [] and lane.records.load(stages_extract.EXTRACTION_KIND, document_id) is None
     assert any(e["action"] == "forget.completed" for e in client.get(f"/api/t/{TENANT}/audit", headers={"x-persona": FOUNDER}).json())  # its plain entry reads
 

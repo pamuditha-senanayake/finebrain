@@ -59,8 +59,8 @@ class MemoryEntities:
     def get(self, entity_id: str) -> dict | None:
         return self.entities.get(entity_id)
 
-    def all(self) -> list[dict]:
-        return sorted(self.entities.values(), key=lambda entity: entity["entity_id"])
+    def all(self, types: tuple[str, ...] = ()) -> list[dict]:
+        return sorted((e for e in self.entities.values() if not types or e["type"] in types), key=lambda entity: entity["entity_id"])
 
     def sources_of(self, entity_id: str) -> list[str]:
         return sorted(source for known, source in self.mentions if known == entity_id)
@@ -108,8 +108,9 @@ class PostgresEntities:
         found = self.select("WHERE tenant_id = %s AND entity_id = %s", (self.tenant_id, entity_id))
         return found[0] if found else None
 
-    def all(self) -> list[dict]:
-        return self.select("WHERE tenant_id = %s ORDER BY entity_id", (self.tenant_id,))
+    def all(self, types: tuple[str, ...] = ()) -> list[dict]:
+        """Every entity, or only those of these types."""
+        return self.select("WHERE tenant_id = %s AND (cardinality(%s::text[]) = 0 OR type = ANY(%s::text[])) ORDER BY entity_id", (self.tenant_id, list(types), list(types)))
 
     def select(self, where: str, params: tuple) -> list[dict]:
         rows = self.connection.execute(f"SELECT entity_id, type, key, first_seen, last_seen FROM entities {where}", params)

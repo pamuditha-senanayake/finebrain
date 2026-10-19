@@ -47,8 +47,11 @@ def entities_in_text(text: str, is_customer) -> list[str]:
 
 
 def tagged(item: dict, domain: str, is_customer) -> dict:
-    """The item with its domain (kept when it already has one) and the entities its text names."""
-    return {**item, "domain": item.get("domain") or domain, "entity_ids": entities_in_text(item["text"], is_customer)}
+    """The item with its domain (kept when it already has one) and the entities its text names. A verified fact (step 14) is
+    also tagged with its subject, so a question about that thing finds it."""
+    subject = str((item.get("subject") or {}).get("entity_ref", ""))
+    pinned = [subject] if subject.startswith("ent_") else []
+    return {**item, "domain": item.get("domain") or domain, "entity_ids": list(dict.fromkeys(pinned + entities_in_text(item["text"], is_customer)))}
 
 
 def tagger(seed: dict, entities):

@@ -4,7 +4,7 @@ from datetime import datetime
 
 from app.api import ui_models as ui
 from app.api import ui_models_work as work
-from app.api import documents, views
+from app.api import documents, vault_views, views
 from app.api.versions_views import approval_of
 from app.pipeline import stages_decide
 from app.pipeline.observe import read_count, read_last_seen
@@ -54,6 +54,8 @@ def list_view(lane, resource: str, query: dict) -> list[dict] | None:
         return shown[: int(query["limit"])] if query.get("limit") else shown
     if resource == "filing-rules":
         return documents.filing_rules_view(lane)
+    if resource in ("facts", "librarian"):
+        return vault_views.facts_view(lane) if resource == "facts" else vault_views.librarian_view(lane)
     if resource == "escalations":
         return [r for r in list_view(lane, "runs", {}) if r["status"] in ("escalated", "awaiting_approval")]
     if resource == "approvals":

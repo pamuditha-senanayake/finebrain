@@ -10,9 +10,10 @@ import { DataTable, type Column } from "@/components/brain/data-table";
 import { SimpleTable } from "@/components/brain/simple-table";
 import { useLookup } from "@/components/brain/names";
 import { EmptyState, KeyValue, Mono, PageHeader, QueryView, Section, Status, StatusChip } from "@/components/brain/primitives";
-import { useDocuments, useFacts, useLibrarian, useOp } from "@/lib/api/hooks";
+import { useDocuments, useFacts, useLibrarian, useOp, useTenantId } from "@/lib/api/hooks";
 import { useCurrentUser } from "@/lib/auth";
 import { date, relTime } from "@/lib/format";
+import { LibrarianActions } from "./librarian-actions";
 
 export function Vault() {
   const facts = useFacts();
@@ -23,6 +24,7 @@ export function Vault() {
   const router = useRouter();
   const factId = params.get("fact");
   const { user } = useCurrentUser();
+  const real = useTenantId() === "finebase-hq";
   const propose = useOp<{ itemId: string }>("librarianPropose", { success: "Proposal drafted as one change request" });
   const selected = facts.data?.find((f) => f.id === factId) ?? null;
   const columns: Column<Fact>[] = useMemo(
@@ -90,7 +92,8 @@ export function Vault() {
                     header: "Fix",
                     cell: (i) => (
                       <div className="flex flex-wrap gap-1.5">
-                        {i.status === "open" && (
+                        {real && <LibrarianActions item={i} />}
+                        {!real && i.status === "open" && (
                           <Button size="xs" onClick={() => propose.mutate({ itemId: i.id }, { onSuccess: (cr) => router.push(`/l2/versioning/${(cr as { id: string }).id}`) })} disabled={propose.isPending || !user || user.tier === "L3"} data-testid={`propose-${i.id}`}>
                             {i.kind === "conflict" ? "Propose resolution" : "Draft fix"}
                           </Button>

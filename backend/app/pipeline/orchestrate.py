@@ -3,7 +3,7 @@
 # Each task runs in-process, or as a Temporal workflow when the adapters include a Temporal runner.
 from datetime import datetime
 
-from app.pipeline import entity_match, item_tags, run_approvals, run_steps, stages_extract, stages_file, stages_intake, stages_normalize, stages_route, stages_version
+from app.pipeline import entity_match, item_tags, run_approvals, run_steps, stages_extract, stages_file, stages_librarian, stages_intake, stages_normalize, stages_route, stages_version
 from app.pipeline.adapters import make_memory_adapters
 from app.pipeline.audit import subscribe_audit
 from app.pipeline.contracts_run import Decision
@@ -30,6 +30,7 @@ def build_lane(seed: dict, model: Model, gateway: Gateway, now: datetime, make_a
     lane.bus.subscribe("graph.released", "retriever", "S5", lambda envelope: stages_version.on_release(lane, envelope))
     lane.bus.subscribe("signals.normalized", "librarian", "S11", lambda envelope: stages_file.file_document(lane, Signal.model_validate(envelope.payload)))
     lane.bus.subscribe("docs.extracted", "extractor", "S11", lambda envelope: stages_extract.extract_document(lane, envelope))
+    lane.bus.subscribe("facts.candidates", "reviewer", "S12", lambda envelope: stages_librarian.review_candidate(lane, envelope))
     lane.bus.subscribe("tasks.created", "worker", "S4", lambda envelope: on_task(lane, envelope))
     lane.bus.subscribe("approvals.decided", "worker", "S8", lambda envelope: on_decision(lane, envelope))
     subscribe_recorder(lane.bus, lane.records)

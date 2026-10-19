@@ -36,6 +36,14 @@ def parts_of(lane, record: dict) -> list[dict]:
     return [{"id": body["item_id"], "text": body["text"].removeprefix(prefix)} for body in bodies]
 
 
+def quote_of(lane, evidence: dict) -> str:
+    """The words a span points at, read back from the document's chunk. Empty when the chunk is gone."""
+    record = lane.records.load("document", evidence["document_id"]) or {"title": "", "document_id": evidence["document_id"]}
+    part = next((p for p in parts_of(lane, record) if p["id"] == evidence.get("chunk_id")), None)
+    start, end = map(int, evidence["span"].split(":"))
+    return part["text"][start:end] if part else ""
+
+
 def locate(fact: dict, parts: list[dict]) -> tuple[int, int] | None:
     """(part index, start) of the quote: in the part Claude named, else in any part. None when it is nowhere: an invented quote."""
     quote = str(fact.get("quote", "")).strip()
@@ -65,12 +73,21 @@ def day(text) -> datetime | None:
 
 # --- Building a candidate
 
+def note_mentioned(lane, entity_type: str, name: str, document_id: str, source: str) -> str | None:
+    """Note a thing the document names and link the document to it, so a question naming it reaches this document."""
+    entity_id = entity_match.note_named(lane.entities, entity_type, name, source, lane.now)
+    if entity_id:
+        lane.entities.link(entity_match.entity_id_of("document", document_id), "mentions", entity_id, source, lane.now)
+    return entity_id
+
+
 def subject_of(lane, fact: dict, document_id: str, source: str) -> Subject:
-    """The thing the fact is about, noted in the registry and linked from the document. An unnamed thing stays 'other'."""
-    entity_id = entity_match.note_named(lane.entities, fact.get("subject_type", "other"), str(fact.get("subject_name", "")), source, lane.now)
+    """The thing the fact is about, and every party it involves, noted and linked from the document. An unnamed thing stays 'other'."""
+    for party in fact.get("parties") or []:
+        note_mentioned(lane, "organization", str(party), document_id, source)
+    entity_id = note_mentioned(lane, fact.get("subject_type", "other"), str(fact.get("subject_name", "")), document_id, source)
     if entity_id is None:
         return Subject(entity_type="other", entity_ref=str(fact.get("subject_name", "")))
-    lane.entities.link(entity_match.entity_id_of("document", document_id), "mentions", entity_id, source, lane.now)
     return Subject(entity_type=fact["subject_type"], entity_ref=entity_id)
 
 

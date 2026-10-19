@@ -54,11 +54,11 @@ def test_runs_and_skills_are_found_by_name_or_id():
     assert any(h["kind"] == "Skill" for h in find(client, "refund"))
 
 
-def test_search_only_shows_what_the_askers_tier_may_read_and_ignores_short_queries():
+def test_search_only_shows_what_the_askers_tier_may_read_and_ignores_short_queries(monkeypatch):
     client, lane = build()
     filed(client, lane, "salaries.md", b"Payroll\n\nThe founder salary is reviewed every Saturday morning.", "restricted")
     assert any(h["kind"] == "Document" for h in find(client, "salary", FOUNDER))
-    lane.seed["people"]["h-udayanga"]["tier"] = "L3"
+    monkeypatch.setitem(lane.seed["people"]["h-udayanga"], "tier", "L3")  # undone after the test: the seed is shared
     assert not any(h["kind"] == "Document" for h in find(client, "salary", STEWARD))
     assert find(client, "a") == [] and find(client, "   ") == []
 

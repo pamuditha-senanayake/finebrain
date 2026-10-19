@@ -30,6 +30,7 @@ TOOL = {
                     "organization: a company or party; contract: the agreement itself; product: a plan or item sold; customer: only a "
                     "masked pii_tok_ token; payment: only a payment reference like pay_FB_20261004_0192; other: anything else")},
                 "subject_name": {"type": "string", "description": "The thing the fact is about, as the document names it"},
+                "parties": {"type": "array", "items": {"type": "string"}, "description": "Every company or party this fact involves, by name"},
                 "predicate": {"type": "string", "description": "What is stated about it, in snake_case, like monthly_price or notice_period"},
                 "value_type": {"type": "string", "enum": VALUE_TYPES},
                 "value_raw": {"type": "string", "description": "The value as written"},

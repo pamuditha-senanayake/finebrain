@@ -107,7 +107,7 @@ def on_release(lane, envelope) -> None:
     """S5's side of a release: a changed knowledge item is embedded again, so search reads the released version."""
     release = ReleaseEvent.model_validate(envelope.payload)
     commit = lane.records.load("commit", release.commit_id) or {"changes": []}
-    knowledge = [c for c in commit["changes"] if c["node_type"] == "knowledge" and c["op"] != "close"]
+    knowledge = [c for c in commit["changes"] if c["node_type"] in ("knowledge", "fact") and c["op"] != "close"]  # a verified fact is searchable too (step 14)
     tag = item_tags.tagger(lane.seed, lane.entities)  # a released item keeps its domain and is tagged again by its new text
     items = [tag({key: value for key, value in c["fields"].items() if key != "_ref"}) for c in knowledge]
     if not items:
