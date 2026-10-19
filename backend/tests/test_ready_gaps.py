@@ -27,7 +27,7 @@ def test_a_missing_filing_shows_up_as_a_gap_with_an_owner():
     client, lane = build()
     gaps = {g["id"]: g for g in get(client, "gaps")}
     vat = gaps["gap_ob_vat_2026_09_input_invoices"]
-    assert (vat["missing"], vat["dri"], vat["action"], vat["target"]["label"]) == ("Input VAT invoices", FOUNDER, "request_dri", "VAT return · September 2026")
+    assert (vat["missing"], vat["dri"], vat["action"], vat["target"]["label"]) == ("Input VAT invoices", FOUNDER, "request_grant", "VAT return · September 2026")
     assert vat["requestId"] == "er_ob_vat_2026_09_input_invoices"
 
 
@@ -39,7 +39,9 @@ def test_the_first_check_opens_one_request_per_gap_and_says_so():
     requests = get(client, "evidence-requests")
     assert len(requests) == len(gaps) and {r["status"] for r in requests} == {"open"} and {r["requestedFrom"] for r in requests} == {FOUNDER}
     published = [e.payload for e in lane.bus.topics["evidence.gaps"]]
-    assert len(published) == len(gaps) and all(p["is_sample"] and p["action"] == "request_dri" for p in published)
+    assert len(published) == len(gaps) and all(p["is_sample"] for p in published)
+    assert {p["required_item"].split(" for ")[0]: p["action"] for p in published}["Input VAT invoices"] == "request_grant"  # a source could supply it
+    assert {p["action"] for p in published if not p["required_item"].endswith("VAT return")} == {"request_dri"}
     assert sum(n["title"].startswith("Evidence needed") for n in lane.records.list_kind("notification")) == len(gaps)
     assert sum(entry["topic"] == "evidence.requested" for entry in lane.audit.in_order()) == len(gaps)
 

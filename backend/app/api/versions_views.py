@@ -1,7 +1,7 @@
 # versions_views.py: S14 on the console: branches, commits and change requests for Knowledge graph › Versions, and the
 # approval of a Studio change request in the same shape as a run's approval, so To review shows both.
 # Used by: graph_map.py, lists.py, routes.py. Uses: studio_changes.py, views.py, ui_models.py.
-from app.api import views
+from app.api import grant_views, grants, views
 from app.api.studio_changes import ChangeRecord
 
 # Config
@@ -59,7 +59,9 @@ def change_requests_view(lane, cr_id: str | None = None) -> list[dict] | dict | 
 
 
 def approval_of(lane, approval: dict) -> dict:
-    """A run's approval as before; a Studio change request's approval from its record."""
+    """A run's approval as before; a grant's (step 16) and a change request's from their records."""
+    if approval["subject"]["kind"] == "grant" and (grant := grants.grant_of(lane, approval)):
+        return grant_views.approval_view(lane, approval, grant)
     if approval["subject"]["kind"] != "change_request":
         return views.approval_view(lane, approval).ui()
     stored = lane.records.load("change_request", approval["subject"]["ref"])

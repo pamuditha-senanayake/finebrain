@@ -1,8 +1,7 @@
 # stages_ready.py: step 16 slice 2, S15 Readiness (D01 to D04). The check compares each obligation's required items with the
 # verified facts (readiness_facts.py): every item not proven yet is a gap with its owner (the DRI). The first time a gap is seen
 # it opens one evidence request, writes an audit entry and publishes K15 on evidence.gaps (the API tells the DRI). Requests follow
-# the facts, escalate as the due day nears and expire after it (readiness_time.py). Safe to run again: ids come from the instance
-# and the item. Used by: api/ready_notices.py, api/ready_views.py, tests. Uses: readiness_*.py, contracts_graph.py, observe.py.
+# the facts, escalate and expire (readiness_time.py). Safe to run again. Used by: api/ready_*.py, tests. Uses: readiness_*.py, contracts_graph.py, observe.py.
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -34,6 +33,7 @@ class EvidenceRequest(BaseModel):
     fulfilled_by: str | None = None  # the fact that proves it
     obligation_due_at: datetime | None = None  # slice 4: the due day it escalates towards
     escalation_level: int = 0  # slice 4: the last escalation step announced
+    suggested_grant: dict | None = None  # slice 5: the data source that could supply it
 
 
 class CheckRecord(BaseModel):
@@ -70,16 +70,23 @@ def gaps(lane, now: datetime) -> list[tuple[readiness_model.Instance, readiness_
 
 # --- Acting on them (D03, D04)
 
+def action_of(lane, item: readiness_model.RequiredItem) -> str:
+    """Ask the DRI; or, when a data source could supply it and no grant for it is active yet, ask for that grant."""
+    active = {g["source"] for g in lane.records.list_kind("grant") if g["status"] == "active"}
+    return "request_grant" if item.grant and item.grant["source"] not in active else "request_dri"
+
+
 def open_request(lane, instance: readiness_model.Instance, item: readiness_model.RequiredItem, now: datetime) -> EvidenceRequest:
     """One request to the DRI, written to the audit log and announced as K15 for S3 and S8."""
     ob, gap_id = instance.obligation, gap_id_of(instance.instance_id, item.key)
     request = EvidenceRequest(request_id=request_id_of(instance.instance_id, item.key), instance_id=instance.instance_id, obligation_id=ob.id, evidence_key=item.key,
                               item=f"{item.label} for {ob.title}", requested_from=ob.dri, status="open", due_at=instance.prepare_by, created_at=now,
-                              obligation_due_at=instance.due_at, escalation_level=escalation_level(instance.due_at, now))  # starts at the step it is already on
+                              obligation_due_at=instance.due_at, escalation_level=escalation_level(instance.due_at, now),  # starts at the step it is already on
+                              suggested_grant=item.grant)
     lane.records.save(REQUEST_KIND, request.request_id, request)
     lane.bus.publish("evidence.gaps", "gap.detected", GapDetected(
         gap_id=gap_id, target=GapTarget(kind="obligation", id=instance.instance_id), required_item=request.item, due_at=instance.due_at,
-        prepare_by=instance.prepare_by, action="request_dri", dri_id=ob.dri, escalation_days=ESCALATION_DAYS, is_sample=True, detected_at=now), CHECKER)
+        prepare_by=instance.prepare_by, action=action_of(lane, item), dri_id=ob.dri, escalation_days=ESCALATION_DAYS, is_sample=True, detected_at=now), CHECKER)
     lane.audit.append(f"evidence:{request.request_id}", "evidence.requested", {"by": CHECKER, "at": now.isoformat(), "document_id": None,
                       "reason": f"Asked {ob.dri} for {request.item} before {instance.prepare_by.date().isoformat()} (sample)"})
     return request
@@ -110,8 +117,9 @@ def settle_dates(lane, now: datetime) -> None:
         instance, _ = target_of(lane, stored, now)
         if instance is None:
             continue
-        if not stored.get("obligation_due_at"):
-            update(lane, stored, {"obligation_due_at": instance.due_at})
+        item = next(i for i in instance.obligation.items if i.key == stored["evidence_key"])
+        if not stored.get("obligation_due_at") or item.grant and not stored.get("suggested_grant"):  # requests from before slices 4 and 5
+            update(lane, stored, {"obligation_due_at": instance.due_at, "suggested_grant": item.grant})
             stored = lane.records.load(REQUEST_KIND, stored["request_id"])
         if stored["status"] == "expired" and now <= instance.due_at:
             update(lane, stored, {"status": "open"})

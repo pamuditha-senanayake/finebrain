@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.api import ready_notices, self_knowledge, studio_approvals
+from app.api import grants, ready_notices, self_knowledge, studio_approvals
 from app.api.studio_seed import extend_seed
 from app.api.routes import create_api_app
 from app.pipeline import fakes, llm, orchestrate, temporal_ready
@@ -88,6 +88,7 @@ def keep_running(lane) -> None:
             else:
                 lane.now = lane.bus.now = now
             studio_approvals.sweep(lane)  # C4 Studio changes merge once their cooling period ends
+            grants.sweep(lane)  # C4 data source grants become active once theirs ends (step 16)
             lane.bus.drain()
         except Exception as error:  # the loop must outlive any one bad message; the bus already dead-letters failures
             log_event("API", "loop_error", error=type(error).__name__)

@@ -4,7 +4,7 @@ from datetime import datetime
 
 from app.api import ui_models as ui
 from app.api import ui_models_work as work
-from app.api import documents, ready_views, vault_views, views
+from app.api import documents, grant_views, ready_views, vault_views, views
 from app.api.versions_views import approval_of
 from app.pipeline import stages_decide
 from app.pipeline.observe import read_count, read_last_seen
@@ -12,7 +12,7 @@ from app.pipeline.contracts_run import ApprovalRequest, Decision
 
 # Config
 READINESS = {"obligations": ready_views.obligations_view, "readiness-rules": ready_views.rules_view, "risks": ready_views.risks_view,  # step 16
-             "gaps": ready_views.gaps_view, "evidence-requests": ready_views.requests_view, "grants": lambda lane: []}  # grants come with slice 5
+             "gaps": ready_views.gaps_view, "evidence-requests": ready_views.requests_view, "grants": grant_views.grants_view}
 LIVE_RESOURCES = {"run.updated": ["runs", "escalations"], "approval.created": ["approvals", "escalations"], "approval.decided": ["approvals", "escalations", "runs"]}
 
 

@@ -20,6 +20,7 @@ class RequiredItem(BaseModel):
     label: str
     predicate: str  # a verified fact with this predicate proves the item
     subject: list[str] | None = None  # [type, key] of the thing it must be about; None means any
+    grant: dict | None = None  # slice 5: a data source that could supply it, if someone grants access (source, scope, retention_days, agents, revoke)
 
 
 class Due(BaseModel):

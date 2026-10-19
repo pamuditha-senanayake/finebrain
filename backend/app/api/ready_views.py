@@ -113,8 +113,13 @@ def gaps_view(lane) -> list[dict]:
     fresh(lane)
     asked = {r["request_id"] for r in lane.records.list_kind(stages_ready.REQUEST_KIND)}
     return [ReadinessGap(id=readiness_model.gap_id_of(i.instance_id, item.key), target=GapTarget(kind="obligation", id=i.instance_id, label=i.obligation.title + readiness_model.period_label(i.period)),
-                         missing=item.label, due_at=i.due_at.isoformat(), action="request_dri", dri=i.obligation.dri, escalation_days=readiness_time.ESCALATION_DAYS,
+                         missing=item.label, due_at=i.due_at.isoformat(), action=stages_ready.action_of(lane, item), dri=i.obligation.dri, escalation_days=readiness_time.ESCALATION_DAYS,
                          request_id=rid if (rid := readiness_model.request_id_of(i.instance_id, item.key)) in asked else None).ui() for i, item in stages_ready.gaps(lane, lane.now)]
+
+
+def shown_grant(request: dict) -> dict | None:
+    g = request.get("suggested_grant")
+    return {"source": g["source"], "scope": g["scope"], "retentionDays": g["retention_days"], "agents": g["agents"], "revoke": g["revoke"]} if g else None
 
 
 def requests_view(lane) -> list[dict]:
@@ -122,6 +127,6 @@ def requests_view(lane) -> list[dict]:
     fresh(lane)
     stored = sorted(lane.records.list_kind(stages_ready.REQUEST_KIND), key=lambda r: str(r["created_at"]), reverse=True)
     return [EvidenceRequest(id=r["request_id"], tenant_id=lane.seed["tenant_id"], obligation_id=r["instance_id"], evidence_key=r["evidence_key"], item=r["item"],
-                            requested_from=r["requested_from"], status=r["status"], due_at=str(r["due_at"]), created_at=str(r["created_at"]), suggested_grant=None,
+                            requested_from=r["requested_from"], status=r["status"], due_at=str(r["due_at"]), created_at=str(r["created_at"]), suggested_grant=shown_grant(r),
                             escalation_level=readiness_time.escalation_level(readiness_time.deadline_of(r), lane.now) if r["status"] == "open" else 0,
                             fulfilled_by={"kind": "upload", "ref": r["fulfilled_by"]} if r.get("fulfilled_by") else None).ui() for r in stored]

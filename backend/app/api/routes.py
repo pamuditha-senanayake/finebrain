@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.api import ask as asking
-from app.api import ask_memory, documents, forget_routes, lists_query, ready_routes, search, studio_approvals, studio_routes, vault_routes, versions_views, views
+from app.api import ask_memory, documents, forget_routes, grant_views, grants, lists_query, ready_routes, search, studio_approvals, studio_routes, vault_routes, versions_views, views
 from app.api.graph_map import graph_resource
 from app.api.lists import clusters_view, list_view, live_event, refusal_for, sensors_view, tenant_view
 from app.pipeline import capture_api, orchestrate
@@ -106,7 +106,7 @@ def create_api_app(lane, hq: dict, answerer=None, chatter=None) -> FastAPI:
         return None if resource in NULLABLE_OBJECTS else []
 
     studio_routes.register(app, lane, check, chatter)  # before the general ops route, so studioApply and studioSuggest win
-    for module in (vault_routes, ready_routes, documents, forget_routes):  # the librarian's answers, Check now, uploads, forgetting
+    for module in (vault_routes, ready_routes, grant_views, documents, forget_routes):  # the librarian, Check now, grants, uploads, forgetting
         module.register(app, lane, check)
 
     @app.post("/api/t/{tenant}/ops/{op}")
@@ -118,8 +118,8 @@ def create_api_app(lane, hq: dict, answerer=None, chatter=None) -> FastAPI:
         decision = Decision(approval_id=body["approvalId"], decision=body["decision"], decided_by=[x_persona], decided_at=lane.now,
                             comment=body.get("comment") or "", delegated_to=body.get("delegateTo"))
         approval = lane.records.load("approval", decision.approval_id)
-        is_change = bool(approval) and approval["subject"]["kind"] == "change_request"
-        refused = studio_approvals.refusal_for(lane, approval, decision) if is_change else refusal_for(lane, decision.approval_id, decision)
+        kind = approval["subject"]["kind"] if approval else None  # a Studio or librarian change, a data source grant (step 16), or a run's action
+        refused = studio_approvals.refusal_for(lane, approval, decision) if kind == "change_request" else grants.refusal_for(lane, approval, decision) if kind == "grant" else refusal_for(lane, decision.approval_id, decision)
         if refused:
             raise HTTPException(*refused)
         orchestrate.decide(lane, decision)
