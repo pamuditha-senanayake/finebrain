@@ -3,6 +3,8 @@
 import { ArrowRight, Brain } from "lucide-react";
 import Link from "next/link";
 import { AmbientSurface } from "@/components/brain/motion";
+import { HqOffline } from "@/components/shell/hq-offline";
+import { TenantPicker } from "@/components/shell/tenant-picker";
 import { RoleSwitcher, ThemeToggle } from "@/components/shell/widgets";
 import { canView, homeFor, useCurrentUser } from "@/lib/auth";
 import { flags } from "@/lib/flags";
@@ -18,7 +20,7 @@ const BLURB: Record<string, string> = {
 };
 
 export function Home() {
-  const { user } = useCurrentUser();
+  const { user, error, retry } = useCurrentUser();
   const areas = [...NAV, ...(flags.research ? [RESEARCH_NAV] : [])];
   return (
     <AmbientSurface className="min-h-dvh">
@@ -31,11 +33,13 @@ export function Home() {
             <span className="font-semibold">{t("app.name")}</span>
           </div>
           <div className="flex items-center gap-1">
+            <TenantPicker />
             <ThemeToggle />
             <RoleSwitcher />
           </div>
         </header>
         <main className="my-auto py-10">
+          {error ? <HqOffline onRetry={retry} /> : <>
           <h1 className="max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">A governed layer where agents run the work and people stay in charge.</h1>
           <p className="mt-3 max-w-2xl text-muted-foreground">Every fact carries its evidence. Nothing goes live blind. Approval weight follows criticality.</p>
           {user && (
@@ -62,6 +66,7 @@ export function Home() {
               );
             })}
           </ul>
+          </>}
         </main>
       </div>
     </AmbientSurface>
