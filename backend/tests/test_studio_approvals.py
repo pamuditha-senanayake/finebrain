@@ -1,9 +1,9 @@
 # test_studio_approvals.py: Studio changes that need a person (step 9d). They wait as a change request on a branch with
 # an S8 approval; the drafter never approves; C4 needs two leaders and a cooling period; an approval merges through S14
 # and the pipeline then reads the new values; a node that moved on makes a conflict. Uses: tests/studio_helpers.py.
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
-from app.api import studio_approvals
+from app.api import studio_approvals, studio_checks
 from tests.studio_helpers import FOUNDER, REFUND_WF, SECOND, STEWARD, THIRD, build, change, decide, get, node, op
 
 # Config
@@ -85,3 +85,19 @@ def test_versions_show_main_and_the_change_branches():
     request = get(client, f"change-requests/{cr_id}")[1]
     assert "Window in days: 30 days → 45 days" in request["plainDiff"] and request["toBranch"] == "main"
     assert get(client, "change-requests/cr_missing")[0] == 404
+
+
+def test_a_change_request_carries_review_checks_and_says_no_replay():
+    client, _ = build()
+    cr_id, _ = routed(client, {"status": "paused"}, kind="workflow", target=REFUND_WF)
+    request = get(client, f"change-requests/{cr_id}")[1]
+    tests, impact = request["tests"], request["impactPreview"]
+    assert tests["suite"] == "Edit Review checks" and tests["total"] >= 1 and tests["failed"] == 0
+    assert (impact["runsReplayed"], impact["predictedRisk"]) == (0, "medium") and impact["summary"].startswith("No runs replayed")
+
+
+def test_a_break_the_review_found_fails_its_check():
+    review = {"verdict": "breaking", "affected": [{"id": "tool_a"}, {"id": "skill_b"}],
+              "findings": [{"severity": "break", "text": "Skill B loses tool A.", "ref": {"kind": "skill", "id": "skill_b"}}]}
+    tests, impact = studio_checks.checks(review, datetime(2026, 10, 19, tzinfo=timezone.utc))
+    assert (tests["total"], tests["passed"], tests["failed"], impact["predictedRisk"]) == (2, 1, 1, "high")

@@ -14,7 +14,8 @@ import { CommitButton } from "@/components/brain/motion";
 import { PersonChip, useLookup } from "@/components/brain/names";
 import { SimpleTable } from "@/components/brain/simple-table";
 import { CritBadge, EmptyState, KeyValue, PageHeader, QueryView, Section, Status } from "@/components/brain/primitives";
-import { useApproval, useApprovals, useChangeRequest, useGrants, useHumans, useOp } from "@/lib/api/hooks";
+import { useDecide } from "@/lib/api/decide";
+import { useApproval, useApprovals, useChangeRequest, useGrants, useHumans } from "@/lib/api/hooks";
 import { useCurrentUser } from "@/lib/auth";
 import { relTime } from "@/lib/format";
 import { approverFor, canApprove } from "@/lib/governance/criticality";
@@ -100,7 +101,7 @@ export function ApprovalDetail() {
   const router = useRouter();
   const [comment, setComment] = useState("");
   const [delegateTo, setDelegateTo] = useState("");
-  const decide = useOp<{ approvalId: string; decision: string; comment: string; delegateTo?: string | null }>("decide");
+  const decide = useDecide();
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -116,12 +117,11 @@ export function ApprovalDetail() {
           const isMerge = a.subject.kind === "change_request";
           const act = (decision: "approve" | "reject" | "request_changes" | "delegate") =>
             decide.mutate(
-              { approvalId: a.id, decision, comment, delegateTo: decision === "delegate" ? delegateTo : null },
+              { approvalId: a.id, decision, comment, delegateTo: decision === "delegate" ? delegateTo : null, votesBefore: a.votes.length },
               {
                 onSuccess: (res) => {
                   setComment("");
-                  const r = res as Approval;
-                  if (r.status === "approved") router.push(isMerge ? `/l2/versioning/${a.subject.id}` : "/l1/digest?tab=evidence");
+                  if (res.status === "approved") router.push(isMerge ? `/l2/versioning/${a.subject.id}` : "/l1/digest?tab=evidence");
                 },
               },
             );

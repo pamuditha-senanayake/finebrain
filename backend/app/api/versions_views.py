@@ -1,8 +1,9 @@
 # versions_views.py: S14 on the console: branches, commits and change requests for Knowledge graph › Versions, and the
 # approval of a Studio change request in the same shape as a run's approval, so To review shows both.
-# Used by: graph_map.py, lists.py, routes.py. Uses: studio_changes.py, views.py, ui_models.py.
+# Used by: graph_map.py, lists.py, routes.py. Uses: studio_changes.py, studio_checks.py, grants.py, grant_views.py, views.py, ui_models.py.
 from app.api import grant_views, grants, views
 from app.api.studio_changes import ChangeRecord
+from app.api.studio_checks import checks
 
 # Config
 OP = {"add": "add", "update": "modify", "close": "remove"}
@@ -41,6 +42,9 @@ def change_request_view(lane, record: ChangeRecord) -> dict:
              *(f"{'Breaks' if f['severity'] == 'break' else 'Watch'}: {f['text']}" for f in rv["findings"] if f["severity"] != "info"),
              *([f"Note: {record.note}"] if record.note else [])]
     target = record.input.get("targetId") or record.cr_id
+    if "tests" not in proposal and record.kind != "fact":  # opened before checks were stored: rebuild them from the stored review
+        tests, impact = checks(rv, record.created_at)
+        proposal = {**proposal, "tests": tests, "impact": impact}
     return {"id": record.cr_id, "tenantId": lane.seed["tenant_id"], "title": record.title, "kind": record.kind, "fromBranch": record.branch, "toBranch": "main",
             "commits": [record.commit_id], "plainDiff": plain,
             "changes": [{"op": "modify", "nodeType": f"studio.{record.input['kind']}", "nodeId": target, "label": proposal["targetName"], "field": c["field"],
