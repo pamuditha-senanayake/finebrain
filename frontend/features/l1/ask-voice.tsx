@@ -15,6 +15,7 @@ import { useCurrentUser } from "@/lib/auth";
 import { canRecord, openMic, recordQuestion, transcribe, type Mic as OpenMic } from "@/lib/voice/mic";
 import { shortOf, speak, unlockAudio } from "@/lib/voice/speaker";
 import { date } from "@/lib/format";
+import { lookedInLabel } from "@/lib/looked-in";
 import { cn } from "@/lib/utils";
 import { AskUpload } from "./ask-upload";
 import { VoiceOrb, type VoiceState } from "./voice-orb";
@@ -368,6 +369,7 @@ export function AskVoice() {
                       </Link>
                     </li>
                   ))}
+                  {last.a.lookedIn && <li className="px-1 text-xs text-muted-foreground" data-testid="looked-in">{lookedInLabel(last.a.lookedIn)}</li>}
                 </ol>
               )}
             </div>

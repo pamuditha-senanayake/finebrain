@@ -119,9 +119,14 @@ export const AskAnswer = z.object({
   scope: z.enum(["page", "system"]).optional(),
   /** Short how-to steps for the page the person is on. */
   guide: z.array(z.string()).optional(),
-  actions: z.array(z.object({ label: z.string(), href: z.string() })).optional(),
+  actions: z.array(z.object({ label: z.string(), href: z.string() })).nullable().optional(),
   /** Set by the real brain: the conversation this answer belongs to, so the next question can refer back. */
   conversationId: z.string().nullable().optional(),
+  /** Set by the real brain: where it searched, narrowest first (step 13b). */
+  lookedIn: z
+    .object({ level: z.enum(["entity", "domain", "tenant"]), domains: z.array(z.string()), entityCount: z.number().int() })
+    .nullable()
+    .optional(),
 });
 export type AskAnswer = z.infer<typeof AskAnswer>;
 

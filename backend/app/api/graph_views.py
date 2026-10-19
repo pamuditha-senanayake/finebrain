@@ -26,7 +26,8 @@ def runs_where(lane, field: str, value: str) -> list[dict]:
 
 
 def started(run: dict) -> datetime | None:
-    return datetime.fromisoformat(str(run["steps"][0]["started_at"])) if run["steps"] else None
+    # Python 3.10 cannot read a trailing Z, and runs recorded through Temporal store one
+    return datetime.fromisoformat(str(run["steps"][0]["started_at"]).replace("Z", "+00:00")) if run["steps"] else None
 
 
 def share(runs: list[dict], outcome: str) -> float:

@@ -30,15 +30,30 @@ ALTER TABLE chunks ADD COLUMN IF NOT EXISTS domain text;
 ALTER TABLE chunks ADD COLUMN IF NOT EXISTS entity_ids text[] NOT NULL DEFAULT '{{}}';
 CREATE INDEX IF NOT EXISTS chunks_domain ON chunks (tenant_id, domain);
 CREATE INDEX IF NOT EXISTS chunks_entities ON chunks USING gin (entity_ids);
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS scope_keys text[] GENERATED ALWAYS AS
+    (CASE WHEN cardinality(entity_ids) = 0 THEN ARRAY[tenant_id || ':general'] ELSE entity_ids END) STORED;
+CREATE INDEX IF NOT EXISTS chunks_scope_keys ON chunks USING gin (scope_keys);
 """
 TIME_FILTER = """kind = ANY(%(kinds)s)
     AND (valid_from IS NULL OR valid_from <= %(valid)s) AND (valid_to IS NULL OR valid_to > %(valid)s)
     AND recorded_at <= %(recorded)s"""
-# Inside the scope's domains (or general, or untagged), and about its entities (or about no entity at all)
-SCOPE_FILTER = """(cardinality(%(domains)s::text[]) = 0 OR domain IS NULL OR domain = %(general)s OR domain = ANY(%(domains)s::text[]))
-    AND (cardinality(%(ids)s::text[]) = 0 OR cardinality(entity_ids) = 0 OR entity_ids && %(ids)s::text[])"""
+# Inside the scope's domains (or general, or untagged), and about its entities (or about no entity at all). The entity part is
+# one test on scope_keys (a chunk's entities, or the tenant's general key), so its GIN index finds the slice without a full scan
+DOMAIN_FILTER = "(domain IS NULL OR domain = %(general)s OR domain = ANY(%(domains)s::text[]))"
+ENTITY_FILTER = "scope_keys && %(keys)s::text[]"
 UPSERT = """INSERT INTO chunks (tenant_id, item_id, kind, body, valid_from, valid_to, recorded_at, embedding, domain, entity_ids)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s::vector, %s, %s)"""
+
+
+def scope_filter(scope: dict | None) -> str:
+    """Only the filters that apply, never "no entities OR ...": a prepared statement's generic plan cannot drop that branch,
+    and then it scans every chunk instead of using the index."""
+    parts = ["TRUE"]
+    if scope and scope["domains"]:
+        parts.append(DOMAIN_FILTER)
+    if scope and scope["entity_ids"]:
+        parts.append(ENTITY_FILTER)
+    return " AND ".join(parts)
 
 
 class PostgresChunks:
@@ -93,13 +108,13 @@ class PostgresChunks:
     def filters(self, kinds: list[str], valid, recorded, limit: int, scope: dict | None) -> dict:
         """The parameters every search shares: tenant, kinds, as-of times, limit and the scope."""
         scope = scope or {"domains": [], "entity_ids": []}
-        return {"tenant": self.tenant_id, "kinds": kinds, "valid": valid, "recorded": recorded, "limit": limit,
-                "domains": scope["domains"], "ids": scope["entity_ids"], "general": GENERAL}
+        return {"tenant": self.tenant_id, "kinds": kinds, "valid": valid, "recorded": recorded, "limit": limit, "domains": scope["domains"],
+                "ids": scope["entity_ids"], "keys": [*scope["entity_ids"], f"{self.tenant_id}:{GENERAL}"], "general": GENERAL}
 
     def by_vector(self, embedding: list[float], kinds: list[str], valid, recorded, limit: int, scope: dict | None = None) -> list[dict]:
         """Nearest by cosine distance, inside the scope."""
         rows = self.connection.execute(
-            f"""SELECT body FROM chunks WHERE tenant_id = %(tenant)s AND {TIME_FILTER} AND {SCOPE_FILTER}
+            f"""SELECT body FROM chunks WHERE tenant_id = %(tenant)s AND {TIME_FILTER} AND {scope_filter(scope)}
                 ORDER BY embedding <=> %(vector)s::vector LIMIT %(limit)s""",
             {**self.filters(kinds, valid, recorded, limit, scope), "vector": json.dumps(embedding)},
         )
@@ -110,7 +125,7 @@ class PostgresChunks:
         terms = " | ".join(search_words(query)) or "nothing"
         rows = self.connection.execute(
             f"""SELECT body FROM chunks, to_tsquery('english', %(terms)s) AS asked
-                WHERE tenant_id = %(tenant)s AND {TIME_FILTER} AND {SCOPE_FILTER} AND tsv @@ asked ORDER BY ts_rank(tsv, asked) DESC LIMIT %(limit)s""",
+                WHERE tenant_id = %(tenant)s AND {TIME_FILTER} AND {scope_filter(scope)} AND tsv @@ asked ORDER BY ts_rank(tsv, asked) DESC LIMIT %(limit)s""",
             {**self.filters(kinds, valid, recorded, limit, scope), "terms": terms},
         )
         return [row[0] for row in rows]

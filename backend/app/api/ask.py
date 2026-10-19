@@ -3,7 +3,7 @@
 # conversation. Each turn is remembered. Without a Claude key it lists the closest documents.
 # Used by: routes.py, tests/test_api_brain.py. Uses: ask_memory.py, self_knowledge.py, retrieve_scope.py, stages_retrieve.py, retry.py.
 from app.api import ask_memory, search, self_knowledge
-from app.api.ui_models_work import AskAnswer, Citation
+from app.api.ui_models_work import AskAnswer, Citation, LookedIn
 from app.pipeline import retrieve_scope, stages_retrieve
 from app.pipeline.contracts_reason import ContextItem, ContextQuery
 from app.pipeline.contracts_signal import Principal
@@ -79,4 +79,5 @@ def ask(lane, answerer, persona: str, question: str, scope: str | None, conversa
     cited = [item_id for item_id in cited if item_id in by_id]
     ask_memory.remember(lane, conversation_id, persona, question, text, cited)
     return AskAnswer(question=question, answer=text, citations=[citation(by_id[item_id]) for item_id in cited], withheld=bundle.denied_count,
-                     scope=scope, conversation_id=conversation_id, actions=search.show_me(lane, [by_id[item_id] for item_id in cited], question) or None)
+                     scope=scope, conversation_id=conversation_id, actions=search.show_me(lane, [by_id[item_id] for item_id in cited], question) or None,
+                     looked_in=LookedIn(**bundle.scope.model_dump()) if bundle.scope else None)

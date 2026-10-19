@@ -96,11 +96,12 @@ Laws, market data and competitor news are the same for many tenants. So we store
 | Chunks with pgvector, full text and rerank | Built in S5 |
 | Access by tier and on behalf of | Built in S5 and S7 |
 | Raw vault with retention | Built in S1 |
-| Entity resolution at intake | Next, in S11 |
+| Entity resolution at intake | Built in S2 (step 13a): payments, customers, uploads; text extraction comes with S12 |
 | Tier budgets and value scores | Next, in S13 nightly |
 | Summary ladder | Next, in S12 and S13 |
 | Shared commons tenant | Later |
 | Version chains, field dictionary | Next, in S11 |
+| Four tags and narrow first | Built (steps 13a and 13b): domain and entity tags, scoped search with widening |
 | Weekly signal counts and spike check | Next, in S13; Trends tab shows them |
 
 The base is in place. Entity resolution, budgets and the Distiller come next.

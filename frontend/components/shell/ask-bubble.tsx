@@ -7,6 +7,7 @@ import type { AskAnswer } from "@/contracts";
 import { Button } from "@/components/ui/button";
 import type { VoiceState } from "@/features/l1/voice-orb";
 import { date } from "@/lib/format";
+import { lookedInLabel } from "@/lib/looked-in";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { shortOf } from "@/lib/voice/speaker";
@@ -104,6 +105,7 @@ function AnswerBlob({ a }: { a: AskAnswer }) {
               </Link>
             </li>
           ))}
+          {a.lookedIn && <li className="px-1 text-xs text-muted-foreground" data-testid="looked-in">{lookedInLabel(a.lookedIn)}</li>}
         </ol>
       )}
     </Blob>

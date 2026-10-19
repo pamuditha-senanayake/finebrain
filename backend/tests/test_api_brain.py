@@ -62,6 +62,7 @@ def test_without_claude_it_lists_the_closest_documents():
     client, _ = build(answerer=None)
     body = post_ask(client).json()
     assert body["answer"] == ask.NO_CLAUDE_NOTE and len(body["citations"]) >= 1 and body["withheld"] >= 0
+    assert body["lookedIn"] == {"level": "tenant", "domains": [], "entityCount": 0}  # the question names nothing, so it searched everything
 
 
 @pytest.mark.parametrize("question, persona, status", [("  ", FOUNDER, 400), (QUESTION, "h-stranger", 401)])

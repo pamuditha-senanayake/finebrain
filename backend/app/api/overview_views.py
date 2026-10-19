@@ -29,7 +29,7 @@ def rates(runs: list[dict]) -> dict:
 
 
 def started(run: dict) -> datetime | None:
-    return datetime.fromisoformat(run["startedAt"]) if run["startedAt"] else None
+    return datetime.fromisoformat(run["startedAt"].replace("Z", "+00:00")) if run["startedAt"] else None  # Python 3.10 cannot read a trailing Z
 
 
 def kpi_of(lane, cluster_id: str, runs: list[dict]) -> dict:

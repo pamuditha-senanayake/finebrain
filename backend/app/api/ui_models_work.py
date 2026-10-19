@@ -105,6 +105,13 @@ class AskAction(UiModel):
     href: str
 
 
+class LookedIn(UiModel):
+    """Where the brain searched for this answer (step 13b), for the quiet line behind Sources."""
+    level: Literal["entity", "domain", "tenant"]
+    domains: list[str]
+    entity_count: int
+
+
 class AskAnswer(UiModel):
     question: str
     answer: str
@@ -113,6 +120,7 @@ class AskAnswer(UiModel):
     scope: Literal["page", "system"] | None = None
     conversation_id: str | None = None
     actions: list[AskAction] | None = None  # step 11: one "Show me" that opens the cited sentence, lit up
+    looked_in: LookedIn | None = None  # step 13b: the scope S5 searched
 
 
 class AskTurn(UiModel):
