@@ -84,6 +84,29 @@ def from_fact(lane, ob: Obligation) -> datetime | None:
     return datetime.fromisoformat(max(ends)).replace(tzinfo=timezone.utc) if ends else None
 
 
+def period_label(period: str | None) -> str:
+    """2026-09 reads as September 2026, 2025 as 2025, and no period as nothing."""
+    if not period:
+        return ""
+    if len(period) == 4:
+        return f" · {period}"
+    return f" · {datetime.strptime(period, '%Y-%m').strftime('%B %Y')}"
+
+
+# --- Ids of a gap and its request
+
+def safe(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
+
+
+def gap_id_of(instance_id: str, key: str) -> str:
+    return f"gap_{safe(instance_id)}_{key}"
+
+
+def request_id_of(instance_id: str, key: str) -> str:
+    return "er_" + gap_id_of(instance_id, key).removeprefix("gap_")
+
+
 # --- Instances
 
 def obligations_of(seed: dict) -> list[Obligation]:

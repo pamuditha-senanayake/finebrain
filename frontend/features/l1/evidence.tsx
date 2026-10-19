@@ -10,7 +10,8 @@ import { CommitButton } from "@/components/brain/motion";
 import { PersonChip, useLookup } from "@/components/brain/names";
 import { SimpleTable } from "@/components/brain/simple-table";
 import { EmptyState, KeyValue, PageHeader, QueryView, SampleBadge, Section, Status, StatusChip } from "@/components/brain/primitives";
-import { useEvidenceRequests, useGrants, useObligations, useOp } from "@/lib/api/hooks";
+import { useEvidenceRequests, useGrants, useObligations, useOp, useTenantId } from "@/lib/api/hooks";
+import { UPLOAD_TYPES, useUploadEvidence } from "@/lib/api/upload";
 import { useCurrentUser } from "@/lib/auth";
 import { date, relTime } from "@/lib/format";
 
@@ -20,6 +21,8 @@ function RequestActions({ req }: { req: EvidenceRequest }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [grantOpen, setGrantOpen] = useState(false);
   const upload = useOp<{ requestId: string; fileName: string; sizeKb: number }>("uploadEvidence", { success: "Evidence filed. A fact with provenance was recorded." });
+  const real = useTenantId() === "finebase-hq"; // HQ files the real file; its facts are then reviewed in the Vault
+  const uploadFile = useUploadEvidence();
   const grant = useOp<{ requestId: string }>("requestGrant", { success: "Grant requested. C4 needs two L1 approvals." });
   const g = req.suggestedGrant;
   return (
@@ -30,14 +33,16 @@ function RequestActions({ req }: { req: EvidenceRequest }) {
             ref={fileRef}
             type="file"
             className="sr-only"
+            accept={real ? UPLOAD_TYPES : undefined}
             aria-label={`Upload evidence for ${req.item}`}
             data-testid={`upload-${req.id}`}
             onChange={(e) => {
               const f = e.target.files?.[0];
-              if (f) upload.mutate({ requestId: req.id, fileName: f.name, sizeKb: f.size / 1024 });
+              if (f && real) uploadFile.mutate({ requestId: req.id, file: f });
+              else if (f) upload.mutate({ requestId: req.id, fileName: f.name, sizeKb: f.size / 1024 });
             }}
           />
-          <Button size="xs" onClick={() => fileRef.current?.click()} disabled={upload.isPending}>
+          <Button size="xs" onClick={() => fileRef.current?.click()} disabled={upload.isPending || uploadFile.isPending}>
             <Upload /> Upload document
           </Button>
           {g && (

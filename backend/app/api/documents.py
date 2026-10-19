@@ -97,8 +97,9 @@ def chunks_view(lane, document_id: str) -> list[dict]:
     return [{"id": body["item_id"], "text": body["text"].removeprefix(prefix)} for body in lane.chunks.of_document(document_id) if body["kind"] == "chunk"]
 
 
-def accept(lane, persona: str, filename: str, data: bytes, sensitivity: str) -> dict:
-    """Store the original, record it as pending, and hand the text to S1. Raises HTTPException for a bad file."""
+def accept(lane, persona: str, filename: str, data: bytes, sensitivity: str, evidence_for: dict | None = None) -> dict:
+    """Store the original, record it as pending, and hand the text to S1. Raises HTTPException for a bad file.
+    evidence_for (step 16) says which evidence request it answers, so extraction looks for that fact."""
     if len(data) > LARGEST_UPLOAD:
         raise HTTPException(413, "too_large")
     if sensitivity not in UPLOAD_SENSITIVITIES:
@@ -112,7 +113,8 @@ def accept(lane, persona: str, filename: str, data: bytes, sensitivity: str) -> 
     original_uri = f"s3://brain/{lane.seed['tenant_id']}/documents/{document_id}/{safe_name}"
     lane.object_store[original_uri] = data
     record = DocumentRecord(document_id=document_id, title=filename.rsplit(".", 1)[0].replace("_", " "), filename=safe_name, kind=kind_of(filename),
-                            size_bytes=len(data), uploaded_by=persona, uploaded_at=lane.now, sensitivity=sensitivity, status="pending", original_uri=original_uri)
+                            size_bytes=len(data), uploaded_by=persona, uploaded_at=lane.now, sensitivity=sensitivity, status="pending", original_uri=original_uri,
+                            evidence_for=evidence_for)
     lane.records.save("document", document_id, record)
     connector = lane.seed["connectors"][CONNECTOR_ID]
     raw = {"connector_id": CONNECTOR_ID, "grant_id": connector["grant_id"], "source_type": connector["source_type"], "external_id": document_id,

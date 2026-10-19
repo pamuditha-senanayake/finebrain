@@ -1,10 +1,10 @@
-# readiness_facts.py: step 16, how ready an obligation is. A required item is proven by a verified fact (step 14's vault) with
-# its predicate, about the right thing, true now, and for a monthly or yearly obligation about that period. Readiness is never
+# readiness_facts.py: step 16, how ready an obligation is. A required item is proven by a verified fact (step 14's vault) with its
+# predicate or uploaded to answer its request, about the right thing, true now, and for a monthly or yearly one about that period. Readiness is never
 # stored: it is worked out from the facts each time, so retiring the evidence makes the gap come back on its own.
 # Used by: api/ready_views.py, tests/test_ready.py. Uses: readiness_model.py, entity_match.py.
 from datetime import datetime
 
-from app.pipeline import entity_match
+from app.pipeline import entity_match, readiness_model
 from app.pipeline.readiness_model import FACT_NODE, Instance, RequiredItem
 
 # Config
@@ -27,9 +27,10 @@ def about_period(fact: dict, period: str | None) -> bool:
 def proven_by(lane, instance: Instance, item: RequiredItem, now: datetime) -> str | None:
     """The id of a verified fact that proves this item, or None: that is a gap."""
     subject = entity_match.entity_id_of(*item.subject) if item.subject else None
+    request_id = readiness_model.request_id_of(instance.instance_id, item.key)
     for fact in lane.graph.latest(FACT_NODE):
-        if fact["predicate"] == item.predicate and (subject is None or fact["subject"]["entity_ref"] == subject) \
-                and true_now(fact, now) and about_period(fact, instance.period):
+        named = fact["predicate"] == item.predicate or fact.get("answers") == request_id  # the predicate, or uploaded to answer this request
+        if named and (subject is None or fact["subject"]["entity_ref"] == subject) and true_now(fact, now) and about_period(fact, instance.period):
             return fact["item_id"]
     return None
 

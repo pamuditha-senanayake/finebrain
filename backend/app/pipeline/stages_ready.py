@@ -3,12 +3,12 @@
 # it opens one evidence request, writes an audit entry and publishes K15 on evidence.gaps (the API tells the DRI). A request whose
 # item is proven later closes itself. Safe to run again: ids come from the obligation instance and the item.
 # Used by: api/ready_views.py, tests. Uses: readiness_model.py, readiness_facts.py, contracts_graph.py, observe.py.
-import re
 from datetime import datetime, timedelta
 
 from pydantic import BaseModel
 
 from app.pipeline import readiness_facts, readiness_model
+from app.pipeline.readiness_model import gap_id_of, request_id_of
 from app.pipeline.contracts_graph import GapDetected, GapTarget
 from app.pipeline.observe import count, log_event
 
@@ -40,21 +40,9 @@ class CheckRecord(BaseModel):
     opened: int
 
 
-def safe(text: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
-
-
-def gap_id_of(instance_id: str, key: str) -> str:
-    return f"gap_{safe(instance_id)}_{key}"
-
-
 def when(stored) -> datetime:
     """A saved time: records keep it with a trailing Z, which Python 3.10 cannot read."""
     return datetime.fromisoformat(str(stored).replace("Z", "+00:00"))
-
-
-def request_id_of(instance_id: str, key: str) -> str:
-    return "er_" + gap_id_of(instance_id, key).removeprefix("gap_")
 
 
 def escalation_level(due_at: datetime, now: datetime) -> int:
@@ -80,7 +68,7 @@ def open_request(lane, instance: readiness_model.Instance, item: readiness_model
     """One request to the DRI, written to the audit log and announced as K15 for S3 and S8."""
     ob, gap_id = instance.obligation, gap_id_of(instance.instance_id, item.key)
     request = EvidenceRequest(request_id=request_id_of(instance.instance_id, item.key), instance_id=instance.instance_id, obligation_id=ob.id, evidence_key=item.key,
-                              item=f"{item.label} for {ob.title.lower()}", requested_from=ob.dri, status="open", due_at=instance.prepare_by, created_at=now)
+                              item=f"{item.label} for {ob.title}", requested_from=ob.dri, status="open", due_at=instance.prepare_by, created_at=now)
     lane.records.save(REQUEST_KIND, request.request_id, request)
     lane.bus.publish("evidence.gaps", "gap.detected", GapDetected(
         gap_id=gap_id, target=GapTarget(kind="obligation", id=instance.instance_id), required_item=request.item, due_at=instance.due_at,
@@ -90,22 +78,27 @@ def open_request(lane, instance: readiness_model.Instance, item: readiness_model
     return request
 
 
-def close_proven(lane, now: datetime) -> None:
-    """A request whose item a verified fact now proves is fulfilled, with that fact as its proof."""
-    instances = {i.instance_id: i for i in readiness_model.current(lane, now)}
+def target_of(lane, request: dict, now: datetime) -> tuple[readiness_model.Instance, readiness_model.RequiredItem] | tuple[None, None]:
+    """The obligation instance and required item a request asks for, while that instance is current."""
+    instance = next((i for i in readiness_model.current(lane, now) if i.instance_id == request["instance_id"]), None)
+    item = next((i for i in instance.obligation.items if i.key == request["evidence_key"]), None) if instance else None
+    return (instance, item) if item else (None, None)
+
+
+def follow_facts(lane, now: datetime) -> None:
+    """Requests follow the facts: proven now means fulfilled by that fact; proof retired or erased means open again (D07)."""
     for stored in lane.records.list_kind(REQUEST_KIND):
-        if stored["status"] != "open":
-            continue
-        instance = instances.get(stored["instance_id"])
-        item = next((i for i in instance.obligation.items if i.key == stored["evidence_key"]), None) if instance else None
+        instance, item = target_of(lane, stored, now)
         fact_id = readiness_facts.proven_by(lane, instance, item, now) if item else None
-        if fact_id:
-            lane.records.save(REQUEST_KIND, stored["request_id"], EvidenceRequest.model_validate(stored).model_copy(update={"status": "fulfilled", "fulfilled_by": fact_id}))
+        if stored["status"] == "open" and fact_id or stored["status"] == "fulfilled" and item and not fact_id:
+            status = "fulfilled" if fact_id else "open"
+            lane.records.save(REQUEST_KIND, stored["request_id"], EvidenceRequest.model_validate(stored).model_copy(update={"status": status, "fulfilled_by": fact_id}))
+            lane.audit.append(f"evidence:{stored['request_id']}:{status}:{now.isoformat()}", f"evidence.{status}", {"by": CHECKER, "at": now.isoformat(), "reason": stored["item"]})
 
 
 def check(lane, now: datetime, by: str = CHECKER) -> list[EvidenceRequest]:
-    """S15: close what is proven, then open a request for each gap seen for the first time. Returns the requests it opened."""
-    close_proven(lane, now)
+    """S15: requests follow the facts, then each gap seen for the first time gets a request. Returns the requests it opened."""
+    follow_facts(lane, now)
     found = gaps(lane, now)
     opened = [open_request(lane, instance, item, now) for instance, item in found
               if lane.records.load(REQUEST_KIND, request_id_of(instance.instance_id, item.key)) is None]

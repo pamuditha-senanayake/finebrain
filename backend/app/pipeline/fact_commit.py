@@ -44,6 +44,7 @@ def fact_fields(lane, candidate: FactCandidate, person: str) -> dict:
         "verified_by": person, "version_ref": None, "score": 0.0, "sensitivity": candidate.sensitivity, "domain": record.get("domain", "general"),
         "subject": candidate.subject.model_dump(), "predicate": candidate.predicate, "value": candidate.value.model_dump(), "status": "verified",
         "evidence": [{**evidence, "quote": stages_extract.quote_of(lane, evidence)}], "candidate_id": candidate.candidate_id,
+        "answers": next((flag.removeprefix("answers:") for flag in candidate.flags if flag.startswith("answers:")), None),  # step 16
     }
 
 

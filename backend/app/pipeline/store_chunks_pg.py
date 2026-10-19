@@ -90,6 +90,11 @@ class PostgresChunks:
         rows = self.connection.execute("SELECT body FROM chunks WHERE tenant_id = %s AND domain IS NULL ORDER BY item_id", (self.tenant_id,))
         return [row[0] for row in rows]
 
+    def known(self, item_ids: list[str]) -> set[str]:
+        """Which of these items the index already holds, so a restart does not embed them again."""
+        rows = self.connection.execute("SELECT item_id FROM chunks WHERE tenant_id = %s AND item_id = ANY(%s)", (self.tenant_id, item_ids))
+        return {row[0] for row in rows}
+
     def of_document(self, document_id: str) -> list[dict]:
         """Every chunk filed from one document, live or retired, ordered by id."""
         rows = self.connection.execute(

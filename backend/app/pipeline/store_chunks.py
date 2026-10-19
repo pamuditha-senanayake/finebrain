@@ -1,9 +1,11 @@
 # store_chunks.py: knowledge chunks for S5: an embedding and a full-text index per chunk, with valid and recorded times,
 # and since step 13a a domain and entity tags. MemoryChunks, the twin of PostgresChunks (store_chunks_pg.py), and the
-# seed loader. Used by: adapters.py, stages_retrieve.py, store_chunks_pg.py, tests. Uses: nothing local.
+# seed loader. Used by: adapters.py, stages_retrieve.py, store_chunks_pg.py, tests. Uses: observe.py.
 # Ranking, access and the token budget are S5's job; this file only finds candidates.
 import re
 from datetime import datetime
+
+from app.pipeline.observe import log_event
 
 # Config
 GENERAL = "general"  # a domain every scope may read
@@ -40,6 +42,9 @@ class MemoryChunks:
     def replace(self, item: dict, embedding: list[float]) -> None:
         """A released new version of a knowledge item takes the place of the old one."""
         self.items[item["item_id"]] = (item, embedding)
+
+    def known(self, item_ids: list[str]) -> set[str]:
+        return {item_id for item_id in item_ids if item_id in self.items}
 
     def of_document(self, document_id: str) -> list[dict]:
         """Every chunk filed from one document, live or retired, ordered by id."""
@@ -80,9 +85,17 @@ class MemoryChunks:
 
 
 def load_chunks(chunks, graph, embed, tag=lambda item: item) -> None:
-    """Embed every knowledge node in the graph and store it as a chunk, tagged by `tag`. Safe to run twice."""
-    items = [tag({key: value for key, value in node.items() if key != "_ref"}) for node in graph.latest("knowledge")]
+    """Embed the knowledge nodes the index does not hold yet, tagged by `tag`. Safe to run twice, and on a restart it embeds nothing.
+    A refusing embedding service never stops the API from starting: what is already indexed stays searchable."""
+    nodes = graph.latest("knowledge")
+    known = chunks.known([node["_ref"]["id"] for node in nodes])
+    items = [tag({key: value for key, value in node.items() if key != "_ref"}) for node in nodes if node["_ref"]["id"] not in known]
     if not items:
         return
-    for item, vector in zip(items, embed([item["text"] for item in items], "document")):
+    try:
+        vectors = embed([item["text"] for item in items], "document")
+    except Exception as error:  # a rate limit at startup: the missing items wait for the next start
+        log_event("S5", "seed_not_embedded", items=len(items), error=type(error).__name__)
+        return
+    for item, vector in zip(items, vectors):
         chunks.add(item, vector)

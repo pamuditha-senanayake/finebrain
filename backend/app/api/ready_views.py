@@ -1,7 +1,6 @@
 # ready_views.py: step 16, readiness for the console (sample data, shapes from contracts/entity.ts): obligations and how ready they are,
 # gaps, evidence requests (S15's check runs first when over an hour old, and tells the DRI of new ones), rules and risks.
 # Used by: lists.py, overview_views.py, ready_routes.py (Check now), tests. Uses: readiness_*.py, stages_ready.py, studio_changes.py.
-from datetime import datetime
 
 from app.api import ui_models_graph as g
 from app.api.studio_changes import notify
@@ -83,19 +82,10 @@ class Risk(g.UiModel):
     linked_obligation: str | None
 
 
-def period_label(period: str | None) -> str:
-    """2026-09 reads as September 2026, 2025 as 2025, and no period as nothing."""
-    if not period:
-        return ""
-    if len(period) == 4:
-        return f" · {period}"
-    return f" · {datetime.strptime(period, '%Y-%m').strftime('%B %Y')}"
-
-
 def obligation_view(lane, instance: Instance) -> dict:
     ob = instance.obligation
     proven, ready, status = readiness_facts.readiness_of(lane, instance, lane.now)
-    return Obligation(id=instance.instance_id, tenant_id=lane.seed["tenant_id"], cluster_id=lane.seed["cluster_id"], title=ob.title + period_label(instance.period),
+    return Obligation(id=instance.instance_id, tenant_id=lane.seed["tenant_id"], cluster_id=lane.seed["cluster_id"], title=ob.title + readiness_model.period_label(instance.period),
                       jurisdiction=ob.jurisdiction, category=ob.category, due_at=instance.due_at.isoformat(), prepare_by=instance.prepare_by.isoformat(),
                       required_evidence=[EvidenceItem(key=item.key, label=item.label, satisfied_by=fact_id) for item, fact_id in proven],
                       readiness=ready, status=status, dri=ob.dri, is_sample=True, note=ob.note).ui()
@@ -127,17 +117,19 @@ def run_check(lane, by: str) -> dict:
 
 
 def fresh(lane) -> None:
+    """The hourly check when it is due; requests follow the facts on every read, so an accepted or retired proof shows at once."""
     if stages_ready.is_stale(lane, lane.now):
         run_check(lane, stages_ready.CHECKER)
+    stages_ready.follow_facts(lane, lane.now)
 
 
 def gaps_view(lane) -> list[dict]:
     """Every item not proven yet, with its owner and the request asking for it."""
     fresh(lane)
     asked = {r["request_id"] for r in lane.records.list_kind(stages_ready.REQUEST_KIND)}
-    return [ReadinessGap(id=stages_ready.gap_id_of(i.instance_id, item.key), target=GapTarget(kind="obligation", id=i.instance_id, label=i.obligation.title + period_label(i.period)),
+    return [ReadinessGap(id=readiness_model.gap_id_of(i.instance_id, item.key), target=GapTarget(kind="obligation", id=i.instance_id, label=i.obligation.title + readiness_model.period_label(i.period)),
                          missing=item.label, due_at=i.due_at.isoformat(), action="request_dri", dri=i.obligation.dri, escalation_days=stages_ready.ESCALATION_DAYS,
-                         request_id=rid if (rid := stages_ready.request_id_of(i.instance_id, item.key)) in asked else None).ui() for i, item in stages_ready.gaps(lane, lane.now)]
+                         request_id=rid if (rid := readiness_model.request_id_of(i.instance_id, item.key)) in asked else None).ui() for i, item in stages_ready.gaps(lane, lane.now)]
 
 
 def requests_view(lane) -> list[dict]:

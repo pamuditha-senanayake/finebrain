@@ -23,3 +23,18 @@ export function useUploadDocument() {
     onError: (e) => reportError(e, { op: "documents.upload" }),
   });
 }
+
+/** Step 16: a file uploaded to answer an evidence request. Its facts wait in the Vault; accepting one closes the gap. */
+export function useUploadEvidence() {
+  const qc = useQueryClient();
+  const tenantId = useUi((s) => s.tenantId);
+  return useMutation({
+    mutationFn: ({ requestId, file }: { requestId: string; file: File }) => {
+      const form = new FormData();
+      form.append("file", file);
+      return apiUpload(`evidence-requests/${requestId}/upload`, form, C.Document);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["t", tenantId] }),
+    onError: (e) => reportError(e, { op: "evidence.upload" }),
+  });
+}

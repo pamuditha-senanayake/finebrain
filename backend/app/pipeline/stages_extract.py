@@ -106,7 +106,7 @@ def candidate_of(lane, record: dict, fact: dict, parts: list[dict], found: tuple
         value=FactValue(type=str(fact.get("value_type", "text")), raw=str(fact.get("value_raw", "")), normalized=str(fact.get("value_normalized", ""))),
         valid_from=day(fact.get("valid_from")), valid_to=day(fact.get("valid_to")), evidence=evidence,
         extractor=Extractor(model_id=model_id, confidence=confidence), sensitivity=record["sensitivity"],
-        flags=["low_confidence"] if confidence < LOW_CONFIDENCE else [],
+        flags=(["low_confidence"] if confidence < LOW_CONFIDENCE else []) + fact_prompt.answers_of(record.get("evidence_for"), fact),
     )
 
 
@@ -116,7 +116,7 @@ def ask(lane, record: dict, parts: list[dict]) -> tuple[list[dict], str]:
     """Every fact Claude records, window by window, and the model that answered. An outage raises, so the message is retried."""
     facts, model_id = [], "unknown"
     for window in fact_prompt.windows(parts):
-        reply = lane.extract(fact_prompt.SYSTEM, fact_prompt.prompt(record["title"], window), [fact_prompt.TOOL])
+        reply = lane.extract(fact_prompt.SYSTEM, fact_prompt.prompt(record["title"], window, record.get("evidence_for")), [fact_prompt.TOOL])
         facts += fact_prompt.facts_in(reply)
         model_id = getattr(reply, "model", model_id)
     return facts, model_id

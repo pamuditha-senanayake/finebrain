@@ -44,6 +44,7 @@ class DocumentRecord(BaseModel):
     chain_id: str = ""
     version: int = 1
     superseded_by: str | None = None  # the newer version that replaced it
+    evidence_for: dict | None = None  # step 16: {request_id, label, predicate, period} when uploaded to answer an evidence request
 
 
 def chunks_of(text: str) -> list[str]:

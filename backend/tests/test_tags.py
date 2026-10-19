@@ -12,7 +12,7 @@ from app.pipeline import fakes, item_tags, orchestrate, stages_version, store_po
 from app.pipeline.contracts_graph import CommitAuthor
 from app.pipeline.entity_match import entity_id_of
 from app.pipeline.stages_version import Draft
-from app.pipeline.store_chunks import MemoryChunks
+from app.pipeline.store_chunks import MemoryChunks, load_chunks
 from app.pipeline.store_chunks_pg import PostgresChunks
 from app.pipeline.store_entities import MemoryEntities
 from app.pipeline.store_memory import MemoryRecords
@@ -133,3 +133,15 @@ def test_postgres_chunks_keep_tags_in_columns():
     row = chunks.connection.execute("SELECT domain, entity_ids, body->>'domain' FROM chunks WHERE tenant_id = %s", (chunks.tenant_id,)).fetchone()
     assert row == ("finance", ["ent_payment_x"], "finance") and chunks.untagged() == []
     chunks.delete("c1")
+
+
+def test_a_restart_embeds_nothing_already_indexed_and_survives_a_refusing_embedder():
+    _, lane = build()
+    calls = []
+    load_chunks(lane.chunks, lane.graph, lambda texts, kind: calls.append(texts) or [[1.0]] * len(texts))
+    assert calls == []  # every seed item is already in the index
+    lane.chunks.delete("item_policy_window")
+    def refusing(texts, kind):
+        raise RuntimeError("voyage /embeddings answered 429")
+    load_chunks(lane.chunks, lane.graph, refusing)
+    assert "item_policy_window" not in lane.chunks.items  # not loaded, and no crash: it waits for the next start

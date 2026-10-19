@@ -38,6 +38,7 @@ TOOL = {
                 "valid_from": {"type": ["string", "null"], "description": "YYYY-MM-DD when the document says when it starts, else null"},
                 "valid_to": {"type": ["string", "null"], "description": "YYYY-MM-DD when the document says when it ends, else null"},
                 "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                "proves_request": {"type": "boolean", "description": "Only for a file uploaded as evidence: true on the one fact that best proves what was asked"},
             },
             "required": ["part", "quote", "statement", "subject_type", "subject_name", "predicate", "value_type", "value_raw",
                          "value_normalized", "valid_from", "valid_to", "confidence"],
@@ -59,13 +60,27 @@ def windows(parts: list[dict]) -> list[list[dict]]:
     return [*grouped, current][:MOST_WINDOWS] if current else grouped[:MOST_WINDOWS]
 
 
-def prompt(title: str, window: list[dict]) -> list[dict]:
-    """One user message: the title, then each part inside its own tag."""
+def hint_of(evidence_for: dict | None) -> str:
+    """For a file uploaded as evidence (step 16): what it was asked for, so the fact that proves it gets the predicate readiness looks for."""
+    if not evidence_for:
+        return ""
+    period = f" It is about {evidence_for['period']}: give that fact valid_from on the period's first day." if evidence_for.get("period") else ""
+    return (f"\n\nThis file was uploaded as evidence for: {evidence_for['label']}. Set proves_request to true on the one fact that best "
+            f"proves it, and false on every other fact; if nothing in the file proves it, set it false everywhere.{period}")
+
+
+def prompt(title: str, window: list[dict], evidence_for: dict | None = None) -> list[dict]:
+    """One user message: the title, then each part inside its own tag, then what an evidence upload was asked for."""
     listed = "\n".join(f'<part id="{part["id"]}">\n{part["text"]}\n</part>' for part in window)
-    return [{"role": "user", "content": f"<document title=\"{title}\">\n{listed}\n</document>\n\nRecord the facts it states."}]
+    return [{"role": "user", "content": f"<document title=\"{title}\">\n{listed}\n</document>\n\nRecord the facts it states.{hint_of(evidence_for)}"}]
 
 
 def facts_in(reply) -> list[dict]:
     """Every fact Claude recorded through the tool. A text answer, or another tool, records nothing."""
     calls = [block for block in reply.content if getattr(block, "type", "") == "tool_use" and block.name == TOOL_NAME]
     return [fact for call in calls for fact in (call.input or {}).get("facts", []) if isinstance(fact, dict)]
+
+
+def answers_of(evidence_for: dict | None, fact: dict) -> list[str]:
+    """For a file uploaded as evidence (step 16): the flag answers:<request id> on the fact Claude marked as its proof."""
+    return [f"answers:{evidence_for['request_id']}"] if evidence_for and fact.get("proves_request") is True else []
