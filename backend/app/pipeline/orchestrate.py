@@ -3,7 +3,7 @@
 # Each task runs in-process, or as a Temporal workflow when the adapters include a Temporal runner.
 from datetime import datetime
 
-from app.pipeline import entity_match, item_tags, run_approvals, run_steps, stages_file, stages_intake, stages_normalize, stages_route, stages_version
+from app.pipeline import entity_match, item_tags, run_approvals, run_steps, stages_extract, stages_file, stages_intake, stages_normalize, stages_route, stages_version
 from app.pipeline.adapters import make_memory_adapters
 from app.pipeline.audit import subscribe_audit
 from app.pipeline.contracts_run import Decision
@@ -18,17 +18,18 @@ from app.pipeline.ui_stream import subscribe_broadcaster
 # --- Wiring
 
 def build_lane(seed: dict, model: Model, gateway: Gateway, now: datetime, make_adapters=make_memory_adapters, choose=None, grade=None, new_id=None,
-               classify=None) -> Lane:
+               classify=None, extract=None) -> Lane:
     """Build the adapters, then subscribe one consumer group per stage. A live tenant passes new_id so ids stay unique across restarts."""
     new_id = new_id or make_id_maker()
     adapters = make_adapters(seed, now, new_id)
     lane = Lane(seed=seed, model=model, gateway=gateway, now=now, new_id=new_id, choose=choose or no_tie_break, grade=grade or pass_grader,
-                classify=classify, **adapters)
+                classify=classify, extract=extract, **adapters)
     entity_match.seed_known(lane.entities, seed, now)
     lane.bus.subscribe("signals.raw", "normalizer", "S2", lambda envelope: on_raw(lane, envelope))
     lane.bus.subscribe("signals.normalized", "resolver", "S3", lambda envelope: on_signal(lane, envelope))
     lane.bus.subscribe("graph.released", "retriever", "S5", lambda envelope: stages_version.on_release(lane, envelope))
     lane.bus.subscribe("signals.normalized", "librarian", "S11", lambda envelope: stages_file.file_document(lane, Signal.model_validate(envelope.payload)))
+    lane.bus.subscribe("docs.extracted", "extractor", "S11", lambda envelope: stages_extract.extract_document(lane, envelope))
     lane.bus.subscribe("tasks.created", "worker", "S4", lambda envelope: on_task(lane, envelope))
     lane.bus.subscribe("approvals.decided", "worker", "S8", lambda envelope: on_decision(lane, envelope))
     subscribe_recorder(lane.bus, lane.records)

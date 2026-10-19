@@ -126,12 +126,14 @@ def access_view(lane, entry: dict) -> work.AccessDecision:
 
 
 def audit_view(lane, entry: dict) -> ui.AuditEvent:
-    """One audit entry, with the person who decided as the actor when a person did."""
-    payload, body = entry["body"]["payload"], entry["body"]
-    person = (payload.get("decided_by") or [None])[0]
-    actor = ui.Actor(kind="human", id=person, name=lane.seed["people"].get(person, {}).get("name", person)) if person else ui.Actor(kind="agent" if body["producer"] in ("worker", "internal", "governance") else "system", id=body["producer"], name=body["producer"])
-    target_id = next((payload[key] for key in ("approval_id", "action_id", "run_id", "decision_id") if payload.get(key)), entry["event_id"])
-    return ui.AuditEvent(id=entry["event_id"], tenant_id=lane.seed["tenant_id"], at=body["occurred_at"], actor=actor, action=entry["topic"],
+    """One audit entry, with the person who decided as the actor when a person did. Most entries hold a bus message; step 10's
+    forget.completed holds a plain body (who, when, why), which is its own payload."""
+    body = entry["body"]
+    payload, producer = body.get("payload", body), body.get("producer", entry["topic"].split(".")[0])
+    person = (payload.get("decided_by") or [payload.get("by")])[0]
+    actor = ui.Actor(kind="human", id=person, name=lane.seed["people"].get(person, {}).get("name", person)) if person else ui.Actor(kind="agent" if producer in ("worker", "internal", "governance") else "system", id=producer, name=producer)
+    target_id = next((payload[key] for key in ("approval_id", "action_id", "run_id", "decision_id", "document_id") if payload.get(key)), entry["event_id"])
+    return ui.AuditEvent(id=entry["event_id"], tenant_id=lane.seed["tenant_id"], at=body.get("occurred_at") or body["at"], actor=actor, action=entry["topic"],
                          target={"type": entry["topic"].split(".")[0], "id": target_id, "label": target_id}, env=lane.seed["env"],
                          criticality=payload.get("criticality", 0), detail=payload.get("summary_plain") or payload.get("reason") or payload.get("outcome") or payload.get("status") or "",
-                         correlation_id=body["correlation_id"])
+                         correlation_id=body.get("correlation_id", entry["event_id"]))

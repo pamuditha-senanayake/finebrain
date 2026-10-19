@@ -7,7 +7,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.api import forget_layers, forget_layers_data  # noqa: F401  (importing registers the layers)
+from app.api import forget_layers, forget_layers_data, forget_layers_facts  # noqa: F401  (importing registers the layers)
 from app.pipeline import forget
 
 # Config

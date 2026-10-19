@@ -157,8 +157,9 @@ class FactValue(BaseModel):
 class Evidence(BaseModel):
     document_id: str
     page: int | None
-    span: str  # character offsets as "start:end"
+    span: str  # character offsets as "start:end", inside the chunk when chunk_id is set
     quote_sha256: str
+    chunk_id: str | None = None  # step 14: the chunk the span is in, so a focus link can light the sentence; optional for old messages
 
 
 class Extractor(BaseModel):
@@ -177,3 +178,4 @@ class FactCandidate(BaseModel):
     evidence: Evidence
     extractor: Extractor
     sensitivity: Sensitivity
+    flags: list[str] = []  # step 14: low_confidence sends it to the librarian as unverified (failure rule K12); optional for old messages

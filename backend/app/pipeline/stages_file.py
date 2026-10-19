@@ -10,11 +10,13 @@ from pydantic import BaseModel
 from app.pipeline import filing, item_tags
 from app.pipeline.contracts_signal import Signal
 from app.pipeline.observe import count, log_event
+from app.pipeline.retry import call_with_retry
 
 # Config
 CHUNK_CHARS = 1200
 MOST_CHUNKS = 200  # a very long file keeps its first 200 chunks; the rest waits for full S11
 SENSITIVITY_ORDER = ["public", "internal", "confidential", "restricted"]
+EMBED_ATTEMPTS, EMBED_FIRST_WAIT = 4, 1.0  # a rate-limited embedding service (429) gets 1, 2 and 4 seconds before the message is dead-lettered
 
 
 class DocumentRecord(BaseModel):
@@ -47,7 +49,7 @@ class DocumentRecord(BaseModel):
 def chunks_of(text: str) -> list[str]:
     """Paragraphs packed into chunks of about CHUNK_CHARS, never splitting a paragraph unless it is longer."""
     packed, current = [], ""
-    for paragraph in (p.strip() for p in text.split("\n\n")):
+    for paragraph in (p.strip(" \t\r\n") for p in text.split("\n\n")):  # not \f: a PDF page break stays, so facts know their page
         if not paragraph:
             continue
         if current and len(current) + len(paragraph) + 2 > CHUNK_CHARS:
@@ -85,7 +87,9 @@ def index_chunks(lane, record: DocumentRecord, text: str, sensitivity: str, doma
         "valid_from": record.uploaded_at.isoformat(), "valid_to": None, "recorded_at": lane.now.isoformat(), "verified_by": None,
         "version_ref": None, "score": 0.0, "sensitivity": sensitivity,
     }, domain, is_customer) for i, part in enumerate(chunks_of(text), start=1)]
-    for item, vector in zip(items, lane.embed([item["text"] for item in items], "document")):
+    vectors = call_with_retry(lambda: lane.embed([item["text"] for item in items], "document"), lambda error: getattr(error, "retryable", False),
+                              attempts=EMBED_ATTEMPTS, base_delay=EMBED_FIRST_WAIT)
+    for item, vector in zip(items, vectors):
         lane.graph.put("knowledge", item["item_id"], 1, f"cmt_upload_{record.document_id}", item)
         lane.chunks.add(item, vector)
     return items

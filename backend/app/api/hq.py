@@ -22,6 +22,7 @@ REAL_PARTS_SETTING = os.environ.get("HQ_REAL_PARTS", "auto")  # auto: every part
 USE_CLAUDE = os.environ.get("HQ_USE_CLAUDE", "on") != "off"
 TICK_SECONDS = 0.2
 STUDIO_MAX_TOKENS = 3000  # a drafted story with six cases needs room
+EXTRACT_MAX_TOKENS = 4000  # one window of a document can state a few dozen facts
 
 
 def load_hq() -> tuple[dict, dict]:
@@ -61,6 +62,11 @@ def choose_chatter():
     return llm.make_tool_caller(max_tokens=STUDIO_MAX_TOKENS) if USE_CLAUDE and os.environ.get("ANTHROPIC_API_KEY") else None
 
 
+def choose_extractor():
+    """Claude Haiku with the fact tool for S11 when a key is set; None files documents without proposing facts."""
+    return llm.make_tool_caller(model=llm.FAST_MODEL, max_tokens=EXTRACT_MAX_TOKENS) if USE_CLAUDE and os.environ.get("ANTHROPIC_API_KEY") else None
+
+
 def unique_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
@@ -88,7 +94,7 @@ def build_hq_app():
     model, choose, grade, classify = choose_models()
     make_adapters = real_adapters(parts) if parts else make_memory_adapters
     lane = orchestrate.build_lane(seed, model, fakes.make_fake_gateway()[0], datetime.now(timezone.utc), make_adapters, choose, grade, new_id=unique_id,
-                                   classify=classify)
+                                   classify=classify, extract=choose_extractor())
     log_event("API", "hq_started", parts=sorted(parts), claude=choose is not None)
     threading.Thread(target=keep_running, args=(lane,), daemon=True).start()
     return create_api_app(lane, hq, choose_answerer(), choose_chatter())

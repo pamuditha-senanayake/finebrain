@@ -10,6 +10,7 @@ from pypdf import PdfReader
 # Config
 TEXT_TYPES = {".txt", ".md", ".csv"}
 READABLE = TEXT_TYPES | {".pdf", ".docx"}
+PAGE_BREAK = "\f\n\n"  # between PDF pages: a form feed marks the page for fact evidence (step 14), the blank line keeps paragraphs apart
 
 
 class UnreadableFile(Exception):
@@ -29,7 +30,7 @@ def text_of(filename: str, data: bytes) -> str:
         if kind in TEXT_TYPES:
             text = data.decode("utf-8", errors="replace")
         elif kind == ".pdf":
-            text = "\n\n".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(data)).pages)
+            text = PAGE_BREAK.join(page.extract_text() or "" for page in PdfReader(io.BytesIO(data)).pages)
         else:
             text = "\n\n".join(paragraph.text for paragraph in WordDocument(io.BytesIO(data)).paragraphs)
     except UnreadableFile:

@@ -16,7 +16,7 @@ from app.pipeline.observe import count, log_event
 MODES = ("retire", "erase")
 PROBE_WORDS = 12  # distinctive words kept in memory during one job, to search again afterwards
 NOT_CONTENT = {"seed", "model", "gateway", "now", "new_id", "embed", "rerank", "check_access", "tooling", "audit", "broadcaster",
-               "grade", "choose", "classify", "runner", "approvals", "pending"}  # a new Lane field must be listed here or covered by a layer
+               "grade", "choose", "classify", "extract", "runner", "approvals", "pending"}  # a new Lane field must be listed here or covered by a layer
 
 
 @dataclass
