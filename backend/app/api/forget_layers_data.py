@@ -1,6 +1,8 @@
-# forget_layers_data.py: step 10, the record layers: intake copies (S1 to S3), Ask conversations, the PII vault, and the
-# Library record, which goes last. Used by: forget_review.py (imports this file to register). Uses: forget.py, ask_memory.py.
+# forget_layers_data.py: step 10, the record layers: intake copies (S1 to S3), Ask conversations, the PII vault, the
+# entity registry, and the Library record, which goes last. Used by: forget_review.py (imports this file to register).
+# Uses: forget.py, ask_memory.py, entity_match.py.
 from app.api import ask_memory
+from app.pipeline import entity_match
 from app.pipeline.forget import ForgetItem, register
 from app.pipeline.stages_file import DocumentRecord
 
@@ -96,6 +98,24 @@ class VaultLayer:
         return mode == "retire" or not any(token in lane.vault for token in self.own_tokens(lane, item))
 
 
+class EntityLayer:
+    """What the upload told the entity registry (step 13a): its mentions and links, and things only it mentioned."""
+    name, stores, final = "Entities", ("entities",), False
+
+    def source(self, lane, item: ForgetItem) -> str:
+        return entity_match.document_source(lane.seed["tenant_id"], item.document_id)
+
+    def retire(self, lane, item: ForgetItem) -> tuple[str, str]:
+        return "kept", "for history"
+
+    def erase(self, lane, item: ForgetItem) -> tuple[str, str]:
+        removed = lane.entities.drop_source(self.source(lane, item))
+        return ("cleared", f"{removed} removed") if removed else ("nothing", "")
+
+    def verify(self, lane, item: ForgetItem, mode: str) -> bool:
+        return mode == "retire" or not lane.entities.of_source(self.source(lane, item))
+
+
 class LibraryLayer:
     """The Library record. Retired keeps it with an end date; erased removes every version. Goes last."""
     name, stores, final = "Library", ("records",), True
@@ -116,5 +136,5 @@ class LibraryLayer:
         return record is None if mode == "erase" else bool(record) and record["status"] == "retired"
 
 
-for layer in (BusLayer(), IntakeLayer(), ConversationLayer(), VaultLayer(), LibraryLayer()):
+for layer in (BusLayer(), IntakeLayer(), ConversationLayer(), VaultLayer(), EntityLayer(), LibraryLayer()):
     register(layer)

@@ -9,3 +9,6 @@ backend/.env
 
 # Videos and their render files stay local only
 video/
+
+# Local keys stay off git
+key.txt

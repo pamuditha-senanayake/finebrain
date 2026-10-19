@@ -11,6 +11,7 @@ from app.pipeline.bus_kafka import KafkaBus
 from app.pipeline.kafka_admin import broker_is_up
 from app.pipeline.bus_memory import MemoryBus
 from app.pipeline.store_chunks import MemoryChunks, PostgresChunks, load_chunks
+from app.pipeline.store_entities import MemoryEntities, PostgresEntities
 from app.pipeline.store_graph import MemoryGraph, PostgresGraph, load_seed
 from app.pipeline.store_memory import MemoryRecords
 from app.pipeline.tool_runners import MemoryRateLimiter, MemoryResults, ValkeyRateLimiter, ValkeyResults
@@ -53,6 +54,7 @@ def make_memory_adapters(seed: dict, now, new_id) -> dict:
                     "send_email": make_fake_sender()[0]},  # real Gmail sending comes with connector OAuth
         "audit": MemoryAudit(),
         "broadcaster": Broadcaster(),
+        "entities": MemoryEntities(),
     }
     load_chunks(adapters["chunks"], adapters["graph"], adapters["embed"])
     return adapters
@@ -87,6 +89,7 @@ def real_adapters(parts: frozenset[str] = ALL_REAL_PARTS, topic_prefix: str = ""
             adapters["graph"] = seeded(PostgresGraph(connection, tenant), seed)
             adapters["chunks"] = PostgresChunks(connection, tenant)
             adapters["audit"] = PostgresAudit(connection, tenant)
+            adapters["entities"] = PostgresEntities(connection, tenant)
         handled = None
         if "valkey" in parts:
             keys = store_valkey.connect()

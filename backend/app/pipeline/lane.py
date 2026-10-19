@@ -27,6 +27,7 @@ class Lane:
     tooling: dict  # S9: rate limiter, finished results, email sender, how to wait between retries
     audit: object  # S10: hash-chained audit log
     broadcaster: object  # S10: live ui.events for the console stream
+    entities: object  # step 13a: the entity registry (store_entities.py)
     grade: object = None  # S7 grader (llm.make_grader); defaults to the fake that passes cited rationales
     choose: object = None  # S3 tie-break (llm.make_chooser); None means close calls go unrouted
     runner: object = None  # TemporalRunner, or None to run tasks in-process

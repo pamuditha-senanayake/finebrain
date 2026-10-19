@@ -125,6 +125,7 @@ class Signal(BaseModel):
     sensitivity: Sensitivity
     dedup_key: str
     flags: list[str] = []  # added in S2 step 7, e.g. possible_prompt_injection; optional so old messages validate
+    entity_ids: list[str] = []  # added in step 13a: the registry ids of the real things it is about; optional so old messages validate
 
 
 # --- K3 TaskRequest (S3 to S4, topic tasks.created)
