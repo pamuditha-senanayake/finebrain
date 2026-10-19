@@ -70,6 +70,15 @@ def documents_view(lane) -> list[dict]:
     return sorted(shown, key=lambda d: d["uploadedAt"], reverse=True)
 
 
+def chunks_view(lane, document_id: str) -> list[dict]:
+    """The text of a document as filed, one entry per chunk. Retired documents keep theirs; erased ones have none."""
+    record = lane.records.load("document", document_id)
+    if record is None:
+        raise HTTPException(404, "not_found")
+    prefix = f"{record['title']}: "
+    return [{"id": body["item_id"], "text": body["text"].removeprefix(prefix)} for body in lane.chunks.of_document(document_id)]
+
+
 def accept(lane, persona: str, filename: str, data: bytes, sensitivity: str) -> dict:
     """Store the original, record it as pending, and hand the text to S1. Raises HTTPException for a bad file."""
     if len(data) > LARGEST_UPLOAD:

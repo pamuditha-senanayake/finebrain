@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.api import ask as asking
-from app.api import ask_memory, documents, forget_routes, studio_approvals, studio_routes, versions_views
+from app.api import ask_memory, documents, forget_routes, lists_query, search, studio_approvals, studio_routes, versions_views
 from app.api import views
 from app.api.graph_map import graph_resource
 from app.api.lists import clusters_view, list_view, live_event, refusal_for, sensors_view, tenant_view
@@ -66,6 +66,15 @@ def create_api_app(lane, hq: dict, answerer=None, chatter=None) -> FastAPI:
                 raise HTTPException(403, "not_your_conversation") from None
         if resource == "documents":
             return documents.documents_view(lane)
+        if resource == "search":
+            return search.search(lane, x_persona, request.query_params.get("q", ""))
+        if resource.startswith("lists/"):
+            served = lists_query.page(lane, resource.removeprefix("lists/"), dict(request.query_params))
+            if served is None:
+                raise HTTPException(404, "not_found")
+            return served
+        if resource.startswith("documents/") and resource.endswith("/chunks"):
+            return documents.chunks_view(lane, resource.split("/")[1])
         if resource == "sensors":
             return sensors_view(lane, hq, started)
         if resource == "humans":

@@ -100,6 +100,11 @@ class Citation(UiModel):
     href: str
 
 
+class AskAction(UiModel):
+    label: str
+    href: str
+
+
 class AskAnswer(UiModel):
     question: str
     answer: str
@@ -107,6 +112,7 @@ class AskAnswer(UiModel):
     withheld: int
     scope: Literal["page", "system"] | None = None
     conversation_id: str | None = None
+    actions: list[AskAction] | None = None  # step 11: one "Show me" that opens the cited sentence, lit up
 
 
 class AskTurn(UiModel):

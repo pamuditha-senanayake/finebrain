@@ -2,7 +2,7 @@
 # answers from only the documents they may read, plus the brain's own "who I am", and what was said earlier in the
 # conversation. Each turn is remembered. Without a Claude key it lists the closest documents.
 # Used by: routes.py, tests/test_api_brain.py. Uses: ask_memory.py, self_knowledge.py, stages_retrieve.py, retry.py.
-from app.api import ask_memory, self_knowledge
+from app.api import ask_memory, search, self_knowledge
 from app.api.ui_models_work import AskAnswer, Citation
 from app.pipeline import stages_retrieve
 from app.pipeline.contracts_reason import ContextItem, ContextQuery
@@ -78,4 +78,4 @@ def ask(lane, answerer, persona: str, question: str, scope: str | None, conversa
     cited = [item_id for item_id in cited if item_id in by_id]
     ask_memory.remember(lane, conversation_id, persona, question, text, cited)
     return AskAnswer(question=question, answer=text, citations=[citation(by_id[item_id]) for item_id in cited], withheld=bundle.denied_count,
-                     scope=scope, conversation_id=conversation_id)
+                     scope=scope, conversation_id=conversation_id, actions=search.show_me(lane, [by_id[item_id] for item_id in cited], question) or None)
