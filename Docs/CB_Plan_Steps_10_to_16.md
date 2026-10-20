@@ -10,7 +10,7 @@ Version 1, 19 October 2026. This file hands the next steps to a new session. Rea
 | Lane A (S1 to S10) | Built: capture, normalize, route, retrieve, reason, govern, decide, act, record. Real Claude, Voyage, OPA, Temporal, Kafka, Postgres, Valkey and S3 when Docker runs; memory twins otherwise. |
 | Step 9 | Built: Finebase HQ on the real backend (9a), Ask the Brain with memory, cold start, voice, the floating orb, page view and uploads (9b), graph screens (9c), Studio writes with S14 versioning (9d), Studio chat on Claude (9e) |
 | Memory design | `Docs/CB_Memory_Architecture.md` and `.drawio`. 13a and 13b built (tags, entities, narrow first); 13c to 13e not yet |
-| Lanes B, C, D | Not started. Only a thin S11 exists, for uploads (`backend/app/pipeline/stages_file.py`). |
+| Lanes B, C, D | Built: Lane B in step 14, Lane D in step 16, Lane C in step 15 (see their status rows in the system reference). |
 | Tests | 226 backend tests pass (`cd backend && uv run pytest -q`); 43 skip without Docker. 43 frontend unit tests pass (`cd frontend && npx vitest run`). 39 e2e tests fail, all of them already failing before step 9 (contrast, keyboard, performance). |
 
 ## 2. Read before you build
@@ -95,7 +95,7 @@ Done when: retrieval cost stays flat as stored data grows (measured), nightly su
 
 Full S11 filing rules, S12 fact extraction with evidence, the librarian queue and the ground-truth vault on the HQ backend. It replaces the thin S11 from step 9b. Done when an uploaded contract becomes reviewed facts in the vault.
 
-### Step 15: Lane C (learning)
+### Step 15: Lane C (learning) (done, see the status row in the system reference)
 
 S13: weekly signal counts and the spike check (the Trends tab goes live on HQ; contract `TrendCard`), the nightly review, and skillify drafting Studio proposals through the same review. Done when a real unusual week shows up in Trends.
 
