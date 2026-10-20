@@ -17,7 +17,6 @@ import { shortOf, speak, unlockAudio } from "@/lib/voice/speaker";
 import { date } from "@/lib/format";
 import { lookedInLabel } from "@/lib/looked-in";
 import { cn } from "@/lib/utils";
-import { AskEarlier } from "./ask-earlier";
 import { AskUpload } from "./ask-upload";
 import { GLIDE, useOrbSize, VoiceOrb, type OrbStage, type VoiceState } from "./voice-orb";
 import { t } from "@/lib/i18n";
@@ -247,10 +246,7 @@ export function AskVoice() {
     if (voice === "listening") {
       rec.current?.stop();
       recording.current?.stop();
-    } else if (voice === "speaking") {
-      stopSpeaking();
-      setVoice("idle");
-    } else if (voice === "idle") listen();
+    } else listen();
   }
 
   function run(cmd: Command) {
@@ -326,19 +322,28 @@ export function AskVoice() {
         </Button>
       </div>
 
-      <AskEarlier turns={before} open={earlier} onOpenChange={setEarlier} />
+      {earlier && (
+        <ol className="scrollbar-thin mx-auto flex max-h-[45%] w-full max-w-2xl shrink-0 flex-col gap-3 overflow-y-auto px-6 pt-4" aria-label="Earlier chat">
+          {before.map((t, i) => (
+            <li key={i} className="flex flex-col gap-2">
+              <p className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-primary/10 px-4 py-2 text-[15px]">{t.q}</p>
+              <p className="max-w-[92%] rounded-3xl rounded-bl-md border bg-card px-5 py-3 text-[15px] leading-relaxed">{t.a.answer}</p>
+            </li>
+          ))}
+        </ol>
+      )}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="basis-0" style={{ flexGrow: stage === "small" ? 0 : 1, transition: "flex-grow 700ms cubic-bezier(0.22, 1, 0.36, 1)" }} />
-      <div className="mx-auto flex w-full max-w-2xl flex-col items-center px-6 py-6 text-center short:py-3">
-        <button type="button" onClick={tapOrb} disabled={voice === "thinking"} className="rounded-full outline-none focus-visible:ring-4 focus-visible:ring-ring/40" aria-label={voice === "listening" ? "Stop listening" : voice === "speaking" ? "Stop speaking" : "Talk to the Brain"}>
+      <div className="mx-auto flex min-h-0 w-full max-w-2xl basis-auto flex-col items-center px-6 py-6 text-center short:py-3" style={{ flexGrow: stage === "small" ? 1 : 0, transition: "flex-grow 700ms cubic-bezier(0.22, 1, 0.36, 1)" }}>
+        <button type="button" onClick={tapOrb} disabled={voice === "thinking"} className="shrink-0 rounded-full outline-none focus-visible:ring-4 focus-visible:ring-ring/40" aria-label={voice === "listening" ? "Stop listening" : "Talk to the Brain"}>
           <VoiceOrb state={voice} level={level} size={orb.size} drawSize={orb.drawSize} />
         </button>
         <p style={{ marginTop: -orb.size * 0.1, transition: GLIDE }} className={cn("text-sm font-medium uppercase tracking-[0.18em]", voice === "idle" ? "text-muted-foreground" : "text-primary")} role="status">
           {supported || voice !== "idle" ? LABEL[voice] : "Type to ask"}
         </p>
 
-        <div className={cn("mt-8 w-full short:mt-4", stage === "rest" && "min-h-28 short:min-h-0")} aria-live="polite">
+        <div className={cn("w-full", stage === "small" ? "scrollbar-thin order-first mb-2 min-h-0 flex-1 overflow-y-auto" : "mt-8 short:mt-4", stage === "rest" && "min-h-28 short:min-h-0")} aria-live="polite">
           {heard && <p className={cn("text-2xl font-medium leading-snug tracking-tight", voice === "listening" && "text-muted-foreground")}>{heard}</p>}
           {showLast && (
             <div className="mt-6 animate-in fade-in duration-500">
@@ -395,7 +400,7 @@ export function AskVoice() {
           {filed && <p className="mt-4 text-sm text-muted-foreground" role="status">{filed}</p>}
         </div>
       </div>
-      <div className="flex-1 basis-0" />
+      <div className="basis-0" style={{ flexGrow: stage === "small" ? 0 : 1, transition: "flex-grow 700ms cubic-bezier(0.22, 1, 0.36, 1)" }} />
       </div>
 
       <ConnectorPicker open={picker} onOpenChange={setPicker} />
