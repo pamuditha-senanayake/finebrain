@@ -2,6 +2,7 @@
 # an S8 approval; the drafter never approves; C4 needs two leaders and a cooling period; an approval merges through S14
 # and the pipeline then reads the new values; a node that moved on makes a conflict. Uses: tests/studio_helpers.py.
 from datetime import timedelta
+from types import SimpleNamespace
 
 from app.api import studio_approvals
 from tests.studio_helpers import FOUNDER, REFUND_WF, SECOND, STEWARD, THIRD, build, change, decide, get, node, op
@@ -85,3 +86,15 @@ def test_versions_show_main_and_the_change_branches():
     request = get(client, f"change-requests/{cr_id}")[1]
     assert "Window in days: 30 days → 45 days" in request["plainDiff"] and request["toBranch"] == "main"
     assert get(client, "change-requests/cr_missing")[0] == 404
+
+
+def test_a_second_delivery_of_an_approval_keeps_the_merge(monkeypatch):
+    client, lane = build()
+    cr_id, approval_id = routed(client, LONGER_WINDOW)
+    stale = studio_approvals.change_of(lane, lane.records.load("approval", approval_id))  # what a second handler read before the merge
+    decide(client, lane, approval_id, SECOND)
+    decision = lane.records.history("decision", approval_id)[-1]
+    monkeypatch.setattr(studio_approvals, "change_of", lambda lane, approval: stale)
+    studio_approvals.on_decision(lane, SimpleNamespace(payload=decision))  # its merge now conflicts with the first one's
+    assert get(client, f"change-requests/{cr_id}")[1]["status"] == "merged"
+    assert node(lane, "policy", "policy_refund")["window_days"] == 45
