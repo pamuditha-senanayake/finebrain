@@ -80,7 +80,7 @@ async function main() {
   const approvals = (await fetchJson("approvals")).body as { id: string }[];
   if (approvals[0]) results.push(await check(`approvals/${approvals[0].id}`, C.Approval));
   // Studio: a review is a read; the check never applies a change
-  const reviewed = await fetch(`${API}/api/t/${TENANT}/studio/review`, { method: "POST", headers: { "x-persona": PERSONA, "content-type": "application/json" }, body: JSON.stringify({ workflowId: "wf_act_refund_request", input: { intent: "update", kind: "policy", targetId: "policy_refund", workflowId: "wf_act_refund_request", patch: { fields: { "param.days": 45 } } } }) });
+  const reviewed = await fetch(`${API}/api/t/${TENANT}/studio/review`, { method: "POST", headers: { "x-persona": PERSONA, "content-type": "application/json" }, body: JSON.stringify({ workflowId: "wf_act_refund_request", input: { intent: "update", kind: "policy", targetId: "policy_refund", workflowId: "wf_act_refund_request", patch: { description: `Contract check ${Date.now()}` } } }) }); // a wording no item holds, so the review always has a change to read
   const reply = C.ChatReply.safeParse(await reviewed.json());
   console.log(`${reply.success && reviewed.ok ? "ok  " : "FAIL"} studio/review${reply.success ? "" : ` ${reply.error.issues[0]?.path.join(".")}: ${reply.error.issues[0]?.message}`}`);
   results.push(reply.success && reviewed.ok);
