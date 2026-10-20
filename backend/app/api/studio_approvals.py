@@ -88,7 +88,7 @@ def on_decision(lane, envelope) -> None:
     elif decision.decision in ("reject", "request_changes"):
         record = record.model_copy(update={"status": "rejected" if decision.decision == "reject" else "changes_requested"})
         stages_version.move_head(lane, record.branch, record.commit_id, "abandoned", decision.decided_by[0])
-    lane.records.save("change_request", record.cr_id, record)
+    save(lane, record)
 
 
 def merge(lane, record: ChangeRecord) -> ChangeRecord:
@@ -111,4 +111,13 @@ def sweep(lane) -> None:
     for stored in lane.records.list_kind("change_request"):
         record = ChangeRecord.model_validate(stored)
         if record.status == "approved" and record.cooling_until and record.cooling_until <= lane.now:
-            lane.records.save("change_request", record.cr_id, merge(lane, record))
+            save(lane, merge(lane, record))
+
+
+def save(lane, record: ChangeRecord) -> None:
+    """Save the change, unless it already merged: a second delivery of the same decision must not undo a merge."""
+    stored = lane.records.load("change_request", record.cr_id)
+    if stored and stored["status"] == "merged" and record.status != "merged":
+        log_event("S14", "merged_change_kept", cr_id=record.cr_id, refused=record.status)
+        return
+    lane.records.save("change_request", record.cr_id, record)
