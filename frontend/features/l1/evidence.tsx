@@ -1,180 +1,110 @@
 "use client";
 
-import { KeyRound, ShieldOff, Upload } from "lucide-react";
+import { CheckCircle2, ShieldOff } from "lucide-react";
 import Link from "next/link";
-import { useRef, useState } from "react";
-import type { EvidenceRequest } from "@/contracts";
+import { useSearchParams } from "next/navigation";
+import type { EvidenceRequest, Grant } from "@/contracts";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CommitButton } from "@/components/brain/motion";
+import { CardPager, Folded } from "@/components/brain/card-pager";
 import { PersonChip, useLookup } from "@/components/brain/names";
-import { SimpleTable } from "@/components/brain/simple-table";
-import { EmptyState, KeyValue, PageHeader, QueryView, SampleBadge, Section, Status, StatusChip } from "@/components/brain/primitives";
-import { useEvidenceRequests, useGrants, useObligations, useOp, useTenantId } from "@/lib/api/hooks";
-import { UPLOAD_TYPES, useUploadEvidence } from "@/lib/api/upload";
+import { EmptyState, PageHeader, QueryView, SampleBadge, Status, StatusChip } from "@/components/brain/primitives";
+import { useEvidenceRequests, useGrants, useObligations, useOp } from "@/lib/api/hooks";
 import { useCurrentUser } from "@/lib/auth";
-import { date, relTime } from "@/lib/format";
+import { date } from "@/lib/format";
+import { RequestActions } from "./evidence-actions";
 
-/** Row actions: upload a document, or grant a data source instead. Also states how a request was fulfilled. */
-function RequestActions({ req }: { req: EvidenceRequest }) {
-  const lookup = useLookup();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [grantOpen, setGrantOpen] = useState(false);
-  const upload = useOp<{ requestId: string; fileName: string; sizeKb: number }>("uploadEvidence", { success: "Evidence filed. A fact with provenance was recorded." });
-  const real = useTenantId() === "finebase-hq"; // HQ files the real file; its facts are then reviewed in the Vault
-  const uploadFile = useUploadEvidence();
-  const grant = useOp<{ requestId: string }>("requestGrant", { success: "Grant requested. C4 needs two L1 approvals." });
-  const g = req.suggestedGrant;
-  return (
-    <div data-testid={`evidence-${req.id}`}>
-      {req.status === "open" && (
-        <div className="flex flex-wrap gap-2">
-          <input
-            ref={fileRef}
-            type="file"
-            className="sr-only"
-            accept={real ? UPLOAD_TYPES : undefined}
-            aria-label={`Upload evidence for ${req.item}`}
-            data-testid={`upload-${req.id}`}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f && real) uploadFile.mutate({ requestId: req.id, file: f });
-              else if (f) upload.mutate({ requestId: req.id, fileName: f.name, sizeKb: f.size / 1024 });
-            }}
-          />
-          <Button size="xs" onClick={() => fileRef.current?.click()} disabled={upload.isPending || uploadFile.isPending}>
-            <Upload /> Upload document
-          </Button>
-          {g && (
-            <Button size="xs" variant="outline" onClick={() => setGrantOpen(true)}>
-              <KeyRound /> Grant a data source
-            </Button>
-          )}
-        </div>
-      )}
-      {req.status === "awaiting_grant_approval" && (
-        <p className="text-xs text-muted-foreground">
-          Needs two L1 approvals. <Link href="/l1/digest?tab=approvals" className="text-primary hover:underline">Open approvals</Link>
-        </p>
-      )}
-      {req.fulfilledBy && <p className="text-xs text-ok">Fulfilled by {req.fulfilledBy.kind === "upload" ? "an upload" : "a granted source"} ({req.fulfilledBy.ref}).</p>}
-      {g && (
-        <Dialog open={grantOpen} onOpenChange={setGrantOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Grant access: {g.source}</DialogTitle>
-              <DialogDescription>Check exactly what you are granting before anything is granted.</DialogDescription>
-            </DialogHeader>
-            <KeyValue items={[["Scope", g.scope], ["Retention", `${g.retentionDays} days`], ["Agents that will use it", g.agents.map((a) => lookup.name(a)).join(", ")], ["How to revoke", g.revoke], ["Approval", "C4: two L1 approvers"]]} />
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setGrantOpen(false)}>
-                Cancel
-              </Button>
-              <CommitButton criticality={4} onClick={() => grant.mutate({ requestId: req.id }, { onSuccess: () => setGrantOpen(false) })} disabled={grant.isPending}>
-                <KeyRound /> Request grant
-              </CommitButton>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-    </div>
-  );
-}
-
-function RequestTable({ rows, label }: { rows: EvidenceRequest[]; label: string }) {
-  const lookup = useLookup();
-  const obligations = useObligations();
-  return (
-    <SimpleTable
-      label={label}
-      rows={rows}
-      getRowId={(r) => r.id}
-      columns={[
-        { id: "item", header: "Evidence", className: "font-medium", cell: (r) => r.item },
-        { id: "obligation", header: "For obligation", className: "text-xs", cell: (r) => obligations.data?.find((o) => o.id === r.obligationId)?.title ?? r.obligationId },
-        {
-          id: "due",
-          header: "Due",
-          className: "whitespace-nowrap text-xs",
-          cell: (r) => date(obligations.data?.find((o) => o.id === r.obligationId)?.dueAt ?? r.dueAt, lookup.tz),
-        },
-        { id: "requested", header: "Requested", className: "whitespace-nowrap text-xs text-muted-foreground", cell: (r) => relTime(r.createdAt) },
-        { id: "from", header: "From", cell: (r) => <PersonChip id={r.requestedFrom} /> },
-        {
-          id: "status",
-          header: "Status",
-          cell: (r) => (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Status value={r.status} />
-              {r.escalationLevel > 0 && <StatusChip tone={r.escalationLevel >= 3 ? "risk" : "warn"}>escalation {r.escalationLevel}</StatusChip>}
-            </div>
-          ),
-        },
-        { id: "actions", header: "Action", cell: (r) => <RequestActions req={r} /> },
-      ]}
-    />
-  );
-}
-
+/** Proof the system still needs: one open request at a time, mine first, then soonest due. Done things and grants are folded. ?req= opens on one. */
 export function EvidenceRequests({ embedded = false }: { embedded?: boolean }) {
   const requests = useEvidenceRequests();
-  const grants = useGrants();
-  const lookup = useLookup();
   const { user } = useCurrentUser();
-  const revoke = useOp<{ grantId: string }>("revokeGrant", { success: "Access revoked" });
+  const startAt = useSearchParams().get("req");
   return (
     <div>
-      {!embedded && <PageHeader title="Evidence requests" description="When the system needs proof, the DRI uploads a document or grants a data source. Requests start early and escalate as deadlines approach." actions={<SampleBadge />} />}
-      <QueryView query={requests} empty={<EmptyState title="No evidence requests" description="Run the readiness scheduler in L2 to look for gaps." action={<Button asChild size="sm" variant="outline"><Link href="/l2/readiness">Readiness scheduler</Link></Button>} />}>
+      {!embedded && <PageHeader title="Evidence" description="Proof we still need." actions={<SampleBadge />} />}
+      <QueryView query={requests} empty={<EmptyState title="Nothing needed" action={<Button asChild size="sm" variant="outline"><Link href="/l2/readiness">Check readiness</Link></Button>} />}>
         {(list) => {
-          const open = list.filter((r) => r.status !== "fulfilled");
-          const mineFirst = [...open].sort((a, b) => Number(b.requestedFrom === user?.id) - Number(a.requestedFrom === user?.id));
+          const mine = (r: EvidenceRequest) => Number(r.requestedFrom === user?.id);
+          const open = list.filter((r) => r.status !== "fulfilled").sort((a, b) => mine(b) - mine(a) || (a.dueAt < b.dueAt ? -1 : 1));
           const done = list.filter((r) => r.status === "fulfilled");
           return (
-            <div className="space-y-8">
-              <section aria-label="Open requests">
-                <h2 className="mb-2 text-sm font-semibold">Open ({open.length})</h2>
-                {open.length === 0 ? <EmptyState title="Nothing open" /> : <RequestTable label="Open requests" rows={mineFirst} />}
-              </section>
+            <div>
+              {open.length === 0 ? <EmptyState title="Nothing open" /> : <CardPager items={open} getId={(r) => r.id} render={(r) => <RequestCard req={r} />} label="Open requests" startAt={startAt} />}
               {done.length > 0 && (
-                <section aria-label="Fulfilled requests">
-                  <h2 className="mb-2 text-sm font-semibold">Fulfilled ({done.length})</h2>
-                  <RequestTable label="Fulfilled requests" rows={done} />
-                </section>
+                <Folded title={`Fulfilled (${done.length})`}>
+                  <ul className="space-y-3" aria-label="Fulfilled requests">{done.map((r) => <FulfilledLine key={r.id} req={r} />)}</ul>
+                </Folded>
               )}
             </div>
           );
         }}
       </QueryView>
-      <Section plain title="Data source grants" className="mt-5">
-        <QueryView query={grants} rows={2}>
-          {(gs) => (
-            <SimpleTable
-              label="Data source grants"
-              rows={gs}
-              getRowId={(g) => g.id}
-              columns={[
-                { id: "source", header: "Source", className: "font-medium", cell: (g) => g.source },
-                { id: "scope", header: "Scope", className: "text-xs text-muted-foreground", cell: (g) => g.scope },
-                { id: "retention", header: "Retention", className: "whitespace-nowrap text-xs", cell: (g) => `${g.retentionDays} days` },
-                { id: "agents", header: "Agents", className: "text-xs", cell: (g) => g.agents.map((a) => lookup.name(a)).join(", ") },
-                { id: "status", header: "Status", cell: (g) => <Status value={g.status} /> },
-                {
-                  id: "actions",
-                  header: "",
-                  className: "w-24 text-right",
-                  cell: (g) =>
-                    g.status === "active" && user && user.tier !== "L3" ? (
-                      <Button size="xs" variant="outline" onClick={() => revoke.mutate({ grantId: g.id })}>
-                        <ShieldOff /> Revoke
-                      </Button>
-                    ) : null,
-                },
-              ]}
-            />
-          )}
-        </QueryView>
-      </Section>
+      <GrantsFold />
     </div>
+  );
+}
+
+function RequestCard({ req }: { req: EvidenceRequest }) {
+  const lookup = useLookup();
+  const obligations = useObligations();
+  const ob = obligations.data?.find((o) => o.id === req.obligationId);
+  return (
+    <article className="space-y-6 rounded-2xl border bg-card p-8">
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-2">
+          <Status value={req.status} />
+          {req.escalationLevel > 0 && <StatusChip tone={req.escalationLevel >= 3 ? "risk" : "warn"}>Reminder {req.escalationLevel}</StatusChip>}
+        </div>
+        <h2 className="text-xl font-semibold leading-snug">{req.item}</h2>
+        <p className="text-[15px] text-muted-foreground">
+          {ob?.title ?? req.obligationId} · due {date(ob?.dueAt ?? req.dueAt, lookup.tz)}
+        </p>
+      </div>
+      <PersonChip id={req.requestedFrom} />
+      <RequestActions req={req} />
+    </article>
+  );
+}
+
+function FulfilledLine({ req }: { req: EvidenceRequest }) {
+  const how = req.fulfilledBy?.kind === "upload" ? "an upload" : "a granted source";
+  return (
+    <li className="flex items-start gap-3 rounded-xl border bg-card p-4">
+      <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-ok" aria-hidden />
+      <div>
+        <p className="text-[15px] font-medium">{req.item}</p>
+        {req.fulfilledBy && <p className="mt-1 text-[14px] text-muted-foreground">Fulfilled by {how}</p>}
+      </div>
+    </li>
+  );
+}
+
+/** Data sources the system may read, folded: they change rarely. A steward or leader can revoke an active one. */
+function GrantsFold() {
+  const grants = useGrants();
+  if (!grants.data?.length) return null;
+  return (
+    <Folded title={`Data sources (${grants.data.length})`}>
+      <ul className="space-y-3" aria-label="Data source grants">{grants.data.map((g) => <GrantLine key={g.id} grant={g} />)}</ul>
+    </Folded>
+  );
+}
+
+function GrantLine({ grant }: { grant: Grant }) {
+  const { user } = useCurrentUser();
+  const revoke = useOp<{ grantId: string }>("revokeGrant", { success: "Access revoked" });
+  return (
+    <li className="flex items-center justify-between gap-4 rounded-xl border bg-card p-4">
+      <div className="space-y-1">
+        <p className="text-[15px] font-medium">{grant.source}</p>
+        <p className="text-[14px] text-muted-foreground">{grant.scope} · {grant.retentionDays} days</p>
+      </div>
+      {grant.status === "active" && user && user.tier !== "L3" ? (
+        <Button size="sm" variant="outline" onClick={() => revoke.mutate({ grantId: grant.id })}>
+          <ShieldOff /> Revoke
+        </Button>
+      ) : (
+        <Status value={grant.status} />
+      )}
+    </li>
   );
 }

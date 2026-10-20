@@ -1,10 +1,22 @@
 // The seven flows from the definition of done, run end to end through the UI on mock data.
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { setPersona, switchPersona } from "./helpers";
 
 async function selectOption(page: Page, trigger: string, option: string | RegExp) {
   await page.getByRole("combobox", { name: trigger }).click();
   await page.getByRole("option", { name: option }).click();
+}
+
+/** Pages a one-card-at-a-time list (components/brain/card-pager.tsx) to the card containing text, and returns that card. */
+async function showCard(pager: Locator, text: string): Promise<Locator> {
+  const back = pager.getByRole("button", { name: "Back" });
+  const next = pager.getByRole("button", { name: "Next" });
+  const card = pager.getByRole("group").filter({ hasText: text });
+  await expect(pager.getByRole("group")).toBeVisible();
+  while (await back.isEnabled()) await back.click();
+  while (!(await card.count()) && (await next.isEnabled())) await next.click();
+  await expect(card).toBeVisible();
+  return card;
 }
 
 test("1. refund outside policy: escalate, take over, Skillify, sandbox replay, C3 approval, merge, audit", async ({ page }) => {
@@ -53,16 +65,15 @@ test("2. tax readiness: scheduler finds missing proof 21 days ahead, DRI uploads
   await setPersona(page, "h-ks");
   await page.goto("/l2/readiness");
   await page.getByTestId("run-scheduler").click();
-  await expect(page.getByTestId("gaps")).toContainText("Input VAT invoices for September");
-  await expect(page.getByTestId("gaps")).toContainText("request sent");
+  const gap = await showCard(page.getByTestId("gaps"), "Input VAT invoices for September");
+  await expect(gap.getByRole("link", { name: "Request sent" })).toBeVisible();
 
   await switchPersona(page, "h-fd");
   await page.goto("/l1/digest?tab=evidence");
-  const vatRows = page.getByRole("row").filter({ hasText: "VAT return, September 2026" });
-  await expect(page.getByRole("table", { name: "Open requests" }).getByRole("row").filter({ hasText: "VAT return, September 2026" })).toHaveCount(2);
+  const open = page.getByRole("region", { name: "Open requests" });
 
   // The grant path shows scope, retention, agents and revoke before anything is granted.
-  await vatRows.filter({ hasText: "Input VAT invoices" }).getByRole("button", { name: /Grant a data source/ }).click();
+  await (await showCard(open, "Input VAT invoices")).getByRole("button", { name: /Grant a data source/ }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("September 2026 only");
   await expect(dialog).toContainText("90 days");
@@ -71,16 +82,21 @@ test("2. tax readiness: scheduler finds missing proof 21 days ahead, DRI uploads
   await dialog.getByRole("button", { name: "Cancel" }).click();
 
   for (const item of ["Input VAT invoices", "Bank statement"]) {
-    await vatRows.filter({ hasText: item }).locator('input[type="file"]').setInputFiles({ name: `${item}.pdf`, mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 sample") });
-    // A fulfilled request moves to the Fulfilled table and says how it was fulfilled.
-    const done = page.getByRole("table", { name: "Fulfilled requests" }).getByRole("row").filter({ hasText: "VAT return, September 2026" }).filter({ hasText: item });
-    await expect(done.getByText(/Fulfilled by an upload/)).toBeVisible();
+    const card = await showCard(open, item);
+    await expect(card).toContainText("VAT return, September 2026");
+    await card.locator('input[type="file"]').setInputFiles({ name: `${item}.pdf`, mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 sample") });
+    await expect(open.getByRole("group").filter({ hasText: item })).toHaveCount(0);
+  }
+  // Fulfilled requests are folded away and say how they were fulfilled.
+  await page.getByText(/^Fulfilled \(/).click();
+  for (const item of ["Input VAT invoices", "Bank statement"]) {
+    await expect(page.getByRole("list", { name: "Fulfilled requests" }).getByRole("listitem").filter({ hasText: item }).first()).toContainText("Fulfilled by an upload");
   }
 
-  await page.goto("/l1/entity");
-  const vat = page.getByRole("row").filter({ has: page.getByTestId("obligation-ob-vat-sep") });
+  await page.goto("/l1/entity?ob=ob-vat-sep");
+  const vat = page.getByTestId("obligation-ob-vat-sep");
   await expect(vat.getByTestId("readiness")).toHaveText("100%");
-  await expect(vat.getByText("green")).toBeVisible();
+  await expect(vat.getByText("Ready", { exact: true })).toBeVisible();
 
   await page.goto("/l2/vault");
   await page.getByRole("tab", { name: "Facts" }).click();

@@ -2,138 +2,81 @@
 
 import { CheckCircle2, Circle } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMemo } from "react";
+import type { Obligation, Risk } from "@/contracts";
 import { Progress } from "@/components/ui/progress";
+import { CardPager, Folded } from "@/components/brain/card-pager";
 import { PersonChip, useLookup } from "@/components/brain/names";
-import { SimpleTable } from "@/components/brain/simple-table";
-import { PageHeader, QueryView, SampleBadge, Section, Status, StatusChip } from "@/components/brain/primitives";
+import { EmptyState, PageHeader, QueryView, SampleBadge, StatusChip } from "@/components/brain/primitives";
 import { useNow, useObligations, useRisks } from "@/lib/api/hooks";
 import { date } from "@/lib/format";
 import { daysUntil } from "@/lib/governance/readiness";
 import { cn } from "@/lib/utils";
 
+const STATUS = { green: { label: "Ready", tone: "ok" }, amber: { label: "On track", tone: "warn" }, red: { label: "At risk", tone: "risk" } } as const;
+const BAR = { green: "[&>[data-slot=progress-indicator]]:bg-ok/80", amber: "[&>[data-slot=progress-indicator]]:bg-warn", red: "[&>[data-slot=progress-indicator]]:bg-risk" };
+
+/** What is due and how ready it is: one obligation at a time, soonest first. Risks wait behind a fold. ?ob= opens on one. */
 export function EntityProtection() {
   const obligations = useObligations();
   const risks = useRisks();
-  const lookup = useLookup();
-  const now = useNow();
+  const startAt = useSearchParams().get("ob");
   const sorted = useMemo(() => [...(obligations.data ?? [])].sort((a, b) => (a.dueAt < b.dueAt ? -1 : 1)), [obligations.data]);
-  const horizon = 60;
   return (
     <div>
-      <PageHeader title="Entity protection" actions={<SampleBadge />} />
-      <QueryView query={obligations}>
-        {() => (
-          <div className="space-y-12">
-            <Section plain title="Risk register">
-              <QueryView query={risks}>
-                {(rs) => (
-                  <SimpleTable
-                    label="Risk register"
-                    rows={rs}
-                    getRowId={(r) => r.id}
-                    columns={[
-                      { id: "risk", header: "Risk", className: "font-medium", cell: (r) => r.title },
-                      { id: "likelihood", header: "Likelihood", cell: (r) => <StatusChip tone={r.likelihood === "high" ? "risk" : r.likelihood === "medium" ? "warn" : "neutral"}>{r.likelihood}</StatusChip> },
-                      { id: "impact", header: "Impact", cell: (r) => <StatusChip tone={r.impact === "high" ? "risk" : r.impact === "medium" ? "warn" : "neutral"}>{r.impact}</StatusChip> },
-                      { id: "owner", header: "Owner", cell: (r) => <PersonChip id={r.owner} /> },
-                      { id: "mitigation", header: "Mitigation", className: "text-xs text-muted-foreground", cell: (r) => r.mitigation },
-                    ]}
-                  />
-                )}
-              </QueryView>
-            </Section>
-            <Section title="Next 60 days">
-              <div className="relative h-24 overflow-x-auto scrollbar-thin" tabIndex={0} role="img" aria-label="Obligation timeline for the next 60 days">
-                <div className="relative h-full min-w-[640px]">
-                  <div className="absolute inset-x-0 top-12 h-px bg-border" />
-                  {[0, 7, 14, 21, 30, 45, 60].map((dd) => (
-                    <div key={dd} className={cn("absolute top-14 text-[11px] text-muted-foreground", dd === 0 ? "" : dd === horizon ? "-translate-x-full" : "-translate-x-1/2")} style={{ left: `${(dd / horizon) * 100}%` }}>
-                      {dd === 0 ? "today" : `${dd}d`}
-                    </div>
-                  ))}
-                  {sorted
-                    .filter((o) => daysUntil(o.dueAt, now) <= horizon)
-                    .map((o, i) => (
-                      <div key={o.id} className="absolute -translate-x-1/2" style={{ left: `${Math.max(0, Math.min(100, (daysUntil(o.dueAt, now) / horizon) * 100))}%`, top: i % 2 ? 2 : 22 }} title={`${o.title} · ${date(o.dueAt, lookup.tz)}`}>
-                        <span className={cn("block size-3 rounded-full ring-2 ring-card", o.status === "green" ? "bg-ok" : o.status === "amber" ? "bg-warn" : "bg-risk")} />
-                      </div>
-                    ))}
-                </div>
-              </div>
-            </Section>
-            <Section plain title="Obligations">
-              <SimpleTable
-                label="Obligations"
-                rows={sorted}
-                getRowId={(o) => o.id}
-                rowClassName={(o) => (o.status === "red" ? "bg-risk/5" : undefined)}
-                columns={[
-                  {
-                    id: "title",
-                    header: "Obligation",
-                    cell: (o) => (
-                      <div data-testid={`obligation-${o.id}`}>
-                        <div className="font-medium">{o.title}</div>
-                        <div className="text-[11px] text-muted-foreground">{o.jurisdiction} · {o.category}</div>
-                      </div>
-                    ),
-                  },
-                  { id: "status", header: "Status", cell: (o) => <Status value={o.status} /> },
-                  {
-                    id: "readiness",
-                    header: "Readiness",
-                    className: "w-40",
-                    cell: (o) => (
-                      <div className="flex items-center gap-2">
-                        <Progress value={o.readiness} className={cn("h-1.5", o.status === "green" ? "[&>[data-slot=progress-indicator]]:bg-ok/80" : o.status === "amber" ? "[&>[data-slot=progress-indicator]]:bg-warn" : "[&>[data-slot=progress-indicator]]:bg-risk")} aria-label={`Readiness ${o.readiness}%`} />
-                        <span className="w-10 text-right text-xs tabular" data-testid="readiness">{o.readiness}%</span>
-                      </div>
-                    ),
-                  },
-                  {
-                    id: "due",
-                    header: "Due",
-                    className: "whitespace-nowrap text-xs",
-                    cell: (o) => {
-                      const d = daysUntil(o.dueAt, now);
-                      return (
-                        <>
-                          <div>{date(o.dueAt, lookup.tz)}</div>
-                          <div className={cn("font-medium tabular", d <= 7 ? "text-risk" : d <= 21 ? "text-warn-fg" : "text-muted-foreground")}>{d >= 0 ? `${d} days left` : `${-d} days overdue`}</div>
-                        </>
-                      );
-                    },
-                  },
-                  {
-                    id: "evidence",
-                    header: "Evidence",
-                    cell: (o) => {
-                      const missing = o.requiredEvidence.filter((e) => !e.satisfiedBy);
-                      return (
-                        <div className="space-y-1 text-xs">
-                          {o.requiredEvidence.map((e) => (
-                            <div key={e.key} className="flex items-center gap-1.5">
-                              {e.satisfiedBy ? <CheckCircle2 className="size-3.5 shrink-0 text-ok" aria-label="provided" /> : <Circle className="size-3.5 shrink-0 text-muted-foreground" aria-label="missing" />}
-                              <span className={cn(!e.satisfiedBy && "text-muted-foreground")}>{e.label}</span>
-                            </div>
-                          ))}
-                          {missing.length > 0 && (
-                            <Link href="/l1/digest?tab=evidence" className="inline-block text-primary hover:underline">
-                              {missing.length} missing
-                            </Link>
-                          )}
-                        </div>
-                      );
-                    },
-                  },
-                  { id: "dri", header: "DRI", cell: (o) => <PersonChip id={o.dri} /> },
-                ]}
-              />
-            </Section>
-          </div>
-        )}
+      <PageHeader title="Entity protection" description="What is due, and how ready." actions={<SampleBadge />} />
+      <QueryView query={obligations} empty={<EmptyState title="Nothing due" />}>
+        {() => <CardPager items={sorted} getId={(o) => o.id} render={(o) => <ObligationCard ob={o} />} label="Obligations" startAt={startAt} />}
       </QueryView>
+      {risks.data && risks.data.length > 0 && (
+        <Folded title={`Risks (${risks.data.length})`}>
+          <ul className="space-y-3">{risks.data.map((r) => <RiskLine key={r.id} risk={r} />)}</ul>
+        </Folded>
+      )}
     </div>
+  );
+}
+
+function ObligationCard({ ob }: { ob: Obligation }) {
+  const lookup = useLookup();
+  const now = useNow();
+  const left = daysUntil(ob.dueAt, now);
+  const missing = ob.requiredEvidence.filter((e) => !e.satisfiedBy).length;
+  return (
+    <article className="space-y-6 rounded-2xl border bg-card p-8" data-testid={`obligation-${ob.id}`}>
+      <div className="space-y-2">
+        <StatusChip tone={STATUS[ob.status].tone}>{STATUS[ob.status].label}</StatusChip>
+        <h2 className="text-xl font-semibold leading-snug">{ob.title}</h2>
+        <p className={cn("text-[15px]", left <= 7 ? "text-risk" : "text-muted-foreground")}>
+          Due {date(ob.dueAt, lookup.tz)} · {left >= 0 ? `${left} days left` : `${-left} days overdue`}
+        </p>
+      </div>
+      <div className="flex items-center gap-4">
+        <span className="text-4xl font-semibold tabular" data-testid="readiness">{ob.readiness}%</span>
+        <Progress value={ob.readiness} className={cn("h-2 flex-1", BAR[ob.status])} aria-label={`Readiness ${ob.readiness}%`} />
+      </div>
+      <ul className="space-y-2 text-[15px]">
+        {ob.requiredEvidence.map((e) => (
+          <li key={e.key} className="flex items-center gap-2">
+            {e.satisfiedBy ? <CheckCircle2 className="size-4 shrink-0 text-ok" aria-label="proven" /> : <Circle className="size-4 shrink-0 text-muted-foreground" aria-label="missing" />}
+            <span className={cn(!e.satisfiedBy && "text-muted-foreground")}>{e.label}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="flex items-center justify-between">
+        <PersonChip id={ob.dri} />
+        {missing > 0 && <Link href="/l1/digest?tab=evidence" className="text-[15px] text-primary hover:underline">Add evidence</Link>}
+      </div>
+    </article>
+  );
+}
+
+function RiskLine({ risk }: { risk: Risk }) {
+  return (
+    <li className="rounded-xl border bg-card p-4">
+      <p className="text-[15px] font-medium">{risk.title}</p>
+      <p className="mt-1 text-[14px] text-muted-foreground">{risk.mitigation}</p>
+    </li>
   );
 }
