@@ -17,6 +17,9 @@ import { AskHint } from "./ask-hint";
 
 export type Exchange = { id: number; q: string; a: AskAnswer | null };
 
+/** How many exchanges the bubble keeps; older ones scroll up, and the full history is on the Ask the Brain page. */
+const KEEP = 20;
+
 /**
  * Ask the Brain, floating on every page as a glowing orb. Click it or press ⌘J (Ctrl+J) and a bubble opens above it.
  * Every question carries what is on screen, so "what does this mean?" just works. Answers come back as short bubbles;
@@ -67,12 +70,12 @@ export function AskOrb() {
     const page = findPage(q, user);
     if (page) {
       const answer: AskAnswer = { question: q, answer: `Opening ${page.label}.`, citations: [], withheld: 0 };
-      setItems((list) => [...list.slice(-1), { id, q, a: answer }]);
+      setItems((list) => [...list.slice(1 - KEEP), { id, q, a: answer }]);
       router.push(page.href);
       setTimeout(() => setOpen(false), 500);
       return;
     }
-    setItems((list) => [...list.slice(-1), { id, q, a: null }]); // the bubble keeps the last two exchanges
+    setItems((list) => [...list.slice(1 - KEEP), { id, q, a: null }]);
     setVoice("thinking");
     let answer: AskAnswer;
     try {

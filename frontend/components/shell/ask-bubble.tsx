@@ -24,7 +24,7 @@ type Props = {
   onClose: () => void;
 };
 
-/** The bubbles above the orb: a greeting or the last two exchanges, a one-line composer, and the way to the full chat. */
+/** The bubbles above the orb: a greeting or the recent exchanges (scroll up for older ones), a one-line composer, and the way to the full chat. */
 export function AskBubble({ items, voice, note, suggestions, onSend, onMic, onClose }: Props) {
   const [q, setQ] = useState("");
   const input = useRef<HTMLInputElement>(null);
@@ -41,9 +41,9 @@ export function AskBubble({ items, voice, note, suggestions, onSend, onMic, onCl
   }
 
   return (
-    <div role="dialog" aria-label="Ask the Brain" data-ask-ignore className="fixed bottom-24 right-4 isolate z-40 flex max-h-[calc(100dvh-8rem)] w-[min(380px,calc(100vw-2rem))] flex-col gap-3 duration-200 animate-in fade-in slide-in-from-bottom-2 sm:bottom-26 sm:right-6">
-      {/* Blurs the page just behind the chat, fading out at the edges, so the messages stand apart with no box around them. */}
-      <div aria-hidden className="pointer-events-none absolute -inset-12 -z-10 bg-background/30 backdrop-blur-md [mask-image:radial-gradient(closest-side,black_72%,transparent)]" />
+    <div role="dialog" aria-label="Ask the Brain" data-ask-ignore className="fixed bottom-24 right-4 isolate z-40 flex max-h-[calc(100dvh-11rem)] w-[min(380px,calc(100vw-2rem))] flex-col gap-3 duration-200 animate-in fade-in slide-in-from-bottom-2 sm:bottom-26 sm:right-6">
+      {/* Blurs the page behind the chat out to the screen's right edge, fading only on the other sides, so no box shows. */}
+      <div aria-hidden className="pointer-events-none absolute -bottom-6 -left-14 -right-6 -top-4 -z-10 bg-background/30 backdrop-blur-md" style={BLUR_EDGES} />
       <div ref={feed} className="scrollbar-thin flex min-h-0 flex-col gap-3 overflow-y-auto pr-1" aria-live="polite">
       {items.length === 0 && (
         <Blob>
@@ -81,6 +81,13 @@ export function AskBubble({ items, voice, note, suggestions, onSend, onMic, onCl
 function Blob({ children }: { children: ReactNode }) {
   return <div className="max-w-[92%] rounded-3xl rounded-bl-md border bg-card px-5 py-4 shadow-xl">{children}</div>;
 }
+
+// Three fades (left, top, bottom) kept where all three overlap; the right side stays fully blurred.
+const BLUR_EDGES = {
+  maskImage: "linear-gradient(to right, transparent, black 56px), linear-gradient(to bottom, transparent, black 16px), linear-gradient(to top, transparent, black 24px)",
+  maskComposite: "intersect",
+  WebkitMaskComposite: "source-in",
+} as const;
 
 /** The short answer first; the rest and the sources wait behind a click. */
 function AnswerBlob({ a }: { a: AskAnswer }) {
