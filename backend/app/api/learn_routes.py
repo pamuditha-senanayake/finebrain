@@ -1,17 +1,17 @@
 # learn_routes.py: Lane C (step 15) on the Finebase HQ API. S13's weekly counting (the consumer of runs.completed,
 # sample history for a tenant with none, a back-fill of earlier runs), the spike check after each count, and
-# POST ops/markTrendKnown, ops/markRunWrong and ops/draftFix (Skillify). Used by: routes.py (register).
-# Uses: stages_learn.py, stages_spike.py, trend_views.py, run_marks.py, skillify.py.
+# POST ops/markTrendKnown, ops/markRunWrong, ops/draftFix (Skillify) and ops/runOvernightReview. Used by: routes.py (register).
+# Uses: stages_learn.py, stages_spike.py, trend_views.py, run_marks.py, skillify.py, nightly.py.
 from fastapi import FastAPI, Header, HTTPException, Request
 
-from app.api import run_marks, skillify
+from app.api import nightly, run_marks, skillify
 from app.api.trend_views import tell_owner
 from app.pipeline import stages_learn, stages_spike
 from app.pipeline.observe import log_event
 
 # Config
 MAY_MARK_KNOWN = {"L1", "L2"}
-MAY_DRAFT = {"L1", "L2"}  # a draft costs a model call; L3 marks a run wrong and a steward drafts the fix
+MAY_DRAFT = {"L1", "L2"}  # a draft costs a model call; L3 marks a run wrong and a steward drafts the fix, or the nightly review does
 
 
 def raise_spikes(lane, series: list[tuple[str, str]]) -> None:
@@ -32,8 +32,8 @@ def start_counting(lane) -> None:
 
 
 def register(app: FastAPI, lane, check, drafter=None) -> None:
-    """S13's consumer, the start-up back-fill, Mark as known, Mark as wrong and Draft a fix (drafter: Claude Sonnet with tools,
-    or None). Before the general ops route."""
+    """S13's consumer, the start-up back-fill, Mark as known, Mark as wrong, Draft a fix (drafter: Claude Sonnet with tools,
+    or None) and the overnight review (it groups with lane.resolve, Claude Opus with tools). Before the general ops route."""
     lane.bus.subscribe("runs.completed", "counts", "S13", lambda envelope: raise_spikes(lane, stages_learn.on_run(lane, envelope)))
     start_counting(lane)
 
@@ -74,3 +74,11 @@ def register(app: FastAPI, lane, check, drafter=None) -> None:
             raise HTTPException(404, "not_found") from None
         except skillify.NotPossible as reason:
             raise HTTPException(503 if str(reason) == "no_model" else 409, str(reason)) from None
+
+    @app.post("/api/t/{tenant}/ops/runOvernightReview")
+    def run_review(tenant: str, x_persona: str = Header(default="")) -> dict:
+        check(tenant, x_persona)
+        if lane.seed["people"][x_persona]["tier"] not in MAY_DRAFT:
+            raise HTTPException(403, "not_a_steward")
+        digest = nightly.review(lane, drafter, lane.resolve, x_persona)
+        return {"ok": True, "runs": digest["runs"], "failures": digest["failures"], "items": len(digest["items"])}

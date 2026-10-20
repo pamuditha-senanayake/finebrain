@@ -1,8 +1,9 @@
 # skillify.py: Draft a fix (step 15). For a run someone marked wrong, Claude Sonnet reads the run, the note and the
 # workflow's skill and policy, and drafts one change that would have prevented it. The Studio review checks it, and it
 # opens as a change request drafted by "Skillify", so the workflow's DRI can approve it; nothing changes until they act.
-# Used by: learn_routes.py (ops/draftFix), views.py (reads skillify records), tests/test_skillify.py.
-# Uses: studio_review.py, studio_approvals.py, lists_rows.py, studio_chat_context.py (field names), studio_chat_tools.py (PROPOSE), run_marks.py.
+# Only the nightly review applies a fix at once, and only a C0 or C1 one.
+# Used by: learn_routes.py (ops/draftFix), nightly.py, views.py (reads skillify records), tests/test_skillify.py, test_nightly.py.
+# Uses: studio_review.py, studio_approvals.py, studio_changes.py, lists_rows.py, studio_chat_context.py (field names), studio_chat_tools.py (PROPOSE), run_marks.py.
 import json
 from datetime import datetime
 
@@ -11,12 +12,14 @@ from pydantic import BaseModel
 from app.api import run_marks
 from app.api.lists_rows import cache_of
 from app.api.studio_approvals import open_change
+from app.api.studio_changes import commit_change, drafts_of
 from app.api.studio_chat_context import field_names
 from app.api.studio_chat_tools import PROPOSE
 from app.api.studio_draft import StudioError
 from app.api.studio_review import review
 from app.api.studio_state import Studio
 from app.api.views import trace_of
+from app.pipeline.stages_version import MergeConflict
 
 # Config
 DRAFTER = "Skillify"  # not a person, so the workflow's DRI may approve what it drafts
@@ -35,8 +38,9 @@ FIX = {**PROPOSE, "name": "propose_fix", "description": "Draft the one change. T
 
 class FixRecord(BaseModel):
     run_id: str
-    cr_id: str
-    approval_id: str
+    cr_id: str | None  # a change request waiting for the DRI, or None when the nightly review applied a C0 or C1 fix
+    approval_id: str | None
+    revision_id: str | None = None
     by: str
     at: datetime
 
@@ -49,14 +53,14 @@ def fix_of(lane, run_id: str) -> dict | None:
     return lane.records.load(KIND, run_id)
 
 
-def context_of(lane, st: Studio, run: dict, mark: dict) -> tuple[str, dict]:
-    """The run, the note and the workflow's skill and policy, as data. Returns the context and the workflow."""
+def context_of(lane, st: Studio, run: dict, notes: list[str]) -> tuple[str, dict]:
+    """The run, what people said went wrong and the workflow's skill and policy, as data. Returns the context and the workflow."""
     trace = trace_of(lane, run)
     flow = next(f for f in st.flows.values() if run["skill_ref"]["id"] in f["members"])
     action = trace.get("action") or {}
     data = {"run": {"outcome": run["outcome"], "action": action.get("action_type"), "arguments": action.get("arguments"), "rationale": action.get("rationale_summary"),
                     "steps": [f"{s['kind']}: {s['decision']} ({s['reason']})" for s in run["steps"]]},
-            "marked_wrong": mark["note"], "workflow": {"id": flow["id"], "name": flow["name"]},
+            "marked_wrong": notes, "workflow": {"id": flow["id"], "name": flow["name"]},
             "parts": [{key: item[key] for key in ("id", "kind", "name", "fields")} for item in st.scope(flow) if item["kind"] in ("skill", "policy")],
             "field_names": {kind: names for kind, names in field_names().items() if kind in ("skill", "policy")}}
     return f"<context>\n{json.dumps(data, default=str)}\n</context>", flow
@@ -79,8 +83,22 @@ def ask_for_fix(lane, drafter, st: Studio, by: str, context: str) -> tuple[dict,
     raise NotPossible("no_fix_drafted")
 
 
-def draft_fix(lane, drafter, run_id: str, by: str) -> dict:
-    """Draft a fix for a run marked wrong, once, as a change request the workflow's DRI decides."""
+def settle(lane, change: dict, proposal: dict, note: str, apply_low: bool) -> dict:
+    """Apply a C0 or C1 fix at once when asked (logged, and reversible through S14), else open a change request for the DRI."""
+    review_of = proposal["review"]
+    if apply_low and review_of["criticality"] <= 1 and review_of["verdict"] != "breaking":
+        drafts, before, after, _ = drafts_of(lane, Studio.of(lane), DRAFTER, change)
+        try:
+            return {"revisionId": commit_change(lane, DRAFTER, change, proposal, drafts, before, after, None), "changeRequestId": None, "approvalId": None}
+        except MergeConflict:
+            pass  # a node moved on since the review: the DRI decides instead
+    cr_id = open_change(lane, DRAFTER, change, proposal, note)["changeRequestId"]
+    return {"revisionId": None, "changeRequestId": cr_id, "approvalId": lane.records.load("change_request", cr_id)["approval_id"]}
+
+
+def draft_fix(lane, drafter, run_id: str, by: str, also: tuple[str, ...] = (), apply_low: bool = False) -> dict:
+    """Draft one fix for a run marked wrong and others that went wrong the same way (the nightly review's groups), once.
+    The nightly review applies a C0 or C1 fix at once; anything else waits for the workflow's DRI."""
     # Step 1: a run someone marked wrong, with no fix drafted yet
     run, mark = lane.records.load("run", run_id), run_marks.mark_of(lane, run_id)
     if run is None:
@@ -90,15 +108,17 @@ def draft_fix(lane, drafter, run_id: str, by: str) -> dict:
     if drafter is None:
         raise NotPossible("no_model")
 
-    # Step 2: Claude drafts, the Studio review checks, a change request waits for the DRI
-    st = Studio.of(lane)
-    context, flow = context_of(lane, st, run, mark)
-    change, proposal, why = ask_for_fix(lane, drafter, st, by, context)
-    opened = open_change(lane, DRAFTER, change, proposal, f"From run {run_id}, marked wrong: {mark['note']} Why this fix: {why}")
+    # Step 2: Claude drafts, the Studio review checks (as the DRI when the nightly review asks), then apply or wait for approval
+    st, runs = Studio.of(lane), [run_id, *also]
+    notes = [run_marks.mark_of(lane, each)["note"] for each in runs]
+    context, flow = context_of(lane, st, run, notes)
+    change, proposal, why = ask_for_fix(lane, drafter, st, by if by in lane.seed["people"] else flow["dri"], context)
+    settled = settle(lane, change, proposal, f"From {len(runs)} run(s) marked wrong ({', '.join(runs)}): {notes[0]} Why this fix: {why}", apply_low)
 
-    # Step 3: remember it on the run, and audit who asked
-    approval_id = lane.records.load("change_request", opened["changeRequestId"])["approval_id"]
-    cache_of(lane)["runs"].pop(run_id, None)  # its row shows the fix
-    lane.records.save(KIND, run_id, FixRecord(run_id=run_id, cr_id=opened["changeRequestId"], approval_id=approval_id, by=by, at=lane.now))
-    lane.audit.append(f"run:{run_id}:fix_drafted", "skillify.drafted", {"by": by, "at": lane.now.isoformat(), "reason": f"{proposal['title']} for {flow['name']}"})
-    return {"changeRequestId": opened["changeRequestId"], "approvalId": approval_id, "title": proposal["title"]}
+    # Step 3: remember it on each run, and audit who asked
+    for each in runs:
+        cache_of(lane)["runs"].pop(each, None)  # its row shows the fix
+        lane.records.save(KIND, each, FixRecord(run_id=each, cr_id=settled["changeRequestId"], approval_id=settled["approvalId"], revision_id=settled["revisionId"], by=by, at=lane.now))
+    topic = "skillify.applied" if settled["revisionId"] else "skillify.drafted"
+    lane.audit.append(f"run:{run_id}:{topic}", topic, {"by": by, "at": lane.now.isoformat(), "reason": f"{proposal['title']} for {flow['name']}"})
+    return {**settled, "title": proposal["title"], "why": why, "criticality": proposal["review"]["criticality"], "workflowId": flow["id"]}

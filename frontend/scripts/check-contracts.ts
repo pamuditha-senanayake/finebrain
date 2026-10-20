@@ -38,6 +38,7 @@ const CHECKS: [string, z.ZodType][] = [
   ["gaps", z.array(C.ReadinessGap)],
   ["evidence-requests", z.array(C.EvidenceRequest)],
   ["grants", z.array(C.Grant)],
+  ["digest", C.Digest.nullable()],
   ["lists/runs?limit=20", C.ListPage(C.Run)],
   ["lists/escalations", C.ListPage(C.Run)],
   ["lists/audit?limit=20", C.ListPage(C.AuditEvent)],
