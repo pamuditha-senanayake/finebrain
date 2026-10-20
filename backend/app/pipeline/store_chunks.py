@@ -77,13 +77,23 @@ class MemoryChunks:
 
     def value_rows(self) -> list[dict]:
         """What scoring needs about every chunk (step 13c)."""
-        return sorted(({**item, "value": item.get("value"), "tier": item.get("tier", WARM)} for item, _ in self.items.values()), key=lambda item: item["item_id"])
+        return sorted(({**item, "value": item.get("value"), "tier": item.get("tier", WARM), "has_vector": vector is not None} for item, vector in self.items.values()),
+                      key=lambda item: item["item_id"])
 
     def set_values(self, values: dict[str, float], at: datetime) -> None:
         self.set_field("value", values)
 
     def set_tiers(self, tiers: dict[str, str]) -> None:
         self.set_field("tier", tiers)
+
+    def full(self, item_id: str) -> tuple[dict, list[float] | None] | None:
+        """The item and its vector (None once it is cold), for the cold archive."""
+        return self.items.get(item_id)
+
+    def set_vector(self, item_id: str, vector: list[float] | None) -> None:
+        """Drop a cold item's vector, or give it back when it moves up."""
+        if item_id in self.items:
+            self.items[item_id] = (self.items[item_id][0], vector)
 
     def set_field(self, field: str, by_item: dict) -> None:
         for item_id, value in by_item.items():
@@ -98,7 +108,7 @@ class MemoryChunks:
 
     def by_vector(self, embedding: list[float], kinds: list[str], valid, recorded, limit: int, scope: dict | None = None) -> list[dict]:
         """Nearest by cosine similarity (the vectors are already unit length), inside the scope. Hot items come first."""
-        live = self.live(kinds, valid, recorded, scope)
+        live = [pair for pair in self.live(kinds, valid, recorded, scope) if pair[1] is not None]  # a cold item is found by its words only
         ranked = sorted(live, key=lambda pair: (pair[0].get("tier") != "hot", -sum(a * b for a, b in zip(embedding, pair[1]))))
         return [item for item, _ in ranked[:limit]]
 

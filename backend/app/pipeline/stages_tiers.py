@@ -2,11 +2,12 @@
 # question reads stays the same size however much is stored. Every night, by value: the best open items fill hot up to
 # its budget, the rest stay warm while their entity (or, for items about no entity, their domain) has room, and the
 # overflow and long-closed facts go cold, where only questions about the past look.
-# Used by: api/memory_routes.py, api/hq.py (nightly), tests/test_tiers.py. Uses: stages_value.py (moment).
+# Used by: api/memory_routes.py, api/hq.py (nightly), tests/test_tiers.py, test_cold.py. Uses: stages_value.py (moment), stages_cold.py (archive).
 from datetime import datetime, timedelta
 
 from pydantic import BaseModel
 
+from app.pipeline import stages_cold
 from app.pipeline.stages_value import moment
 
 # Config
@@ -66,7 +67,12 @@ def move(lane, budgets: dict | None = None) -> TierRun:
     rows = lane.chunks.value_rows()
     placed = place(rows, lane.now, budgets)
     changed = {row["item_id"]: placed[row["item_id"]] for row in rows if row.get("tier") != placed[row["item_id"]]}
+    was_cold = {row["item_id"] for row in rows if row.get("tier") == "cold"}
+
+    # Coming up from cold gets its vector back first; going cold is archived once its tier is set
+    stages_cold.thaw(lane, [item_id for item_id in changed if item_id in was_cold])
     lane.chunks.set_tiers(changed)
+    stages_cold.freeze(lane, [row["item_id"] for row in rows if placed[row["item_id"]] == "cold" and row.get("has_vector", True)])  # also cold from before
     run = TierRun(at=lane.now, moved=len(changed), **{tier: sum(t == tier for t in placed.values()) for tier in ("hot", "warm", "cold")})
     lane.records.save(RUN_KIND, "latest", run)
     return run

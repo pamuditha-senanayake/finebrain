@@ -1,11 +1,11 @@
 # memory_routes.py: step 13 (memory and storage) on the Finebase HQ API. It starts the value score and the tiers (13c):
 # the consumer that counts each finished run's citations, a back-fill of runs and Ask answers recorded before, one
-# scoring pass and one tier pass, so every item has a value and a tier from the start.
-# Used by: routes.py (register). Uses: stages_value.py, stages_tiers.py, ask_memory.py.
+# scoring pass and one tier pass, so every item has a value and a tier from the start. night() is the nightly pass.
+# Used by: routes.py (register), hq.py (night). Uses: stages_value.py, stages_tiers.py, stages_cold.py, ask_memory.py.
 from fastapi import FastAPI
 
 from app.api import ask_memory
-from app.pipeline import stages_tiers, stages_value
+from app.pipeline import stages_cold, stages_tiers, stages_value
 from app.pipeline.observe import log_event
 
 
@@ -21,6 +21,14 @@ def note_answers(lane) -> int:
         for turn in lane.records.history(ask_memory.KIND, latest["conversation_id"]):
             noted += stages_value.note_answer(lane, answer_id(turn["conversation_id"], turn["at"]), turn["cited"], stages_value.moment(turn["at"]))
     return noted
+
+
+def night(lane) -> dict:
+    """The nightly memory pass: score, move between tiers (cold is archived), and end raw bodies past their retention."""
+    scored = stages_value.score_all(lane)
+    tiers = stages_tiers.move(lane)
+    raw = stages_cold.sweep_raw(lane, apply=True, by="schedule")
+    return {"scored": scored, "moved": tiers.moved, "raw_deleted": raw["deleted"]}
 
 
 def register(app: FastAPI, lane, check) -> None:

@@ -1,9 +1,9 @@
-# forget_layers.py: step 10, the knowledge layers: search index, graph, and S3 files. Each registers a handler with
-# pipeline/forget.py. Used by: forget_review.py (imports this file to register). Uses: forget.py, stages_version.py.
+# forget_layers.py: step 10, the knowledge layers: search index, graph, S3 files, and the cold archive (13c). Each registers
+# a handler with pipeline/forget.py. Used by: forget_review.py (imports this file to register). Uses: forget.py, stages_version.py, stages_cold.py.
 # The record, intake, conversation and vault layers are in forget_layers_data.py.
 import re
 
-from app.pipeline import stages_version
+from app.pipeline import stages_cold, stages_version
 from app.pipeline.contracts_graph import CommitAuthor
 from app.pipeline.forget import ForgetItem, register
 from app.pipeline.stages_version import Draft
@@ -79,5 +79,25 @@ class FilesLayer:
         return mode == "retire" or not self.uris(lane, item)
 
 
-for layer in (IndexLayer(), GraphLayer(), FilesLayer()):
+class ColdLayer:
+    """The cold archive (step 13c): a chunk that went cold left a compressed copy with its vector in S3. Erase removes it."""
+    name, stores, final = "Cold archive", ("object_store",), False
+
+    def archived(self, lane, item: ForgetItem) -> list[str]:
+        return [uri for uri in (stages_cold.cold_uri(lane, chunk_id) for chunk_id in item.chunk_ids) if uri in lane.object_store]
+
+    def retire(self, lane, item: ForgetItem) -> tuple[str, str]:
+        return "kept", "for history"
+
+    def erase(self, lane, item: ForgetItem) -> tuple[str, str]:
+        uris = self.archived(lane, item)
+        for uri in uris:
+            del lane.object_store[uri]
+        return ("cleared", f"{len(uris)} deleted") if uris else ("nothing", "")
+
+    def verify(self, lane, item: ForgetItem, mode: str) -> bool:
+        return mode == "retire" or not self.archived(lane, item)
+
+
+for layer in (IndexLayer(), GraphLayer(), FilesLayer(), ColdLayer()):
     register(layer)

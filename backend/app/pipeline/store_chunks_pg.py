@@ -123,7 +123,7 @@ class PostgresChunks(store_chunks_tiers.TierColumns):
         """Nearest by cosine distance, inside the scope, hot first."""
         return self.hot_first(
             f"""SELECT body FROM chunks WHERE tenant_id = %(tenant)s AND {TIME_FILTER} AND {TIER_FILTER} AND {scope_filter(scope)}
-                ORDER BY embedding <=> %(vector)s::vector LIMIT %(limit)s""",
+                AND embedding IS NOT NULL ORDER BY embedding <=> %(vector)s::vector LIMIT %(limit)s""",  # a cold item is found by its words only
             {**self.filters(kinds, valid, recorded, limit, scope), "vector": json.dumps(embedding)},
         )
 
