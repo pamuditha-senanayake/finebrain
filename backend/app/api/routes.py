@@ -106,8 +106,9 @@ def create_api_app(lane, hq: dict, answerer=None, chatter=None) -> FastAPI:
         return None if resource in NULLABLE_OBJECTS else []
 
     studio_routes.register(app, lane, check, chatter)  # before the general ops route, so studioApply and studioSuggest win
-    for module in (vault_routes, ready_routes, grant_views, documents, forget_routes, learn_routes):  # the librarian, Check now, grants, uploads, forgetting, counts
+    for module in (vault_routes, ready_routes, grant_views, documents, forget_routes):  # the librarian, Check now, grants, uploads, forgetting
         module.register(app, lane, check)
+    learn_routes.register(app, lane, check, chatter)  # counts, trends, Mark as wrong, Draft a fix (step 15)
 
     @app.post("/api/t/{tenant}/ops/{op}")
     async def operation(tenant: str, op: str, request: Request, x_persona: str = Header(default="")):

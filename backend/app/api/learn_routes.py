@@ -1,15 +1,17 @@
 # learn_routes.py: Lane C (step 15) on the Finebase HQ API. S13's weekly counting (the consumer of runs.completed,
 # sample history for a tenant with none, a back-fill of earlier runs), the spike check after each count, and
-# POST ops/markTrendKnown and ops/markRunWrong. Used by: routes.py (register). Uses: stages_learn.py, stages_spike.py, trend_views.py, run_marks.py.
+# POST ops/markTrendKnown, ops/markRunWrong and ops/draftFix (Skillify). Used by: routes.py (register).
+# Uses: stages_learn.py, stages_spike.py, trend_views.py, run_marks.py, skillify.py.
 from fastapi import FastAPI, Header, HTTPException, Request
 
-from app.api import run_marks
+from app.api import run_marks, skillify
 from app.api.trend_views import tell_owner
 from app.pipeline import stages_learn, stages_spike
 from app.pipeline.observe import log_event
 
 # Config
 MAY_MARK_KNOWN = {"L1", "L2"}
+MAY_DRAFT = {"L1", "L2"}  # a draft costs a model call; L3 marks a run wrong and a steward drafts the fix
 
 
 def raise_spikes(lane, series: list[tuple[str, str]]) -> None:
@@ -29,8 +31,9 @@ def start_counting(lane) -> None:
     log_event("S13", "counts_ready", sample_weeks=sampled, back_filled=counted, trends_found=len(found))
 
 
-def register(app: FastAPI, lane, check) -> None:
-    """S13's consumer, the start-up back-fill, Mark as known and Mark as wrong. Before the general ops route."""
+def register(app: FastAPI, lane, check, drafter=None) -> None:
+    """S13's consumer, the start-up back-fill, Mark as known, Mark as wrong and Draft a fix (drafter: Claude Sonnet with tools,
+    or None). Before the general ops route."""
     lane.bus.subscribe("runs.completed", "counts", "S13", lambda envelope: raise_spikes(lane, stages_learn.on_run(lane, envelope)))
     start_counting(lane)
 
@@ -59,3 +62,15 @@ def register(app: FastAPI, lane, check) -> None:
             raise HTTPException(409, str(reason)) from None
         raise_spikes(lane, counted)
         return {"ok": True}
+
+    @app.post("/api/t/{tenant}/ops/draftFix")
+    async def draft_fix(tenant: str, request: Request, x_persona: str = Header(default="")) -> dict:
+        check(tenant, x_persona)
+        if lane.seed["people"][x_persona]["tier"] not in MAY_DRAFT:
+            raise HTTPException(403, "not_a_steward")
+        try:
+            return skillify.draft_fix(lane, drafter, str((await request.json()).get("runId", "")), x_persona)
+        except LookupError:
+            raise HTTPException(404, "not_found") from None
+        except skillify.NotPossible as reason:
+            raise HTTPException(503 if str(reason) == "no_model" else 409, str(reason)) from None

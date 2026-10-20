@@ -51,6 +51,8 @@ export const Run = z.object({
   failureClass: z.string().nullable(),
   /** Set when a person marks the run's outcome as wrong: who, when and what went wrong. Kept so it is not repeated. */
   markedWrong: z.object({ by: z.string(), at: IsoDate, note: z.string() }).nullable().optional(),
+  /** Set when Skillify drafted a fix for a run marked wrong: the approval the workflow's DRI decides (step 15). */
+  fixApprovalId: z.string().nullable().optional(),
 });
 export type Run = z.infer<typeof Run>;
 

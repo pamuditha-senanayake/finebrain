@@ -36,6 +36,7 @@ class Run(UiModel):
     human_touch: bool
     failure_class: str | None
     marked_wrong: dict | None = None
+    fix_approval_id: str | None = None  # step 15: the approval of the fix Skillify drafted
 
 
 class TraceStep(UiModel):

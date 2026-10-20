@@ -1,13 +1,14 @@
 "use client";
 
-import { ThumbsDown } from "lucide-react";
+import { Sparkles, ThumbsDown } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import type { Run } from "@/contracts";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useLookup } from "@/components/brain/names";
 import { Section } from "@/components/brain/primitives";
-import { useOp } from "@/lib/api/hooks";
+import { useOp, useTenantId } from "@/lib/api/hooks";
 import { useCurrentUser } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
 
@@ -26,6 +27,7 @@ export function MarkWrong({ run }: { run: Run }) {
         <p className="mt-2 text-xs text-muted-foreground">
           {lookup.name(run.markedWrong.by)} · {dateTime(run.markedWrong.at, lookup.tz)}
         </p>
+        <DraftFix run={run} />
       </Section>
     );
   }
@@ -49,5 +51,25 @@ export function MarkWrong({ run }: { run: Run }) {
         </Button>
       </div>
     </Section>
+  );
+}
+
+/** Skillify (Finebase HQ): Claude drafts one skill or policy change that would have prevented this. The workflow's DRI approves it. */
+function DraftFix({ run }: { run: Run }) {
+  const { user } = useCurrentUser();
+  const real = useTenantId() === "finebase-hq";
+  const draft = useOp<{ runId: string }>("draftFix", { success: "Fix drafted. It waits for the owner's approval." });
+  if (run.fixApprovalId) {
+    return (
+      <Link href={`/l1/approvals/${run.fixApprovalId}`} className="mt-4 inline-block text-[15px] text-primary hover:underline">
+        Fix drafted · open it
+      </Link>
+    );
+  }
+  if (!real || !user || user.tier === "L3") return null;
+  return (
+    <Button variant="outline" size="sm" className="mt-4" onClick={() => draft.mutate({ runId: run.id })} disabled={draft.isPending} data-testid="draft-fix">
+      <Sparkles /> {draft.isPending ? "Drafting…" : "Draft a fix"}
+    </Button>
   );
 }
