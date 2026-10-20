@@ -97,15 +97,15 @@ Laws, market data and competitor news are the same for many tenants. So we store
 | Access by tier and on behalf of | Built in S5 and S7 |
 | Raw vault with retention | Built in S1 |
 | Entity resolution at intake | Built in S2 (step 13a): payments, customers, uploads; text extraction comes with S12 |
-| Tier budgets and value scores | Next, in S13 nightly |
-| Summary ladder | Next, in S12 and S13 |
-| Shared commons tenant | Later |
+| Tier budgets and value scores | Built (step 13c): value = use × recency × risk × trust × links, nightly; hot, warm and cold with fixed budgets; hot is searched first; cold keeps words only, its vector archived in S3 |
+| Summary ladder | Built (step 13d): the Distiller writes day, week and month summaries per entity at 03:00 (Claude Haiku); forgetting a source clears them |
+| Shared commons tenant | Built (step 13e): a collection stored once, read only; tenants link to it and S5 searches it beside their own items |
 | Version chains | Built in S11 (step 14) |
-| Field dictionary | Next |
+| Field dictionary | Built (step 13d): every fact reads into who, what, when, amount and outcome; the rest are named extras |
 | Four tags and narrow first | Built (steps 13a and 13b): domain and entity tags, scoped search with widening |
-| Weekly signal counts and spike check | Next, in S13; Trends tab shows them |
+| Weekly signal counts and spike check | Built (step 15); the Trends tab shows them |
 
-The base is in place. Entity resolution, budgets and the Distiller come next.
+All of it is built (steps 13 to 15). The Distiller also merges duplicates of the same passage and ends raw bodies after 90 days.
 
 ## Starting numbers
 

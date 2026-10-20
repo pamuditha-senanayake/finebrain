@@ -9,7 +9,7 @@ Version 1, 19 October 2026. This file hands the next steps to a new session. Rea
 | Branch | `feature/backend-build`, pushed. Not merged to `main`. |
 | Lane A (S1 to S10) | Built: capture, normalize, route, retrieve, reason, govern, decide, act, record. Real Claude, Voyage, OPA, Temporal, Kafka, Postgres, Valkey and S3 when Docker runs; memory twins otherwise. |
 | Step 9 | Built: Finebase HQ on the real backend (9a), Ask the Brain with memory, cold start, voice, the floating orb, page view and uploads (9b), graph screens (9c), Studio writes with S14 versioning (9d), Studio chat on Claude (9e) |
-| Memory design | `Docs/CB_Memory_Architecture.md` and `.drawio`. 13a and 13b built (tags, entities, narrow first); 13c to 13e not yet |
+| Memory design | `Docs/CB_Memory_Architecture.md` and `.drawio`. Step 13 built: tags, entities, narrow first, value, tiers, the Distiller, shared commons |
 | Lanes B, C, D | Built: Lane B in step 14, Lane D in step 16, Lane C in step 15 (see their status rows in the system reference). |
 | Tests | 226 backend tests pass (`cd backend && uv run pytest -q`); 43 skip without Docker. 43 frontend unit tests pass (`cd frontend && npx vitest run`). 39 e2e tests fail, all of them already failing before step 9 (contrast, keyboard, performance). |
 
@@ -79,7 +79,7 @@ Done when: asking "where is the refund window?" opens the policy page with that 
 
 Done when: finding one run among 10,000 opens on its row in under a second, and scrolling stays smooth.
 
-### Step 13: Memory and storage (13a and 13b done, see the status row in the system reference)
+### Step 13: Memory and storage (done, see the status rows in the system reference)
 
 | Sub-step | Builds |
 |---|---|
