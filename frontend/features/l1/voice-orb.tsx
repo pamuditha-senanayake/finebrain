@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type MutableRefObject } from "react";
+import { useEffect, useRef, useSyncExternalStore, type MutableRefObject } from "react";
 
 export type VoiceState = "idle" | "listening" | "thinking" | "speaking";
 
@@ -22,9 +22,9 @@ const BLOBS = [
 /**
  * A large glowing orb for the voice agent, drawn on a canvas. It breathes when idle, swells with your voice while
  * listening, swirls while thinking and pulses while speaking. `level` (0 to 1) is read every frame, so updating it
- * never re-renders React.
+ * never re-renders React. It is drawn once at `drawSize` and shown at `size`, so a size change glides instead of jumping.
  */
-export function VoiceOrb({ state, level, size = 280 }: { state: VoiceState; level: MutableRefObject<number>; size?: number }) {
+export function VoiceOrb({ state, level, size = 280, drawSize = size }: { state: VoiceState; level: MutableRefObject<number>; size?: number; drawSize?: number }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const stateRef = useRef(state);
   useEffect(() => {
@@ -37,7 +37,7 @@ export function VoiceOrb({ state, level, size = 280 }: { state: VoiceState; leve
     const ctx = cv.getContext("2d");
     if (!ctx) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const W = size * 1.6;
+    const W = drawSize * 1.6;
     cv.width = W * dpr;
     cv.height = W * dpr;
     ctx.scale(dpr, dpr);
@@ -47,7 +47,7 @@ export function VoiceOrb({ state, level, size = 280 }: { state: VoiceState; leve
     let spin = 0;
     let last = performance.now();
     const c = W / 2;
-    const base = size * 0.4;
+    const base = drawSize * 0.4;
 
     const draw = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000);
@@ -112,9 +112,33 @@ export function VoiceOrb({ state, level, size = 280 }: { state: VoiceState; leve
     };
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [size, level]);
+  }, [drawSize, level]);
 
-  return <canvas ref={canvas} style={{ width: size * 1.6, height: size * 1.6 }} className="pointer-events-none select-none" role="img" aria-label={`Voice agent, ${state}`} />;
+  return <canvas ref={canvas} style={{ width: size * 1.6, height: size * 1.6, transition: GLIDE }} className="pointer-events-none select-none" role="img" aria-label={`Voice agent, ${state}`} />;
+}
+
+/** How a size change moves: slow enough to feel like breathing, not a jump. */
+export const GLIDE = "width 700ms cubic-bezier(0.22, 1, 0.36, 1), height 700ms cubic-bezier(0.22, 1, 0.36, 1), margin 700ms cubic-bezier(0.22, 1, 0.36, 1)";
+
+export type OrbStage = "rest" | "big" | "small";
+
+/**
+ * The orb size for each stage, fitted to the window. Rest is about a fifth of the height. Big (listening and thinking)
+ * fills the room left by the bars. Small (an answer showing) is half of rest. `drawSize` is the biggest, drawn once.
+ */
+export function useOrbSize(stage: OrbStage) {
+  const height = useSyncExternalStore(onResize, () => window.innerHeight, () => 900);
+  const width = useSyncExternalStore(onResize, () => window.innerWidth, () => 1200);
+  const rest = Math.max(120, Math.min(240, Math.round(height * 0.22)));
+  // The canvas is 1.6 times the size, and the header, top row and mic bar take about 260px of the height.
+  const big = Math.max(rest, Math.min(420, Math.round((height - 260) / 1.6), Math.round((width * 0.9) / 1.6)));
+  const size = stage === "big" ? big : stage === "small" ? Math.round(rest / 2) : rest;
+  return { size, drawSize: big };
+}
+
+function onResize(callback: () => void) {
+  window.addEventListener("resize", callback);
+  return () => window.removeEventListener("resize", callback);
 }
 
 function clamp(v: number) {

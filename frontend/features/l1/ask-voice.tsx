@@ -17,8 +17,9 @@ import { shortOf, speak, unlockAudio } from "@/lib/voice/speaker";
 import { date } from "@/lib/format";
 import { lookedInLabel } from "@/lib/looked-in";
 import { cn } from "@/lib/utils";
+import { AskEarlier } from "./ask-earlier";
 import { AskUpload } from "./ask-upload";
-import { VoiceOrb, type VoiceState } from "./voice-orb";
+import { GLIDE, useOrbSize, VoiceOrb, type OrbStage, type VoiceState } from "./voice-orb";
 import { t } from "@/lib/i18n";
 
 // The browser speech APIs are not in TypeScript's DOM types yet, so describe the parts used here.
@@ -281,6 +282,11 @@ export function AskVoice() {
   // Earlier turns: what was saved before this page opened, then this visit's turns except the last.
   const saved: Turn[] = conversation.saved.map((t) => ({ q: t.question, a: { question: t.question, answer: t.answer, citations: [], withheld: 0 } }));
   const before = [...saved, ...turns.slice(0, -1)];
+  // The orb fills the screen while it listens and thinks, then shrinks to the top so the answer gets the room.
+  const stage: OrbStage = voice === "listening" || voice === "thinking" ? "big" : heard || turns.length > 0 ? "small" : "rest";
+  const orb = useOrbSize(stage);
+  // The greeting and quick questions only show before the first tap.
+  const welcome = !heard && turns.length === 0 && voice === "idle";
   const slash = typing && text.startsWith("/") ? COMMANDS.filter((c) => c.cmd.startsWith(text.trim().split(" ")[0].toLowerCase())) : [];
 
   // The setup interview takes over the page; the orb stays small above it and speaks each question.
@@ -301,10 +307,10 @@ export function AskVoice() {
   }
 
   return (
-    <div className="-mx-3 -my-4 flex min-h-[calc(100dvh-3rem)] flex-col sm:-mx-6 sm:-my-5">
+    <div className="-mx-3 -my-4 flex h-[calc(100dvh-3rem)] flex-col overflow-hidden sm:-mx-6 sm:-my-5">
       <h1 className="sr-only">Ask the Brain</h1>
 
-      <div className="flex items-center gap-2 px-6 pt-5">
+      <div className="flex items-center gap-2 px-6 pt-5 short:pt-3">
         {before.length > 0 && (
           <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setEarlier(!earlier)} aria-expanded={earlier}>
             <History /> Earlier ({before.length})
@@ -320,26 +326,19 @@ export function AskVoice() {
         </Button>
       </div>
 
-      {earlier && (
-        <ol className="mx-auto flex w-full max-w-2xl flex-col gap-3 px-6 pt-4" aria-label="Earlier chat">
-          {before.map((t, i) => (
-            <li key={i} className="flex flex-col gap-2">
-              <p className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-primary/10 px-4 py-2 text-[15px]">{t.q}</p>
-              <p className="max-w-[92%] rounded-3xl rounded-bl-md border bg-card px-5 py-3 text-[15px] leading-relaxed">{t.a.answer}</p>
-            </li>
-          ))}
-        </ol>
-      )}
+      <AskEarlier turns={before} open={earlier} onOpenChange={setEarlier} />
 
-      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-6 py-6 text-center">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="basis-0" style={{ flexGrow: stage === "small" ? 0 : 1, transition: "flex-grow 700ms cubic-bezier(0.22, 1, 0.36, 1)" }} />
+      <div className="mx-auto flex w-full max-w-2xl flex-col items-center px-6 py-6 text-center short:py-3">
         <button type="button" onClick={tapOrb} disabled={voice === "thinking"} className="rounded-full outline-none focus-visible:ring-4 focus-visible:ring-ring/40" aria-label={voice === "listening" ? "Stop listening" : voice === "speaking" ? "Stop speaking" : "Talk to the Brain"}>
-          <VoiceOrb state={voice} level={level} size={240} />
+          <VoiceOrb state={voice} level={level} size={orb.size} drawSize={orb.drawSize} />
         </button>
-        <p className={cn("-mt-6 text-sm font-medium uppercase tracking-[0.18em]", voice === "idle" ? "text-muted-foreground" : "text-primary")} role="status">
+        <p style={{ marginTop: -orb.size * 0.1, transition: GLIDE }} className={cn("text-sm font-medium uppercase tracking-[0.18em]", voice === "idle" ? "text-muted-foreground" : "text-primary")} role="status">
           {supported || voice !== "idle" ? LABEL[voice] : "Type to ask"}
         </p>
 
-        <div className="mt-8 min-h-28 w-full" aria-live="polite">
+        <div className={cn("mt-8 w-full short:mt-4", stage === "rest" && "min-h-28 short:min-h-0")} aria-live="polite">
           {heard && <p className={cn("text-2xl font-medium leading-snug tracking-tight", voice === "listening" && "text-muted-foreground")}>{heard}</p>}
           {showLast && (
             <div className="mt-6 animate-in fade-in duration-500">
@@ -374,20 +373,20 @@ export function AskVoice() {
               )}
             </div>
           )}
-          {!heard && turns.length === 0 && (
-            <div className="mb-8">
+          {welcome && (
+            <div className="mb-5 short:mb-3">
               <p className="mx-auto max-w-md text-[15px] leading-relaxed text-muted-foreground">{t("ask.greeting")}</p>
               <p className="mt-2 text-xl font-semibold tracking-tight">{t("ask.greetingAsk")}</p>
             </div>
           )}
-          {!heard && turns.length === 0 && (
-            <div className="flex flex-wrap justify-center gap-2">
+          {welcome && (
+            <div className="flex flex-wrap justify-center gap-1.5">
               {SUGGESTIONS.map((s) => (
-                <button key={s} type="button" onClick={() => void answer(s)} disabled={voice !== "idle"} className="rounded-full border bg-surface px-4 py-2 text-sm transition-colors hover:bg-accent disabled:opacity-50">
+                <button key={s} type="button" onClick={() => void answer(s)} disabled={voice !== "idle"} className="rounded-full border bg-surface px-3 py-1 text-xs transition-colors hover:bg-accent disabled:opacity-50">
                   {s}
                 </button>
               ))}
-              <button type="button" onClick={() => run("/setup")} disabled={voice !== "idle"} className="rounded-full border border-dashed px-4 py-2 font-mono text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50">
+              <button type="button" onClick={() => run("/setup")} disabled={voice !== "idle"} className="rounded-full border border-dashed px-3 py-1 font-mono text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50">
                 /setup
               </button>
             </div>
@@ -396,9 +395,11 @@ export function AskVoice() {
           {filed && <p className="mt-4 text-sm text-muted-foreground" role="status">{filed}</p>}
         </div>
       </div>
+      <div className="flex-1 basis-0" />
+      </div>
 
       <ConnectorPicker open={picker} onOpenChange={setPicker} />
-      <div className="relative mx-auto flex w-full max-w-2xl items-center justify-center gap-4 px-6 pb-8">
+      <div className="relative mx-auto flex w-full max-w-2xl items-center justify-center gap-4 px-6 pb-8 pt-2 short:pb-4">
         {slash.length > 0 && (
           <ul className="absolute inset-x-6 bottom-full mb-2 overflow-hidden rounded-2xl border bg-popover p-1.5 shadow-lg" role="listbox" aria-label="Commands">
             {slash.map((c, i) => (

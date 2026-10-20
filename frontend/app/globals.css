@@ -4,6 +4,8 @@
 @import "./focus.css";
 
 @custom-variant dark (&:is(.dark *, .black *));
+/* Short windows, like a laptop with browser bars: tighter spacing so a page still fits. */
+@custom-variant short (@media (max-height: 760px));
 
 @theme inline {
   --color-background: var(--background);
