@@ -99,7 +99,7 @@ Full S11 filing rules, S12 fact extraction with evidence, the librarian queue an
 
 S13: weekly signal counts and the spike check (the Trends tab goes live on HQ; contract `TrendCard`), the nightly review, and skillify drafting Studio proposals through the same review. Done when a real unusual week shows up in Trends.
 
-### Step 16: Lane D (readiness and evidence)
+### Step 16: Lane D (readiness and evidence) (done, see the status row in the system reference)
 
 S15: obligations, readiness and evidence requests on HQ (K15 GapDetected). Done when a missing filing shows up as a gap with an owner.
 
