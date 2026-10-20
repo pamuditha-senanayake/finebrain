@@ -1,6 +1,6 @@
 # stages_learn.py: S13's weekly counts (step 15). Every finished run adds one to its week: requests per skill, and
 # escalations per agent, each split by channel. The spike check reads these counts. Weeks start on Monday in the
-# tenant's time zone. Used by: api/learn_routes.py, tests/test_counts.py. Uses: run_steps.py (signal_of), contracts_run.py.
+# tenant's time zone. Used by: api/learn_routes.py, stages_spike.py, tests/test_counts.py. Uses: run_steps.py (signal_of), contracts_run.py.
 import json
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -55,23 +55,23 @@ def series_of(lane, run: dict) -> list[tuple[str, str]]:
 
 # --- Counting
 
-def count_run(lane, run: dict) -> int:
-    """Count one run (a stored K10 record) in its week. Returns how many counts it added: 0 when already counted."""
+def count_run(lane, run: dict) -> list[tuple[str, str]]:
+    """Count one run (a stored K10 record) in its week. Returns the series it newly counted in: none when already counted."""
     if not run.get("steps"):
-        return 0
+        return []
     started = datetime.fromisoformat(str(run["steps"][0]["started_at"]).replace("Z", "+00:00"))
     week = week_of(started, zone_of(lane))
-    return sum(lane.counts.add(metric, segment, week, run["run_id"]) for metric, segment in series_of(lane, run))
+    return [(metric, segment) for metric, segment in series_of(lane, run) if lane.counts.add(metric, segment, week, run["run_id"])]
 
 
-def on_run(lane, envelope) -> None:
+def on_run(lane, envelope) -> list[tuple[str, str]]:
     """S13's consumer of runs.completed. A run that pauses for approval and then finishes counts once per series."""
-    count_run(lane, RunRecord.model_validate(envelope.payload).model_dump(mode="json"))
+    return count_run(lane, RunRecord.model_validate(envelope.payload).model_dump(mode="json"))
 
 
 def count_existing(lane) -> int:
-    """Back-fill: count every run already recorded. Safe to run on every start."""
-    return sum(count_run(lane, run) for run in lane.records.list_kind("run"))
+    """Back-fill: count every run already recorded. Safe to run on every start. Returns how many counts it added."""
+    return sum(len(count_run(lane, run)) for run in lane.records.list_kind("run"))
 
 
 def load_sample(lane, sample: dict) -> int:

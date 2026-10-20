@@ -1,10 +1,10 @@
 # lists.py: the console resources that need more than one record: tenant, clusters, filtered lists, the decision
-# pre-check, sensors from connectors, and K11 as LiveEvent. Used by: routes.py, tests. Uses: views.py, ui_models.py, stages_decide.py.
+# pre-check, sensors from connectors, and K11 as LiveEvent. Used by: routes.py, tests. Uses: views.py, ready_views.py, trend_views.py, ui_models.py, stages_decide.py.
 from datetime import datetime
 
 from app.api import ui_models as ui
 from app.api import ui_models_work as work
-from app.api import documents, grant_views, ready_views, vault_views, views
+from app.api import documents, grant_views, ready_views, trend_views, vault_views, views
 from app.api.versions_views import approval_of
 from app.pipeline import stages_decide
 from app.pipeline.observe import read_count, read_last_seen
@@ -12,7 +12,8 @@ from app.pipeline.contracts_run import ApprovalRequest, Decision
 
 # Config
 READINESS = {"obligations": ready_views.obligations_view, "readiness-rules": ready_views.rules_view, "risks": ready_views.risks_view,  # step 16
-             "gaps": ready_views.gaps_view, "evidence-requests": ready_views.requests_view, "grants": grant_views.grants_view}
+             "gaps": ready_views.gaps_view, "evidence-requests": ready_views.requests_view, "grants": grant_views.grants_view,
+             "trends": trend_views.trends_view}  # step 15
 LIVE_RESOURCES = {"run.updated": ["runs", "escalations"], "approval.created": ["approvals", "escalations"], "approval.decided": ["approvals", "escalations", "runs"]}
 
 

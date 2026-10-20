@@ -48,7 +48,7 @@ def test_runs_recorded_before_counting_are_back_filled(hq):
 def test_a_run_whose_trace_is_gone_counts_under_unknown_channel(hq):
     _, lane, _ = hq
     run = {**lane.records.list_kind("run")[0], "run_id": "run_lost", "trace_object_uri": "pending:run_lost"}
-    stages_learn.count_run(lane, run)
+    assert stages_learn.count_run(lane, run) == [("Requests", "Refund handling, unknown channel")]
     assert lane.counts.cases_of("Requests", "Refund handling, unknown channel", WEEK) == ["run_lost"]
 
 
