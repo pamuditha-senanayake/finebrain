@@ -42,21 +42,24 @@ def fuse(ranked_lists: list[list[dict]]) -> list[tuple[dict, float]]:
     return sorted(((items[item_id], score) for item_id, score in scores.items()), key=lambda pair: -pair[1])
 
 
-def search_level(chunks, text: str, vector, kinds: list[str], valid, recorded, scope: dict) -> list[tuple[dict, float]]:
-    """Exact-word and meaning search inside one scope, over items true at `valid` and known at `recorded`."""
-    ranked_lists = [chunks.by_text(text, kinds, valid, recorded, CANDIDATES_PER_LIST, scope)]
-    if vector is not None:
-        ranked_lists.append(chunks.by_vector(vector, kinds, valid, recorded, CANDIDATES_PER_LIST, scope))
+def search_level(chunks, text: str, vector, kinds: list[str], valid, recorded, scope: dict, commons=()) -> list[tuple[dict, float]]:
+    """Exact-word and meaning search inside one scope, over items true at `valid` and known at `recorded`. The linked commons
+    (step 13e) are searched beside them, whole: they are about no tenant's entities."""
+    ranked_lists = []
+    for store, where in [(chunks, scope), *((shared, None) for shared in commons)]:
+        ranked_lists.append(store.by_text(text, kinds, valid, recorded, CANDIDATES_PER_LIST, where))
+        if vector is not None:
+            ranked_lists.append(store.by_vector(vector, kinds, valid, recorded, CANDIDATES_PER_LIST, where))
     return fuse(ranked_lists)
 
 
-def find_candidates(query: ContextQuery, chunks, embed, valid, recorded) -> tuple[list[tuple[dict, float]], SearchScope]:
+def find_candidates(query: ContextQuery, chunks, embed, valid, recorded, commons=()) -> tuple[list[tuple[dict, float]], SearchScope]:
     """Search the narrowest level first; widen only when it finds too little. Returns the candidates and where they came from."""
     kinds, text = query.node_types or ALL_KINDS, " ".join([query.query_text, *query.entity_refs])
     vector = embed_query(embed, text)
     levels = retrieve_scope.ladder(query)
     for position, (level, scope) in enumerate(levels, start=1):
-        found = search_level(chunks, text, vector, kinds, valid, recorded, scope)
+        found = search_level(chunks, text, vector, kinds, valid, recorded, scope, commons)
         if len(found) >= retrieve_scope.WIDEN_BELOW or position == len(levels):
             break
         count("s5.widened")
@@ -109,11 +112,11 @@ def fit_budget(scored: list[tuple[dict, float]], top_k: int, max_tokens: int) ->
 
 # --- S5 Retrieve
 
-def retrieve(query: ContextQuery, chunks, embed, rerank, people: dict, new_id, now) -> tuple[ContextBundle, AccessDecision]:
-    """S5: the bundle the principal may see, and one access decision for the audit log."""
+def retrieve(query: ContextQuery, chunks, embed, rerank, people: dict, new_id, now, commons=()) -> tuple[ContextBundle, AccessDecision]:
+    """S5: the bundle the principal may see, and one access decision for the audit log. commons: the linked shared collections."""
     # Step 1: candidates true and known at the asked time, from the narrowest scope that finds enough
     try:
-        candidates, scope = find_candidates(query, chunks, embed, query.as_of_valid or now, query.as_of_recorded or now)
+        candidates, scope = find_candidates(query, chunks, embed, query.as_of_valid or now, query.as_of_recorded or now, commons)
     except Exception as error:
         raise ContextUnavailable(type(error).__name__) from None
 

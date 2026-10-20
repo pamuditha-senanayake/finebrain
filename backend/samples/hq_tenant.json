@@ -9,7 +9,7 @@
     "brand": {"primary": "#4338ca", "mark": "FH"}
   },
   "seed_overrides": {
-    "tenant_id": "finebase-hq", "env": "production",
+    "tenant_id": "finebase-hq", "env": "production", "commons": ["lk_tax_labour"],
     "filing_rules": [
       {"id": "fr_contracts", "match": "contract|agreement|\\bmsa\\b|\\bnda\\b", "type": "contract", "sensitivity": "confidential", "retention_days": 2555, "is_sample": true},
       {"id": "fr_invoices", "match": "invoice|receipt|\\bbill\\b", "type": "invoice", "sensitivity": "confidential", "retention_days": 2555, "is_sample": true},

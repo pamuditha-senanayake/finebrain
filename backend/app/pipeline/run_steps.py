@@ -44,7 +44,7 @@ def make_step(lane, step_id: str, kind: str, decision: str, reason: str, refs: l
 def retrieve_with_retry(lane, query: ContextQuery, cause: Envelope):
     """S5 with one retry. Publishes the access decision so the audit log sees every read."""
     bundle, decision = call_with_retry(
-        lambda: stages_retrieve.retrieve(query, lane.chunks, lane.embed, lane.rerank, lane.seed["people"], lane.new_id, lane.now),
+        lambda: stages_retrieve.retrieve(query, lane.chunks, lane.embed, lane.rerank, lane.seed["people"], lane.new_id, lane.now, lane.commons),
         lambda error: isinstance(error, stages_retrieve.ContextUnavailable), attempts=RETRIEVE_ATTEMPTS, base_delay=0.2,
     )
     lane.bus.publish("access.decisions", "access.decided", decision, "internal", cause)

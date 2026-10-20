@@ -30,6 +30,7 @@ class Lane:
     entities: object  # step 13a: the entity registry (store_entities.py)
     counts: object = None  # step 15: weekly counts for the spike check (store_counts.py)
     uses: object = None  # step 13c: which runs and answers cited which items (store_uses.py)
+    commons: list = field(default_factory=list)  # step 13e: the linked commons collections, read only (commons.py)
     grade: object = None  # S7 grader (llm.make_grader); defaults to the fake that passes cited rationales
     choose: object = None  # S3 tie-break (llm.make_chooser); None means close calls go unrouted
     classify: object = None  # S2 domain of an upload (llm.make_chooser with DOMAIN_SYSTEM); None files it under general

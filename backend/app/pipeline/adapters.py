@@ -4,7 +4,7 @@
 import os
 import time
 
-from app.pipeline import access, embeddings, item_tags, store_postgres, store_s3, store_valkey
+from app.pipeline import access, commons, embeddings, item_tags, store_postgres, store_s3, store_valkey
 from app.pipeline.audit import MemoryAudit, PostgresAudit
 from app.pipeline.fakes import fake_embed, fake_rerank, make_fake_sender
 from app.pipeline.bus_kafka import KafkaBus
@@ -60,9 +60,19 @@ def make_memory_adapters(seed: dict, now, new_id) -> dict:
         "entities": MemoryEntities(),
         "counts": MemoryCounts(),
         "uses": MemoryUses(),
+        "commons": memory_commons(seed, fake_embed),
     }
     load_chunks(adapters["chunks"], adapters["graph"], adapters["embed"], item_tags.tagger(seed, adapters["entities"]))
     return adapters
+
+
+def memory_commons(seed: dict, embed) -> list:
+    """The commons collections the tenant links to (step 13e), each loaded in memory. On Postgres they are stored once, by the admin."""
+    stores = []
+    for collection in commons.linked(seed):
+        stores.append(MemoryChunks())
+        commons.load(stores[-1], embed, collection)
+    return stores
 
 
 def seeded(graph, seed: dict):
@@ -111,6 +121,8 @@ def real_adapters(parts: frozenset[str] = ALL_REAL_PARTS, topic_prefix: str = ""
         if "voyage" in parts:
             adapters["embed"], adapters["rerank"] = embeddings.voyage_embed, embeddings.voyage_rerank
         load_chunks(adapters["chunks"], adapters["graph"], adapters["embed"], item_tags.tagger(seed, adapters["entities"]))
+        adapters["commons"] = ([PostgresChunks(connection, commons.store_id(c)) for c in commons.linked(seed)] if "postgres" in parts  # the admin loads them
+                               else memory_commons(seed, adapters["embed"]))
         if "temporal" in parts:
             adapters["runner"] = TemporalRunner()  # build_lane starts it once the lane exists
         return adapters

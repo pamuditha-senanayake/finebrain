@@ -1,0 +1,19 @@
+{
+  "_about": "Shared commons (step 13e): Sri Lanka tax and labour basics, the same for every tenant, stored once and read only. A sample: check the current law with an adviser before relying on it. Loaded with scripts/commons_admin.py.",
+  "collection": "lk_tax_labour",
+  "title": "Sri Lanka tax and labour basics (sample)",
+  "items": [
+    {"id": "vat_rate", "domain": "finance", "valid_from": "2024-01-01", "uri": "https://www.ird.gov.lk",
+     "text": "Sri Lanka VAT: value added tax is charged at 18% on most taxable supplies, from 1 January 2024."},
+    {"id": "vat_payment_due", "domain": "finance", "valid_from": "2024-01-01", "uri": "https://www.ird.gov.lk",
+     "text": "Sri Lanka VAT: a registered business pays the VAT for a month by the 20th day of the following month."},
+    {"id": "apit_remittance_due", "domain": "finance", "valid_from": "2023-01-01", "uri": "https://www.ird.gov.lk",
+     "text": "Sri Lanka APIT: income tax deducted from employees' pay (APIT) is paid to the Inland Revenue Department by the 15th day of the following month."},
+    {"id": "epf_rates", "domain": "people", "valid_from": "2023-01-01", "uri": "https://www.epf.lk",
+     "text": "Sri Lanka EPF: the employee contributes 8% and the employer 12% of the employee's total monthly earnings to the Employees' Provident Fund."},
+    {"id": "epf_due", "domain": "people", "valid_from": "2023-01-01", "uri": "https://www.epf.lk",
+     "text": "Sri Lanka EPF: contributions for a month are paid by the last working day of the following month."},
+    {"id": "etf_rate_due", "domain": "people", "valid_from": "2023-01-01", "uri": "https://www.etfb.lk",
+     "text": "Sri Lanka ETF: the employer contributes 3% of each employee's total monthly earnings to the Employees' Trust Fund, paid by the last working day of the following month."}
+  ]
+}

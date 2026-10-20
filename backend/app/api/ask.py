@@ -4,7 +4,7 @@
 # Used by: routes.py, tests/test_api_brain.py. Uses: ask_memory.py, memory_routes.py (answer ids), stages_value.py, self_knowledge.py, retrieve_scope.py, stages_retrieve.py, retry.py.
 from app.api import ask_memory, memory_routes, search, self_knowledge
 from app.api.ui_models_work import AskAnswer, Citation, LookedIn
-from app.pipeline import retrieve_scope, stages_retrieve, stages_value
+from app.pipeline import commons, retrieve_scope, stages_retrieve, stages_value
 from app.pipeline.contracts_reason import ContextItem, ContextQuery
 from app.pipeline.contracts_signal import Principal
 from app.pipeline.retry import call_with_retry
@@ -25,7 +25,9 @@ class AskUnavailable(Exception):
 
 def citation(item: ContextItem) -> Citation:
     first_line = item.text.strip().splitlines()[0] if item.text.strip() else item.item_id
-    href = item.source.uri if item.item_id == PAGE_VIEW_ID else f"/l2/policies/{item.version_ref.id}" if item.kind == "policy" and item.version_ref else "/l2/library"
+    shared = item.source.document_id.startswith(commons.PREFIX)  # step 13e: read from the shared commons, linked to its official source
+    first_line = f"Commons · {first_line}" if shared else first_line
+    href = item.source.uri if item.item_id == PAGE_VIEW_ID or shared else f"/l2/policies/{item.version_ref.id}" if item.kind == "policy" and item.version_ref else "/l2/library"
     return Citation(id=item.item_id, kind=item.kind, label=first_line[:LABEL_CHARS], href=href,
                     valid_from=(item.valid_from or item.recorded_at).isoformat(), valid_to=item.valid_to.isoformat() if item.valid_to else None)
 
@@ -54,7 +56,7 @@ def read_for(lane, persona: str, question: str):
                          entity_ids=retrieve_scope.entities_in_question(lane, question))  # narrow to what it names; every domain
     try:
         bundle, decision = call_with_retry(
-            lambda: stages_retrieve.retrieve(query, lane.chunks, lane.embed, lane.rerank, lane.seed["people"], lane.new_id, lane.now),
+            lambda: stages_retrieve.retrieve(query, lane.chunks, lane.embed, lane.rerank, lane.seed["people"], lane.new_id, lane.now, lane.commons),
             lambda error: isinstance(error, stages_retrieve.ContextUnavailable), attempts=2, base_delay=0.2,
         )
     except stages_retrieve.ContextUnavailable:
