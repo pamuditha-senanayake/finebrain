@@ -3,6 +3,7 @@
 # Used by: lists.py (GET facts, GET librarian), tests. Uses: ui_models_graph.py (UiModel), stages_librarian.py, studio_changes.py (ChangeRecord).
 from app.api import ui_models_graph as g
 from app.api.studio_changes import ChangeRecord
+from app.pipeline.field_dictionary import core_of
 from app.pipeline.stages_librarian import FACT_NODE, ITEM_KIND
 
 
@@ -33,6 +34,8 @@ class Fact(g.UiModel):
     status: str
     sensitivity: str
     dependents: list[FactDependent]
+    core: dict | None = None  # step 13d: who, what, when, amount, outcome (field_dictionary.py)
+    extra: dict | None = None
 
 
 class LibrarianItem(g.UiModel):
@@ -70,7 +73,7 @@ def fact_view(lane, fact: dict) -> dict:
     return Fact(id=fact["item_id"], tenant_id=lane.seed["tenant_id"], cluster_id=lane.seed["cluster_id"], statement=fact["text"], subject=subject_label(lane, fact),
                 value=value.get("raw") or value.get("normalized") or "", valid_from=str(fact.get("valid_from") or fact["recorded_at"]), valid_to=fact.get("valid_to"),
                 recorded_at=str(fact["recorded_at"]), evidence=evidence_of(fact), verified_by=fact.get("verified_by"), status=fact.get("status", "verified"),
-                sensitivity=fact["sensitivity"], dependents=[]).ui()
+                sensitivity=fact["sensitivity"], dependents=[], **core_of(fact, subject_label(lane, fact))).ui()
 
 
 def facts_view(lane) -> list[dict]:

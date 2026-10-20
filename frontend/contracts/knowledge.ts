@@ -99,6 +99,9 @@ export const Fact = z.object({
   status: z.enum(["verified", "unverified", "stale", "conflicted", "superseded"]),
   sensitivity: Sensitivity,
   dependents: z.array(z.object({ type: z.string(), id: z.string(), label: z.string() })),
+  /** The core field dictionary (step 13d): every fact read into the same five fields; a value that fits none is a named extra. */
+  core: z.object({ who: z.string().nullable(), what: z.string().nullable(), when: z.string().nullable(), amount: z.string().nullable(), outcome: z.string().nullable() }).nullable().optional(),
+  extra: z.record(z.string(), z.string()).nullable().optional(),
 });
 export type Fact = z.infer<typeof Fact>;
 

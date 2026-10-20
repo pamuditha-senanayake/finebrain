@@ -38,7 +38,7 @@ CREATE INDEX IF NOT EXISTS chunks_scope_keys ON chunks USING gin (scope_keys);
 """
 TIME_FILTER = """kind = ANY(%(kinds)s)
     AND (valid_from IS NULL OR valid_from <= %(valid)s) AND (valid_to IS NULL OR valid_to > %(valid)s)
-    AND recorded_at <= %(recorded)s"""
+    AND recorded_at <= %(recorded)s AND duplicate_of IS NULL"""  # a duplicate's words are answered by the one kept (step 13d)
 # Inside the scope's domains (or general, or untagged), and about its entities (or about no entity at all). The entity part is
 # one test on scope_keys (a chunk's entities, or the tenant's general key), so its GIN index finds the slice without a full scan
 DOMAIN_FILTER = "(domain IS NULL OR domain = %(general)s OR domain = ANY(%(domains)s::text[]))"

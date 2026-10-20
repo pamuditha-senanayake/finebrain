@@ -49,6 +49,7 @@ function FactDetail({ fact }: { fact: Fact }) {
   return (
     <div className="space-y-5 text-[15px]">
       <p className="font-medium">{fact.statement}</p>
+      <CoreLine fact={fact} />
       <KeyValue
         items={[
           ["Value", fact.value],
@@ -78,4 +79,11 @@ function FactDetail({ fact }: { fact: Fact }) {
       )}
     </div>
   );
+}
+
+/** The core fields, one quiet line: who, what, when, amount and outcome, only those the fact states. */
+function CoreLine({ fact }: { fact: Fact }) {
+  const shown = fact.core ? [fact.core.who, fact.core.what, fact.core.when, fact.core.amount, fact.core.outcome].filter(Boolean) : [];
+  if (!shown.length) return null;
+  return <p className="text-[14px] text-muted-foreground" aria-label="Core fields">{shown.join(" · ")}</p>;
 }

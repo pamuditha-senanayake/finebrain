@@ -83,7 +83,7 @@ def index_chunks(lane, record: DocumentRecord, text: str, sensitivity: str, doma
     """Chunk the masked text, tag each chunk, and put it in the graph and the search index."""
     is_customer = item_tags.customer_check(lane.entities)
     items = [item_tags.tagged({
-        "item_id": f"{record.document_id}_c{i}", "kind": "chunk", "text": f"{record.title}: {part}",
+        "item_id": f"{record.document_id}_c{i}", "kind": "chunk", "text": f"{record.title}: {part}", "title": record.title,  # the title, so duplicates compare the passage alone
         "source": {"document_id": record.document_id, "uri": record.original_uri, "span": f"chunk:{i}"},
         "valid_from": record.uploaded_at.isoformat(), "valid_to": None, "recorded_at": lane.now.isoformat(), "verified_by": None,
         "version_ref": None, "score": 0.0, "sensitivity": sensitivity,

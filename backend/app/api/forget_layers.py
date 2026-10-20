@@ -1,9 +1,10 @@
-# forget_layers.py: step 10, the knowledge layers: search index, graph, S3 files, the cold archive (13c) and summaries (13d). Each registers
-# a handler with pipeline/forget.py. Used by: forget_review.py (imports this file to register). Uses: forget.py, stages_version.py, stages_cold.py, stages_summary.py.
+# forget_layers.py: step 10, the knowledge layers: search index, graph, S3 files, the cold archive (13c), summaries and
+# duplicates (13d). Each registers a handler with pipeline/forget.py. Used by: forget_review.py (imports this file to register).
+# Uses: forget.py, stages_version.py, stages_cold.py, stages_summary.py, stages_dupes.py.
 # The record, intake, conversation and vault layers are in forget_layers_data.py.
 import re
 
-from app.pipeline import stages_cold, stages_summary, stages_version
+from app.pipeline import stages_cold, stages_dupes, stages_summary, stages_version
 from app.pipeline.contracts_graph import CommitAuthor
 from app.pipeline.forget import ForgetItem, register
 from app.pipeline.stages_version import Draft
@@ -118,5 +119,23 @@ class SummaryLayer:
         return not lane.chunks.summaries_citing(item.chunk_ids)
 
 
-for layer in (IndexLayer(), GraphLayer(), FilesLayer(), ColdLayer(), SummaryLayer()):
+class DuplicateLayer:
+    """Duplicate merging (step 13d): chunks that pointed to the document's chunks as the one kept answer again."""
+    name, stores, final = "Duplicates", ("chunks",), False
+
+    def reopen(self, lane, item: ForgetItem) -> tuple[str, str]:
+        reopened = stages_dupes.reopen(lane, item.chunk_ids)
+        return ("cleared", f"{len(reopened)} answer again") if reopened else ("nothing", "")
+
+    def retire(self, lane, item: ForgetItem) -> tuple[str, str]:
+        return self.reopen(lane, item)
+
+    def erase(self, lane, item: ForgetItem) -> tuple[str, str]:
+        return self.reopen(lane, item)
+
+    def verify(self, lane, item: ForgetItem, mode: str) -> bool:
+        return not lane.chunks.duplicates_of(item.chunk_ids)
+
+
+for layer in (IndexLayer(), GraphLayer(), FilesLayer(), ColdLayer(), SummaryLayer(), DuplicateLayer()):
     register(layer)

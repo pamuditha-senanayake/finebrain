@@ -1,22 +1,15 @@
 # store_chunks.py: knowledge chunks for S5: an embedding and a full-text index per chunk, with valid and recorded times,
-# since step 13a a domain and entity tags, and since 13c a value and a tier. MemoryChunks, the twin of PostgresChunks (store_chunks_pg.py), and the
-# seed loader. Used by: adapters.py, stages_retrieve.py, store_chunks_pg.py, tests. Uses: observe.py.
+# since step 13a a domain and entity tags, and since 13c a value and a tier. MemoryChunks, the twin of PostgresChunks
+# (store_chunks_pg.py), and the seed loader. Used by: adapters.py, stages_retrieve.py, store_chunks_pg.py, tests. Uses: observe.py, store_chunks_memory.py (step 13).
 # Ranking, access and the token budget are S5's job; this file only finds candidates.
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from app.pipeline.observe import log_event
+from app.pipeline.store_chunks_memory import WARM, MemoryTierColumns, searched_tiers
 
 # Config
 GENERAL = "general"  # a domain every scope may read
-WARM = "warm"  # where a new item starts; the nightly mover places it (stages_tiers.py)
-NOW_TIERS, ALL_TIERS = ("hot", "warm"), ("hot", "warm", "cold")
-HISTORY_GAP = timedelta(days=1)  # an "as of" further back than this is a question about history, which may read cold
-
-
-def searched_tiers(valid, recorded) -> tuple[str, ...]:
-    """What is true now lives in hot and warm; only a question about the past also reads cold."""
-    return ALL_TIERS if valid < recorded - HISTORY_GAP else NOW_TIERS
 
 
 def search_words(text: str) -> list[str]:
@@ -38,7 +31,7 @@ def in_scope(item: dict, scope: dict | None) -> bool:
     return domain_ok and (not scope["entity_ids"] or not tags or bool(set(tags) & set(scope["entity_ids"])))
 
 
-class MemoryChunks:
+class MemoryChunks(MemoryTierColumns):
     """The in-memory twin of PostgresChunks."""
 
     def __init__(self):
@@ -75,41 +68,10 @@ class MemoryChunks:
     def untagged(self) -> list[dict]:
         return sorted((item for item, _ in self.items.values() if item.get("domain") is None), key=lambda item: item["item_id"])
 
-    def value_rows(self) -> list[dict]:
-        """What scoring needs about every chunk (step 13c)."""
-        return sorted(({**item, "value": item.get("value"), "tier": item.get("tier", WARM), "has_vector": vector is not None} for item, vector in self.items.values()),
-                      key=lambda item: item["item_id"])
-
-    def set_values(self, values: dict[str, float], at: datetime) -> None:
-        self.set_field("value", values)
-
-    def set_tiers(self, tiers: dict[str, str]) -> None:
-        self.set_field("tier", tiers)
-
-    def full(self, item_id: str) -> tuple[dict, list[float] | None] | None:
-        """The item and its vector (None once it is cold), for the cold archive."""
-        return self.items.get(item_id)
-
-    def set_vector(self, item_id: str, vector: list[float] | None) -> None:
-        """Drop a cold item's vector, or give it back when it moves up."""
-        if item_id in self.items:
-            self.items[item_id] = (self.items[item_id][0], vector)
-
-    def summaries_citing(self, item_ids: list[str]) -> list[str]:
-        """Summaries (step 13d) that list any of these items among their sources."""
-        wanted = set(item_ids)
-        return sorted(item_id for item_id, (item, _) in self.items.items() if wanted & set((item.get("summary") or {}).get("sources", [])))
-
-    def set_field(self, field: str, by_item: dict) -> None:
-        for item_id, value in by_item.items():
-            if item_id in self.items:
-                item, vector = self.items[item_id]
-                self.items[item_id] = ({**item, field: value}, vector)
-
     def live(self, kinds: list[str], valid, recorded, scope: dict | None) -> list[tuple[dict, list[float]]]:
         tiers = searched_tiers(valid, recorded)
         return [(item, vector) for item, vector in self.items.values()
-                if item["kind"] in kinds and item.get("tier", WARM) in tiers and true_at(item, valid, recorded) and in_scope(item, scope)]
+                if item["kind"] in kinds and item.get("tier", WARM) in tiers and not item.get("duplicate_of") and true_at(item, valid, recorded) and in_scope(item, scope)]
 
     def by_vector(self, embedding: list[float], kinds: list[str], valid, recorded, limit: int, scope: dict | None = None) -> list[dict]:
         """Nearest by cosine similarity (the vectors are already unit length), inside the scope. Hot items come first."""
