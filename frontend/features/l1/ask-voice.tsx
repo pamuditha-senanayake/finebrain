@@ -171,6 +171,8 @@ export function AskVoice() {
     const page = findPage(q, user);
     if (page) return void router.push(page.href);
     setHeard(q);
+    // A new question clears any old "could not hear" note; a failed answer sets its own below.
+    setNote("");
     setVoice("thinking");
     try {
       // A short pause keeps "thinking" visible, so the reply does not feel like it skipped a step.
