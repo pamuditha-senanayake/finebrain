@@ -66,7 +66,7 @@ def test_sample_history_fills_the_weeks_before_and_never_hides_a_real_count():
 
 @NEEDS_POSTGRES
 def test_postgres_gives_the_same_answers_as_memory():
-    stores = [MemoryCounts(), PostgresCounts(store_postgres.connect(), f"t_counts_{uuid.uuid4().hex[:8]}")]
+    stores = [MemoryCounts(), PostgresCounts(store_postgres.connect(), f"test_counts_{uuid.uuid4().hex[:8]}")]
     for store in stores:
         assert store.add(*REQUESTS, WEEK, "run_a") and store.add(*REQUESTS, WEEK, "run_b")
         assert not store.add(*REQUESTS, WEEK, "run_a")
