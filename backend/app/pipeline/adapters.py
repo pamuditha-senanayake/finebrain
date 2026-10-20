@@ -14,6 +14,7 @@ from app.pipeline.store_chunks import MemoryChunks, load_chunks
 from app.pipeline.store_chunks_pg import PostgresChunks
 from app.pipeline.store_counts import MemoryCounts, PostgresCounts
 from app.pipeline.store_entities import MemoryEntities, PostgresEntities
+from app.pipeline.store_uses import MemoryUses, PostgresUses
 from app.pipeline.store_graph import MemoryGraph, PostgresGraph, load_seed
 from app.pipeline.store_memory import MemoryRecords
 from app.pipeline.tool_runners import MemoryRateLimiter, MemoryResults, ValkeyRateLimiter, ValkeyResults
@@ -58,6 +59,7 @@ def make_memory_adapters(seed: dict, now, new_id) -> dict:
         "broadcaster": Broadcaster(),
         "entities": MemoryEntities(),
         "counts": MemoryCounts(),
+        "uses": MemoryUses(),
     }
     load_chunks(adapters["chunks"], adapters["graph"], adapters["embed"], item_tags.tagger(seed, adapters["entities"]))
     return adapters
@@ -94,6 +96,7 @@ def real_adapters(parts: frozenset[str] = ALL_REAL_PARTS, topic_prefix: str = ""
             adapters["audit"] = PostgresAudit(connection, tenant)
             adapters["entities"] = PostgresEntities(connection, tenant)
             adapters["counts"] = PostgresCounts(connection, tenant)
+            adapters["uses"] = PostgresUses(connection, tenant)
         handled = None
         if "valkey" in parts:
             keys = store_valkey.connect()

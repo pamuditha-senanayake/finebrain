@@ -1,12 +1,13 @@
 # store_chunks_pg.py: PostgresChunks, knowledge chunks in Postgres: pgvector for meaning, a tsvector for exact words, and
 # since step 13a the domain and entity tags as columns, so search can narrow before it ranks.
-# Used by: adapters.py, scripts/backfill_tags.py, tests. Uses: store_chunks.py (search_words). The memory twin is in store_chunks.py.
+# Used by: adapters.py, scripts/backfill_tags.py, tests. Uses: store_chunks.py (search_words), store_chunks_tiers.py (value and tier columns). The memory twin is in store_chunks.py.
 import json
 from datetime import datetime
 
 import psycopg
 from psycopg.types.json import Jsonb
 
+from app.pipeline import store_chunks_tiers
 from app.pipeline.store_chunks import GENERAL, search_words
 
 # Config
@@ -56,13 +57,14 @@ def scope_filter(scope: dict | None) -> str:
     return " AND ".join(parts)
 
 
-class PostgresChunks:
+class PostgresChunks(store_chunks_tiers.TierColumns):
     """Chunks in Postgres. A domain of NULL means the chunk was stored before step 13a and still waits for the back-fill."""
 
     def __init__(self, connection: psycopg.Connection, tenant_id: str):
         self.connection = connection
         self.tenant_id = tenant_id
         connection.execute(SCHEMA)
+        connection.execute(store_chunks_tiers.SCHEMA)
 
     def row(self, item: dict, embedding: list[float]) -> tuple:
         return (self.tenant_id, item["item_id"], item["kind"], Jsonb(item), item.get("valid_from"), item.get("valid_to"), item["recorded_at"],

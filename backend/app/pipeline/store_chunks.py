@@ -67,6 +67,16 @@ class MemoryChunks:
     def untagged(self) -> list[dict]:
         return sorted((item for item, _ in self.items.values() if item.get("domain") is None), key=lambda item: item["item_id"])
 
+    def value_rows(self) -> list[dict]:
+        """What scoring needs about every chunk (step 13c)."""
+        return sorted(({**item, "value": item.get("value")} for item, _ in self.items.values()), key=lambda item: item["item_id"])
+
+    def set_values(self, values: dict[str, float], at: datetime) -> None:
+        for item_id, value in values.items():
+            if item_id in self.items:
+                item, vector = self.items[item_id]
+                self.items[item_id] = ({**item, "value": value}, vector)
+
     def live(self, kinds: list[str], valid, recorded, scope: dict | None) -> list[tuple[dict, list[float]]]:
         return [(item, vector) for item, vector in self.items.values() if item["kind"] in kinds and true_at(item, valid, recorded) and in_scope(item, scope)]
 
