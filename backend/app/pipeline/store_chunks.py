@@ -1,14 +1,22 @@
 # store_chunks.py: knowledge chunks for S5: an embedding and a full-text index per chunk, with valid and recorded times,
-# and since step 13a a domain and entity tags. MemoryChunks, the twin of PostgresChunks (store_chunks_pg.py), and the
+# since step 13a a domain and entity tags, and since 13c a value and a tier. MemoryChunks, the twin of PostgresChunks (store_chunks_pg.py), and the
 # seed loader. Used by: adapters.py, stages_retrieve.py, store_chunks_pg.py, tests. Uses: observe.py.
 # Ranking, access and the token budget are S5's job; this file only finds candidates.
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.pipeline.observe import log_event
 
 # Config
 GENERAL = "general"  # a domain every scope may read
+WARM = "warm"  # where a new item starts; the nightly mover places it (stages_tiers.py)
+NOW_TIERS, ALL_TIERS = ("hot", "warm"), ("hot", "warm", "cold")
+HISTORY_GAP = timedelta(days=1)  # an "as of" further back than this is a question about history, which may read cold
+
+
+def searched_tiers(valid, recorded) -> tuple[str, ...]:
+    """What is true now lives in hot and warm; only a question about the past also reads cold."""
+    return ALL_TIERS if valid < recorded - HISTORY_GAP else NOW_TIERS
 
 
 def search_words(text: str) -> list[str]:
@@ -69,29 +77,37 @@ class MemoryChunks:
 
     def value_rows(self) -> list[dict]:
         """What scoring needs about every chunk (step 13c)."""
-        return sorted(({**item, "value": item.get("value")} for item, _ in self.items.values()), key=lambda item: item["item_id"])
+        return sorted(({**item, "value": item.get("value"), "tier": item.get("tier", WARM)} for item, _ in self.items.values()), key=lambda item: item["item_id"])
 
     def set_values(self, values: dict[str, float], at: datetime) -> None:
-        for item_id, value in values.items():
+        self.set_field("value", values)
+
+    def set_tiers(self, tiers: dict[str, str]) -> None:
+        self.set_field("tier", tiers)
+
+    def set_field(self, field: str, by_item: dict) -> None:
+        for item_id, value in by_item.items():
             if item_id in self.items:
                 item, vector = self.items[item_id]
-                self.items[item_id] = ({**item, "value": value}, vector)
+                self.items[item_id] = ({**item, field: value}, vector)
 
     def live(self, kinds: list[str], valid, recorded, scope: dict | None) -> list[tuple[dict, list[float]]]:
-        return [(item, vector) for item, vector in self.items.values() if item["kind"] in kinds and true_at(item, valid, recorded) and in_scope(item, scope)]
+        tiers = searched_tiers(valid, recorded)
+        return [(item, vector) for item, vector in self.items.values()
+                if item["kind"] in kinds and item.get("tier", WARM) in tiers and true_at(item, valid, recorded) and in_scope(item, scope)]
 
     def by_vector(self, embedding: list[float], kinds: list[str], valid, recorded, limit: int, scope: dict | None = None) -> list[dict]:
-        """Nearest by cosine similarity (the vectors are already unit length), inside the scope."""
+        """Nearest by cosine similarity (the vectors are already unit length), inside the scope. Hot items come first."""
         live = self.live(kinds, valid, recorded, scope)
-        ranked = sorted(live, key=lambda pair: -sum(a * b for a, b in zip(embedding, pair[1])))
+        ranked = sorted(live, key=lambda pair: (pair[0].get("tier") != "hot", -sum(a * b for a, b in zip(embedding, pair[1]))))
         return [item for item, _ in ranked[:limit]]
 
     def by_text(self, query: str, kinds: list[str], valid, recorded, limit: int, scope: dict | None = None) -> list[dict]:
-        """Items sharing any query word, most shared words first, inside the scope."""
+        """Items sharing any query word, inside the scope: hot items first, then most shared words first."""
         asked = set(search_words(query))
         live = [item for item, _ in self.live(kinds, valid, recorded, scope)]
         scored = [(len(asked & set(search_words(item["text"]))), item) for item in live]
-        return [item for hits, item in sorted(scored, key=lambda pair: -pair[0]) if hits][:limit]
+        return [item for hits, item in sorted(scored, key=lambda pair: (pair[1].get("tier") != "hot", -pair[0])) if hits][:limit]
 
 
 def load_chunks(chunks, graph, embed, tag=lambda item: item) -> None:

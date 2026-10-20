@@ -8,6 +8,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from app.pipeline import store_chunks_tiers
+from app.pipeline.store_chunks_tiers import TIER_FILTER
 from app.pipeline.store_chunks import GENERAL, search_words
 
 # Config
@@ -119,20 +120,18 @@ class PostgresChunks(store_chunks_tiers.TierColumns):
                 "ids": scope["entity_ids"], "keys": [*scope["entity_ids"], f"{self.tenant_id}:{GENERAL}"], "general": GENERAL}
 
     def by_vector(self, embedding: list[float], kinds: list[str], valid, recorded, limit: int, scope: dict | None = None) -> list[dict]:
-        """Nearest by cosine distance, inside the scope."""
-        rows = self.connection.execute(
-            f"""SELECT body FROM chunks WHERE tenant_id = %(tenant)s AND {TIME_FILTER} AND {scope_filter(scope)}
+        """Nearest by cosine distance, inside the scope, hot first."""
+        return self.hot_first(
+            f"""SELECT body FROM chunks WHERE tenant_id = %(tenant)s AND {TIME_FILTER} AND {TIER_FILTER} AND {scope_filter(scope)}
                 ORDER BY embedding <=> %(vector)s::vector LIMIT %(limit)s""",
             {**self.filters(kinds, valid, recorded, limit, scope), "vector": json.dumps(embedding)},
         )
-        return [row[0] for row in rows]
 
     def by_text(self, query: str, kinds: list[str], valid, recorded, limit: int, scope: dict | None = None) -> list[dict]:
-        """Full-text match on any query word, best rank first, inside the scope."""
+        """Full-text match on any query word, best rank first, inside the scope, hot first."""
         terms = " | ".join(search_words(query)) or "nothing"
-        rows = self.connection.execute(
-            f"""SELECT body FROM chunks, to_tsquery('english', %(terms)s) AS asked
-                WHERE tenant_id = %(tenant)s AND {TIME_FILTER} AND {scope_filter(scope)} AND tsv @@ asked ORDER BY ts_rank(tsv, asked) DESC LIMIT %(limit)s""",
+        return self.hot_first(
+            f"""SELECT body FROM chunks, to_tsquery('english', %(terms)s) AS asked WHERE tenant_id = %(tenant)s AND {TIME_FILTER} AND {TIER_FILTER}
+                AND {scope_filter(scope)} AND tsv @@ asked ORDER BY ts_rank(tsv, asked) DESC LIMIT %(limit)s""",
             {**self.filters(kinds, valid, recorded, limit, scope), "terms": terms},
         )
-        return [row[0] for row in rows]

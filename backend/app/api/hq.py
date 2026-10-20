@@ -12,7 +12,7 @@ from pathlib import Path
 from app.api import grants, nightly, ready_notices, self_knowledge, studio_approvals
 from app.api.studio_seed import extend_seed
 from app.api.routes import create_api_app
-from app.pipeline import fakes, llm, orchestrate, stages_value, temporal_nightly, temporal_ready
+from app.pipeline import fakes, llm, orchestrate, stages_tiers, stages_value, temporal_nightly, temporal_ready
 from app.pipeline.adapters import ALL_REAL_PARTS, make_memory_adapters, missing_infra, real_adapters
 from app.pipeline.observe import log_event
 
@@ -109,7 +109,8 @@ def build_hq_app():
     if lane.runner is not None:  # S15's hourly tick (step 16) and S13's 02:00 review (step 15) on Temporal; without it, Check now and Run now
         temporal_ready.start(lane.runner, lane.seed["tenant_id"], lambda: ready_notices.run_check(lane, "schedule"))
         temporal_nightly.start(lane.runner, lane.seed["tenant_id"], lane.seed["timezone"],  # the Distiller (step 13d) takes the scoring over
-                               lambda: {"date": nightly.review(lane, chatter, lane.resolve, "schedule")["date"], "scored": stages_value.score_all(lane)})
+                               lambda: {"date": nightly.review(lane, chatter, lane.resolve, "schedule")["date"], "scored": stages_value.score_all(lane),
+                                        "moved": stages_tiers.move(lane).moved})
     log_event("API", "hq_started", parts=sorted(parts), claude=choose is not None)
     threading.Thread(target=keep_running, args=(lane,), daemon=True).start()
     return create_api_app(lane, hq, choose_answerer(), chatter)
