@@ -88,3 +88,13 @@ def test_chunks_of_document_retire_and_delete(chunks):
     assert today == {"doc_1_c2", "other_c1"} and before == {"doc_1_c1", "doc_1_c2", "other_c1"}
     chunks.delete("doc_1_c2")
     assert [c["item_id"] for c in chunks.of_document("doc_1")] == ["doc_1_c1"]
+
+
+def test_a_retired_chunk_can_answer_again(chunks):
+    """A replaced version is current again once its newer version is removed (filing.reopen_replaced)."""
+    chunks.add(chunk("doc_1_c1", "refund window thirty days"), vector(1.0))
+    chunks.retire("doc_1_c1", NOW)
+    chunks.retire("doc_1_c1", None)
+    later = NOW + timedelta(days=1)
+    found = chunks.by_text("refund", ["chunk"], later, later, 10)
+    assert [c["item_id"] for c in found] == ["doc_1_c1"] and found[0]["valid_to"] is None and found[0]["text"] == "refund window thirty days"

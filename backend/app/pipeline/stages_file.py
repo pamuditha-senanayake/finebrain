@@ -97,7 +97,7 @@ def index_chunks(lane, record: DocumentRecord, text: str, sensitivity: str, doma
 
 
 def file_document(lane, signal: Signal) -> None:
-    """S11: file the document by its rule and chain, index its text, then mark it done and the version it replaces as replaced."""
+    """S11: file the document by its rule and chain, index its text, then mark it done and the version it replaces as replaced, its chunks ended."""
     if signal.kind != "document_arrived":
         return
     document_id = signal.dedup_key.rsplit(":", 1)[-1]
@@ -117,6 +117,7 @@ def file_document(lane, signal: Signal) -> None:
     if replaces:
         older = DocumentRecord.model_validate(lane.records.load("document", replaces))
         lane.records.save("document", replaces, older.model_copy(update={"superseded_by": document_id}))
+        filing.retire_replaced(lane, replaces, record.uploaded_at)  # only the current version answers "now"
     lane.bus.publish("docs.extracted", "doc.extracted", filing.DocExtracted(document_id=document_id, chunk_count=len(items), characters=len(signal.text_masked or "")), "ingest")
     count("s11.filed")
     log_event("S11", "filed", document_id=document_id, chunks=len(items), domain=placed["domain"], rule=placed["filing_rule"], version=placed["version"])

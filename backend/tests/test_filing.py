@@ -1,9 +1,13 @@
 # test_filing.py: step 14 slice 1, S11 filing. Rules give a document its type, a sensitivity that is never lowered, and its
-# retention; a new version of a document joins its chain and replaces the current one; docs.filed and docs.extracted announce it.
+# retention; a new version of a document joins its chain and replaces the current one, whose chunks stop answering "now" (an
+# "as of" search still finds them); docs.filed and docs.extracted announce it.
 # Uses: app/pipeline/filing.py, stages_file.py, api/documents.py, lists.py, tests/test_documents.py and test_forget.py (helpers).
+from datetime import timedelta
+
 import pytest
 
 from app.pipeline import filing
+from tests.golden import NOW
 from tests.test_documents import FOUNDER, SEED, TENANT, build, upload
 from tests.test_forget import remove
 
@@ -79,6 +83,39 @@ def test_removing_the_newer_version_makes_the_older_current_again():
     remove(client, second["id"], "erase")
     assert shown(client, first["id"])["replacedBy"] is None
     assert filed(client, lane, "Refund policy v5.md", POLICY)["version"] == 2  # numbering follows the versions still filed
+
+
+def found_now(lane, when=None) -> set[str]:
+    """Which documents a search for the refund window finds, as of `when` (default: now)."""
+    when = when or lane.now
+    return {chunk["source"]["document_id"] for chunk in lane.chunks.by_text("refund days", ["chunk"], when, lane.now, 10)}
+
+
+def two_versions():
+    """Refund policy v1, then a day later v2. Returns the client, lane and both documents."""
+    client, lane = build()
+    first = filed(client, lane, "Refund policy v1.md", POLICY)
+    lane.now = lane.bus.now = NOW + timedelta(days=1)
+    return client, lane, first, filed(client, lane, "Refund policy v2.md", POLICY.replace(b"30", b"45"))
+
+
+def test_a_replaced_version_stops_answering_now_but_history_finds_it():
+    _, lane, first, second = two_versions()
+    assert found_now(lane) == {second["id"]}
+    assert found_now(lane, NOW + timedelta(hours=1)) == {first["id"]}  # as of before v2, v1 was the policy
+
+
+def test_removing_the_newer_version_makes_the_older_answer_again():
+    client, lane, first, second = two_versions()
+    remove(client, second["id"], "retire")
+    assert found_now(lane) == {first["id"]}
+
+
+def test_start_up_ends_versions_replaced_before_the_rule():
+    _, lane, first, second = two_versions()
+    for chunk in lane.chunks.of_document(first["id"]):  # as filed before this rule: still live
+        lane.chunks.retire(chunk["item_id"], None)
+    assert filing.retire_all_replaced(lane) == 1 and filing.retire_all_replaced(lane) == 0 and found_now(lane) == {second["id"]}
 
 
 # --- Events

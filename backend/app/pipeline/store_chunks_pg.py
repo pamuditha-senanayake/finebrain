@@ -104,11 +104,11 @@ class PostgresChunks(store_chunks_tiers.TierColumns):
             "SELECT body FROM chunks WHERE tenant_id = %s AND body->'source'->>'document_id' = %s ORDER BY item_id", (self.tenant_id, document_id))
         return [row[0] for row in rows]
 
-    def retire(self, item_id: str, when: datetime) -> None:
-        """No longer true from `when`: an as-of search before then still finds it."""
+    def retire(self, item_id: str, when: datetime | None) -> None:
+        """No longer true from `when`: an as-of search before then still finds it. None makes it true again (a JSON null, never a lost body)."""
         self.connection.execute(
-            "UPDATE chunks SET valid_to = %s, body = jsonb_set(body, '{valid_to}', to_jsonb(%s::text)) WHERE tenant_id = %s AND item_id = %s",
-            (when, when.isoformat(), self.tenant_id, item_id))
+            "UPDATE chunks SET valid_to = %s, body = jsonb_set(body, '{valid_to}', COALESCE(to_jsonb(%s::text), 'null'::jsonb)) WHERE tenant_id = %s AND item_id = %s",
+            (when, when.isoformat() if when else None, self.tenant_id, item_id))
 
     def delete(self, item_id: str) -> None:
         self.connection.execute("DELETE FROM chunks WHERE tenant_id = %s AND item_id = %s", (self.tenant_id, item_id))

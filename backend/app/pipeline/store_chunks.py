@@ -58,11 +58,11 @@ class MemoryChunks:
         """Every chunk filed from one document, live or retired, ordered by id."""
         return sorted((item for item, _ in self.items.values() if item.get("source", {}).get("document_id") == document_id), key=lambda item: item["item_id"])
 
-    def retire(self, item_id: str, when: datetime) -> None:
-        """No longer true from `when`: an as-of search before then still finds it."""
+    def retire(self, item_id: str, when: datetime | None) -> None:
+        """No longer true from `when`: an as-of search before then still finds it. None makes it true again."""
         if item_id in self.items:
             item, vector = self.items[item_id]
-            self.items[item_id] = ({**item, "valid_to": when.isoformat()}, vector)
+            self.items[item_id] = ({**item, "valid_to": when.isoformat() if when else None}, vector)
 
     def delete(self, item_id: str) -> None:
         self.items.pop(item_id, None)

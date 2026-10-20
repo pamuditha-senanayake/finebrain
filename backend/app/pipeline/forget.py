@@ -1,6 +1,6 @@
 # forget.py: step 10, forgetting. Every layer that holds knowledge registers a handler (retire, erase, verify); the job
 # runs them all, checks that nothing is left, and returns a receipt. Used by: api/forget_review.py, tests/test_forget.py.
-# Uses: observe.py. The layers themselves live in api/forget_layers.py and api/forget_layers_data.py.
+# Uses: observe.py, filing.py. The layers themselves live in api/forget_layers.py and api/forget_layers_data.py.
 # Retire: no longer true, so today's search stops finding it and an "as of" search still does.
 # Erase: gone from every layer. Only a tombstone stays: who, when and why, never the content.
 from dataclasses import dataclass, field, fields
@@ -9,6 +9,7 @@ from typing import Protocol
 
 from pydantic import BaseModel
 
+from app.pipeline import filing
 from app.pipeline.lane import Lane
 from app.pipeline.observe import count, log_event
 
@@ -97,6 +98,7 @@ def run(lane: Lane, document_id: str, mode: str, by: str, reason: str) -> dict:
     if not failed:
         if mode == "erase":
             lane.records.save("tombstone", document_id, Tombstone(document_id=document_id, erased_by=by, erased_at=lane.now, reason=reason, layers=[s["layer"] for s in steps]))
+        filing.reopen_replaced(lane, document_id)  # the version this one replaced answers "now" again
         lane.audit.append(f"forget:{document_id}:{mode}", "forget.completed", {"document_id": document_id, "mode": mode, "by": by, "at": lane.now.isoformat(), "reason": reason})
     count(f"forget.{mode}")
     log_event("FORGET", mode, document_id=document_id, verified=not failed)

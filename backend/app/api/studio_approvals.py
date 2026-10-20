@@ -1,9 +1,10 @@
 # studio_approvals.py: Studio changes that need a person. The change waits as a draft commit on its own branch with an
 # S8 approval (K8). Decisions follow S8's rules (who may approve, nobody approves their own change, C4 needs two
 # leaders and a cooling period); an approval merges it through S14, unless a node moved on (a conflict).
-# Used by: studio_apply.py, routes.py, hq.py (sweep). Uses: studio_changes.py, studio_checks.py, stages_decide.py, stages_version.py.
+# Used by: studio_apply.py, routes.py, hq.py (sweep), policy_follow_up.py. Uses: studio_changes.py, studio_checks.py, policy_follow_up.py, stages_decide.py, stages_version.py.
 from datetime import timedelta
 
+from app.api import policy_follow_up
 from app.api.studio_checks import checks
 from app.api.studio_changes import CR_KIND, ChangeRecord, commit_change, drafts_of, notify
 from app.api.studio_state import Studio
@@ -101,7 +102,8 @@ def merge(lane, record: ChangeRecord) -> ChangeRecord:
         log_event("S14", "merge_conflict", cr_id=record.cr_id, nodes=str(error))
         return record.model_copy(update={"status": "conflict"})
     stages_version.move_head(lane, record.branch, record.commit_id, "merged", record.drafter)
-    return record.model_copy(update={"status": "merged", "merged_at": lane.now})
+    merged = record.model_copy(update={"status": "merged", "merged_at": lane.now})
+    return merged.model_copy(update={"follow_ups": policy_follow_up.flag(lane, merged)}) if record.kind == "fact" else merged  # policies stating the old value
 
 
 def sweep(lane) -> None:

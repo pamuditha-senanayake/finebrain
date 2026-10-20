@@ -39,6 +39,7 @@ class ChangeRecord(BaseModel):
     note: str = ""
     before: dict | None = None  # the target as it was drafted against, and as it will be
     after: dict | None = None
+    follow_ups: list[str] | None = None  # a merged fact change: the policy changes drafted after it; None until checked (policy_follow_up.py)
 
 
 class RevisionRecord(BaseModel):

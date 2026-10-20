@@ -1,8 +1,10 @@
 # filing.py: step 14, S11 filing (B02, B03). Filing rules pick a document's type (its Library folder), how sensitive it is
 # at least, and how long it is kept. Version chains: a document whose title differs only by a version, date or "final"
-# joins the chain of the earlier one; the newest is current and the one before it is marked replaced.
-# Used by: stages_file.py (S11), documents.py (Library view), lists.py (GET filing-rules). Uses: nothing local.
+# joins the chain of the earlier one; the newest is current and the one before it is marked replaced, and its chunks stop
+# answering "now" questions (their valid time ends; "as of" history still finds them).
+# Used by: stages_file.py (S11), documents.py (Library view), lists.py (GET filing-rules), forget.py, vault_routes.py (start-up repair). Uses: nothing local.
 import re
+from datetime import datetime
 
 from pydantic import BaseModel
 
@@ -74,3 +76,32 @@ def replaced_by(records, record: dict) -> str | None:
     newer = record.get("superseded_by")
     later = records.load("document", newer) if newer else None
     return newer if later and later["status"] in CURRENT else None
+
+
+# --- Replaced versions stop answering "now"
+
+def retire_replaced(lane, document_id: str, when: datetime) -> int:
+    """The replaced version's chunks end where the new version starts. Returns how many ended; ended ones are skipped."""
+    live = [chunk["item_id"] for chunk in lane.chunks.of_document(document_id) if not chunk.get("valid_to")]
+    for chunk_id in live:
+        lane.chunks.retire(chunk_id, when)
+    return len(live)
+
+
+def reopen_replaced(lane, document_id: str) -> None:
+    """The newer version was removed, so the version it replaced is current again, and so are its chunks."""
+    for older in lane.records.list_kind("document"):
+        if older.get("superseded_by") == document_id and older["status"] in CURRENT:
+            for chunk in lane.chunks.of_document(older["document_id"]):
+                lane.chunks.retire(chunk["item_id"], None)
+
+
+def retire_all_replaced(lane) -> int:
+    """Start-up repair: versions replaced before this rule kept answering "now". Safe to repeat."""
+    ended = 0
+    for older in lane.records.list_kind("document"):
+        newer = replaced_by(lane.records, older)
+        if newer:
+            started = str(lane.records.load("document", newer)["uploaded_at"]).replace("Z", "+00:00")  # Python 3.10 cannot read a Z
+            ended += retire_replaced(lane, older["document_id"], datetime.fromisoformat(started))
+    return ended

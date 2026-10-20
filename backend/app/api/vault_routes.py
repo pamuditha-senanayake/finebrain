@@ -1,10 +1,13 @@
 # vault_routes.py: step 14, the librarian's answers from the console: Accept (the candidate becomes a verified fact on main),
 # Reject, and, for a conflict, Propose (slice 4: a change request when the new claim wins). A steward (L2) or a leader (L1) may
-# answer; Accept on a conflict is refused (409). Used by: routes.py (registers before the general ops route). Uses: fact_commit.py, fact_conflicts.py.
+# answer; Accept on a conflict is refused (409). On start it repairs what came before: replaced versions stop answering "now", and
+# merged fact changes flag the policies that state the old value. Used by: routes.py (registers before the general ops route).
+# Uses: fact_commit.py, fact_conflicts.py, filing.py, policy_follow_up.py.
 from fastapi import FastAPI, Header, HTTPException, Request
 
-from app.api import fact_conflicts
-from app.pipeline import fact_commit
+from app.api import fact_conflicts, policy_follow_up
+from app.pipeline import fact_commit, filing
+from app.pipeline.observe import log_event
 
 # Config
 MAY_SETTLE = {"L1", "L2"}  # decision 2 of the step 14 plan: a new fact is C2
@@ -12,6 +15,9 @@ MAY_SETTLE = {"L1", "L2"}  # decision 2 of the step 14 plan: a new fact is C2
 
 def register(app: FastAPI, lane, check) -> None:
     """POST ops/librarianAccept, ops/librarianPropose and ops/librarianReject, with {itemId}. Must be added before the general ops route."""
+    # Start-up repairs; both are safe to repeat
+    ended, drafted = filing.retire_all_replaced(lane), policy_follow_up.follow_up_merged(lane)
+    log_event("S11", "versions_repaired", chunks_ended=ended, policy_changes_drafted=drafted)
 
     def settle(tenant: str, request_body: dict, persona: str, action) -> dict:
         check(tenant, persona)
