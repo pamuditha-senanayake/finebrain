@@ -1,6 +1,6 @@
 "use client";
 
-import { History, Keyboard, Mic, Plus, Send, Square, Volume2, VolumeX } from "lucide-react";
+import { History, Keyboard, Mic, Plus, Send, Square, Volume2, VolumeX, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
@@ -319,9 +319,24 @@ export function AskVoice() {
         <AskChat turns={chat} className={cn("min-h-0 basis-0", stage !== "small" && "pointer-events-none")} style={{ flexGrow: stage === "small" ? 1 : 0, opacity: stage === "small" ? 1 : 0, transition: MOVE }} />
         <div className="basis-0" style={{ flexGrow: stage === "small" ? 0 : 1, transition: MOVE }} />
         <div className="flex shrink-0 flex-col items-center px-6 pb-4 text-center">
-          <button type="button" onClick={tapOrb} disabled={voice === "thinking"} className="rounded-full outline-none focus-visible:ring-4 focus-visible:ring-ring/40" aria-label={voice === "listening" ? "Stop listening" : "Talk to the Brain"}>
-            <VoiceOrb state={voice} level={level} size={orb.size} drawSize={orb.drawSize} />
-          </button>
+          <div className="relative">
+            <button type="button" onClick={tapOrb} disabled={voice === "thinking"} className="rounded-full outline-none focus-visible:ring-4 focus-visible:ring-ring/40" aria-label={voice === "listening" ? "Stop listening" : "Talk to the Brain"}>
+              <VoiceOrb state={voice} level={level} size={orb.size} drawSize={orb.drawSize} />
+            </button>
+            {/* In the chat look, a small keyboard just right of the orb's edge opens a text field, for asking without voice. */}
+            {stage === "small" && !typing && (
+              <Button variant="ghost" size="icon-sm" className="absolute top-1/2 -translate-y-1/2 rounded-full text-muted-foreground animate-in fade-in" style={{ left: `calc(50% + ${orb.size * 0.5}px)` }} onClick={() => setTyping(true)} aria-label="Type instead">
+                <Keyboard />
+              </Button>
+            )}
+          </div>
+          {stage === "small" && typing && (
+            <form style={{ marginTop: -orb.size * 0.1 }} className="flex w-full max-w-md items-center gap-1 rounded-full border bg-surface p-1.5 pl-5 animate-in fade-in slide-in-from-bottom-1" onSubmit={(e) => { e.preventDefault(); submitText(); }}>
+              <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") setTyping(false); }} placeholder="Ask anything" aria-label="Question" autoFocus className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground" />
+              <Button type="submit" size="icon-sm" className="rounded-full" disabled={!text.trim() || voice === "thinking"} aria-label="Ask"><Send /></Button>
+              <Button type="button" size="icon-sm" variant="ghost" className="rounded-full text-muted-foreground" onClick={() => setTyping(false)} aria-label="Close typing"><X /></Button>
+            </form>
+          )}
           {stage !== "small" && (
             <p style={{ marginTop: -orb.size * 0.1, transition: GLIDE }} className={cn("text-sm font-medium uppercase tracking-[0.18em]", voice === "idle" ? "text-muted-foreground" : "text-primary")} role="status">
               {supported || voice !== "idle" ? LABEL[voice] : "Type to ask"}
