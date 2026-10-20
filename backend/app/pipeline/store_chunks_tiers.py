@@ -5,7 +5,7 @@
 import json
 from datetime import datetime
 
-from app.pipeline.store_chunks_memory import SUMMARY_PREFIX, searched_tiers
+from app.pipeline.store_chunks_memory import ALL_TIERS, SUMMARY_PREFIX, searched_tiers
 
 # Config
 SCHEMA = """
@@ -21,8 +21,18 @@ ALTER TABLE chunks ADD COLUMN IF NOT EXISTS passage_print text GENERATED ALWAYS 
     CASE WHEN body ? 'title' AND starts_with(body->>'text', (body->>'title') || ': ') THEN substr(body->>'text', length(body->>'title') + 3) ELSE body->>'text' END,
     '[^a-zA-Z0-9]+', ' ', 'g'))))) STORED;
 CREATE INDEX IF NOT EXISTS chunks_passage_print ON chunks (tenant_id, passage_print);
+CREATE INDEX IF NOT EXISTS chunks_live_tsv ON chunks USING gin (tsv) WHERE tier IN ('hot', 'warm');
+CREATE INDEX IF NOT EXISTS chunks_live_scope ON chunks USING gin (scope_keys) WHERE tier IN ('hot', 'warm');
 """
-TIER_FILTER = "tier = ANY(%(tiers)s::text[])"
+# Each search names its tiers as fixed text (never a parameter), so Postgres can see that a question about today reads only
+# live rows and use the live-only indexes above: today's cost then stays the same however much is cold.
+TIER_FILTER = "tier IN (__TIERS__)"
+
+
+def with_tiers(sql: str, tiers: list[str]) -> str:
+    """The search with its tiers written in. They come from ALL_TIERS only, so nothing from outside reaches the SQL."""
+    assert set(tiers) <= set(ALL_TIERS)
+    return sql.replace("__TIERS__", ", ".join(f"'{tier}'" for tier in tiers))
 
 
 class TierColumns:
@@ -51,9 +61,10 @@ class TierColumns:
     def hot_first(self, sql: str, params: dict) -> list[dict]:
         """Run one search on the hot tier (its own small index), then on the other tiers it may read for what is still missing."""
         others = [tier for tier in searched_tiers(params["valid"], params["recorded"]) if tier != "hot"]
-        found = [row[0] for row in self.connection.execute(sql, {**params, "tiers": ["hot"]})]
+        # Never prepared: a prepared statement's generic plan cannot see which tiers and scope apply, and scans every row
+        found = [row[0] for row in self.connection.execute(with_tiers(sql, ["hot"]), params, prepare=False)]
         if len(found) < params["limit"]:
-            found += [row[0] for row in self.connection.execute(sql, {**params, "tiers": others, "limit": params["limit"] - len(found)})]
+            found += [row[0] for row in self.connection.execute(with_tiers(sql, others), {**params, "limit": params["limit"] - len(found)}, prepare=False)]
         return found
 
     def full(self, item_id: str) -> tuple[dict, list[float] | None] | None:
