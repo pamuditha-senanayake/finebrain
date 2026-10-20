@@ -41,7 +41,7 @@ export function AskBubble({ items, voice, note, suggestions, onSend, onMic, onCl
   }
 
   return (
-    <div role="dialog" aria-label="Ask the Brain" data-ask-ignore className="fixed bottom-4 right-4 isolate z-40 flex max-h-[calc(100dvh-6rem)] w-[min(460px,calc(100vw-2rem))] flex-col gap-3 duration-200 animate-in fade-in slide-in-from-bottom-2 sm:bottom-6 sm:right-6">
+    <div role="dialog" aria-label="Ask the Brain" data-ask-ignore className="fixed bottom-4 right-4 isolate z-40 flex max-h-[calc(100dvh-6rem)] w-[min(345px,calc(100vw-2rem))] flex-col gap-3 duration-200 animate-in fade-in slide-in-from-bottom-2 sm:bottom-6 sm:right-6">
       {/* Blurs the page behind the chat out to the screen's right edge, fading only on the other sides, so no box shows. */}
       <div aria-hidden className="pointer-events-none absolute -bottom-6 -left-14 -right-6 -top-4 -z-10 bg-background/30 backdrop-blur-md" style={BLUR_EDGES} />
       <div ref={feed} className="scrollbar-thin flex min-h-0 flex-col gap-3 overflow-y-auto pr-1" aria-live="polite">
