@@ -124,7 +124,7 @@ export type OrbStage = "rest" | "big" | "small";
 
 /**
  * The orb size for each stage, fitted to the window. Rest is about a fifth of the height. Big (listening and thinking)
- * fills the room left by the bars. Small (an answer showing) is half of rest. `drawSize` is the biggest, drawn once.
+ * fills the room left by the bars. Small (the chat look) sits at the bottom, about 60% of rest. `drawSize` is the biggest, drawn once.
  */
 export function useOrbSize(stage: OrbStage) {
   const height = useSyncExternalStore(onResize, () => window.innerHeight, () => 900);
@@ -132,7 +132,9 @@ export function useOrbSize(stage: OrbStage) {
   const rest = Math.max(120, Math.min(240, Math.round(height * 0.22)));
   // The canvas is 1.6 times the size, and the header, top row and mic bar take about 260px of the height.
   const big = Math.max(rest, Math.min(420, Math.round((height - 260) / 1.6), Math.round((width * 0.9) / 1.6)));
-  const size = stage === "big" ? big : stage === "small" ? Math.round(rest / 2) : rest;
+  // Small sits at the bottom under the chat: about 60% of rest, never below 84 so it still reads as the orb.
+  const small = Math.max(84, Math.round(rest * 0.6));
+  const size = stage === "big" ? big : stage === "small" ? small : rest;
   return { size, drawSize: big };
 }
 

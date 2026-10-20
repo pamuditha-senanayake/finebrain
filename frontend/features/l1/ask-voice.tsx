@@ -1,11 +1,8 @@
 "use client";
 
 import { History, Keyboard, Mic, Plus, Send, Square, Volume2, VolumeX } from "lucide-react";
-import Link from "next/link";
-import { ShowMe } from "@/components/shell/show-me";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import type { AskAnswer } from "@/contracts";
 import { Button } from "@/components/ui/button";
 import { ConnectorPicker } from "@/features/connect/connector-picker";
 import { Interview } from "@/features/setup/interview";
@@ -14,9 +11,8 @@ import { findPage } from "@/lib/ask-go";
 import { useCurrentUser } from "@/lib/auth";
 import { canRecord, openMic, recordQuestion, transcribe, type Mic as OpenMic } from "@/lib/voice/mic";
 import { shortOf, speak, unlockAudio } from "@/lib/voice/speaker";
-import { date } from "@/lib/format";
-import { lookedInLabel } from "@/lib/looked-in";
 import { cn } from "@/lib/utils";
+import { AskChat, type Turn } from "./ask-chat";
 import { AskUpload } from "./ask-upload";
 import { GLIDE, useOrbSize, VoiceOrb, type OrbStage, type VoiceState } from "./voice-orb";
 import { t } from "@/lib/i18n";
@@ -44,6 +40,8 @@ const noop = () => () => {};
 const useVoiceSupported = () => useSyncExternalStore(noop, () => !!recognitionCtor() || canRecord(), () => true);
 
 const LABEL: Record<VoiceState, string> = { idle: "Tap to talk", listening: "Listening", thinking: "Thinking", speaking: "Speaking" };
+/** How the chat and the orb move between looks: the same 700ms ease as the orb's size. */
+const MOVE = "flex-grow 700ms cubic-bezier(0.22, 1, 0.36, 1), opacity 500ms ease";
 const SUGGESTIONS = ["What is our refund window?", "When does the domain renew?", "What are support hours?"];
 
 /** Typing "/" in the box offers these. They do things instead of asking a question. */
@@ -54,7 +52,6 @@ const COMMANDS = [
 ] as const;
 type Command = (typeof COMMANDS)[number]["cmd"];
 
-type Turn = { q: string; a: AskAnswer };
 
 /** Full page Ask the Brain with a voice agent: talk or type, hear the answer, see its sources on demand. */
 export function AskVoice() {
@@ -70,8 +67,6 @@ export function AskVoice() {
   const [note, setNote] = useState("");
   const [filed, setFiled] = useState("");
   const onFiled = (message: string, ok: boolean) => (ok ? (setFiled(message), setNote("")) : (setNote(message), setFiled("")));
-  const [sources, setSources] = useState(false);
-  const [more, setMore] = useState(false);
   const [earlier, setEarlier] = useState(false);
   const [setup, setSetup] = useState(false);
   const [picker, setPicker] = useState(false);
@@ -100,7 +95,6 @@ export function AskVoice() {
     stopSpeaking();
     setNote("");
     setHeard("");
-    setSources(false);
     setVoice("listening");
   }
 
@@ -177,8 +171,6 @@ export function AskVoice() {
     const page = findPage(q, user);
     if (page) return void router.push(page.href);
     setHeard(q);
-    setSources(false);
-    setMore(false);
     setVoice("thinking");
     try {
       // A short pause keeps "thinking" visible, so the reply does not feel like it skipped a step.
@@ -274,15 +266,14 @@ export function AskVoice() {
   }
 
   const last = turns[turns.length - 1];
-  const showLast = last && voice !== "listening" && voice !== "thinking" && heard === last.q;
   // Earlier turns: what was saved before this page opened, then this visit's turns except the last.
   const saved: Turn[] = conversation.saved.map((t) => ({ q: t.question, a: { question: t.question, answer: t.answer, citations: [], withheld: 0 } }));
   const before = [...saved, ...turns.slice(0, -1)];
-  // The orb fills the screen while it listens and thinks, then shrinks to the top so the answer gets the room.
-  const stage: OrbStage = voice === "listening" || voice === "thinking" ? "big" : heard || turns.length > 0 ? "small" : "rest";
+  // Three looks: home (orb, greeting, quick questions, bar), big (only the orb, listening or thinking),
+  // and chat (messages fill the page, a small orb at the bottom; tap it to talk again).
+  const stage: OrbStage = voice === "listening" || voice === "thinking" ? "big" : earlier || turns.length > 0 ? "small" : "rest";
   const orb = useOrbSize(stage);
-  // The greeting and quick questions only show before the first tap.
-  const welcome = !heard && turns.length === 0 && voice === "idle";
+  const chat = [...(earlier ? before : []), ...(last ? [last] : [])];
   const slash = typing && text.startsWith("/") ? COMMANDS.filter((c) => c.cmd.startsWith(text.trim().split(" ")[0].toLowerCase())) : [];
 
   // The setup interview takes over the page; the orb stays small above it and speaks each question.
@@ -322,88 +313,43 @@ export function AskVoice() {
         </Button>
       </div>
 
-      {earlier && (
-        <ol className="scrollbar-thin mx-auto flex max-h-[45%] w-full max-w-2xl shrink-0 flex-col gap-3 overflow-y-auto px-6 pt-4" aria-label="Earlier chat">
-          {before.map((t, i) => (
-            <li key={i} className="flex flex-col gap-2">
-              <p className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-primary/10 px-4 py-2 text-[15px]">{t.q}</p>
-              <p className="max-w-[92%] rounded-3xl rounded-bl-md border bg-card px-5 py-3 text-[15px] leading-relaxed">{t.a.answer}</p>
-            </li>
-          ))}
-        </ol>
-      )}
-
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-      <div className="basis-0" style={{ flexGrow: stage === "small" ? 0 : 1, transition: "flex-grow 700ms cubic-bezier(0.22, 1, 0.36, 1)" }} />
-      <div className="mx-auto flex min-h-0 w-full max-w-2xl basis-auto flex-col items-center px-6 py-6 text-center short:py-3" style={{ flexGrow: stage === "small" ? 1 : 0, transition: "flex-grow 700ms cubic-bezier(0.22, 1, 0.36, 1)" }}>
-        <button type="button" onClick={tapOrb} disabled={voice === "thinking"} className="shrink-0 rounded-full outline-none focus-visible:ring-4 focus-visible:ring-ring/40" aria-label={voice === "listening" ? "Stop listening" : "Talk to the Brain"}>
-          <VoiceOrb state={voice} level={level} size={orb.size} drawSize={orb.drawSize} />
-        </button>
-        <p style={{ marginTop: -orb.size * 0.1, transition: GLIDE }} className={cn("text-sm font-medium uppercase tracking-[0.18em]", voice === "idle" ? "text-muted-foreground" : "text-primary")} role="status">
-          {supported || voice !== "idle" ? LABEL[voice] : "Type to ask"}
-        </p>
-
-        <div className={cn("w-full", stage === "small" ? "scrollbar-thin order-first mb-2 min-h-0 flex-1 overflow-y-auto" : "mt-8 short:mt-4", stage === "rest" && "min-h-28 short:min-h-0")} aria-live="polite">
-          {heard && <p className={cn("text-2xl font-medium leading-snug tracking-tight", voice === "listening" && "text-muted-foreground")}>{heard}</p>}
-          {showLast && (
-            <div className="mt-6 animate-in fade-in duration-500">
-              <p className="text-xl leading-relaxed text-muted-foreground" data-testid="ask-voice-answer">
-                {more ? last.a.answer : shortOf(last.a.answer).short}
-              </p>
-              <div className="mt-4 flex flex-wrap justify-center gap-1">
-                <ShowMe answer={last.a} className="mr-1" />
-                {shortOf(last.a.answer).rest && (
-                  <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setMore(!more)} aria-expanded={more}>
-                    {more ? "Less" : "More"}
-                  </Button>
-                )}
-                {last.a.citations.length > 0 && (
-                  <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setSources(!sources)} aria-expanded={sources}>
-                    {sources ? "Hide sources" : `${last.a.citations.length} ${last.a.citations.length === 1 ? "source" : "sources"}`}
-                  </Button>
-                )}
-              </div>
-              {sources && (
-                <ol className="mx-auto mt-3 max-w-xl space-y-2 text-left">
-                  {last.a.citations.map((c, i) => (
-                    <li key={c.id}>
-                      <Link href={c.href} className="block rounded-xl border bg-surface px-4 py-3 text-sm hover:border-primary/40">
-                        <span className="font-medium">{i + 1}. {c.label}</span>
-                        <span className="mt-0.5 block text-xs text-muted-foreground">True from {date(c.validFrom)}{c.validTo ? ` to ${date(c.validTo)}` : ""}</span>
-                      </Link>
-                    </li>
-                  ))}
-                  {last.a.lookedIn && <li className="px-1 text-xs text-muted-foreground" data-testid="looked-in">{lookedInLabel(last.a.lookedIn)}</li>}
-                </ol>
-              )}
-            </div>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <AskChat turns={chat} className={cn("min-h-0 basis-0", stage !== "small" && "pointer-events-none")} style={{ flexGrow: stage === "small" ? 1 : 0, opacity: stage === "small" ? 1 : 0, transition: MOVE }} />
+        <div className="basis-0" style={{ flexGrow: stage === "small" ? 0 : 1, transition: MOVE }} />
+        <div className="flex shrink-0 flex-col items-center px-6 pb-4 text-center">
+          <button type="button" onClick={tapOrb} disabled={voice === "thinking"} className="rounded-full outline-none focus-visible:ring-4 focus-visible:ring-ring/40" aria-label={voice === "listening" ? "Stop listening" : "Talk to the Brain"}>
+            <VoiceOrb state={voice} level={level} size={orb.size} drawSize={orb.drawSize} />
+          </button>
+          {stage !== "small" && (
+            <p style={{ marginTop: -orb.size * 0.1, transition: GLIDE }} className={cn("text-sm font-medium uppercase tracking-[0.18em]", voice === "idle" ? "text-muted-foreground" : "text-primary")} role="status">
+              {supported || voice !== "idle" ? LABEL[voice] : "Type to ask"}
+            </p>
           )}
-          {welcome && (
-            <div className="mb-5 short:mb-3">
+          {stage === "big" && heard && <p className={cn("mt-6 max-w-2xl text-xl font-medium leading-snug", voice === "listening" && "text-muted-foreground")}>{heard}</p>}
+          {stage === "rest" && (
+            <div className="mt-6 short:mt-4">
               <p className="mx-auto max-w-md text-[15px] leading-relaxed text-muted-foreground">{t("ask.greeting")}</p>
               <p className="mt-2 text-xl font-semibold tracking-tight">{t("ask.greetingAsk")}</p>
-            </div>
-          )}
-          {welcome && (
-            <div className="flex flex-wrap justify-center gap-1.5">
-              {SUGGESTIONS.map((s) => (
-                <button key={s} type="button" onClick={() => void answer(s)} disabled={voice !== "idle"} className="rounded-full border bg-surface px-3 py-1 text-xs transition-colors hover:bg-accent disabled:opacity-50">
-                  {s}
+              <div className="mt-5 flex flex-wrap justify-center gap-1.5 short:mt-3">
+                {SUGGESTIONS.map((s) => (
+                  <button key={s} type="button" onClick={() => void answer(s)} className="rounded-full border bg-surface px-3 py-1 text-xs transition-colors hover:bg-accent">
+                    {s}
+                  </button>
+                ))}
+                <button type="button" onClick={() => run("/setup")} className="rounded-full border border-dashed px-3 py-1 font-mono text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                  /setup
                 </button>
-              ))}
-              <button type="button" onClick={() => run("/setup")} disabled={voice !== "idle"} className="rounded-full border border-dashed px-3 py-1 font-mono text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50">
-                /setup
-              </button>
+              </div>
             </div>
           )}
           {note && <p className="mt-4 text-sm text-warn-fg">{note}</p>}
           {filed && <p className="mt-4 text-sm text-muted-foreground" role="status">{filed}</p>}
         </div>
-      </div>
-      <div className="basis-0" style={{ flexGrow: stage === "small" ? 0 : 1, transition: "flex-grow 700ms cubic-bezier(0.22, 1, 0.36, 1)" }} />
+        <div className="basis-0" style={{ flexGrow: stage === "small" ? 0 : 1, transition: MOVE }} />
       </div>
 
       <ConnectorPicker open={picker} onOpenChange={setPicker} />
+      {stage === "rest" && (
       <div className="relative mx-auto flex w-full max-w-2xl items-center justify-center gap-4 px-6 pb-8 pt-2 short:pb-4">
         {slash.length > 0 && (
           <ul className="absolute inset-x-6 bottom-full mb-2 overflow-hidden rounded-2xl border bg-popover p-1.5 shadow-lg" role="listbox" aria-label="Commands">
@@ -434,6 +380,7 @@ export function AskVoice() {
           </>
         )}
       </div>
+      )}
     </div>
   );
 }
