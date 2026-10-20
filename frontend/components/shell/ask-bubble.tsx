@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Mic, Square } from "lucide-react";
+import { ArrowUp, Maximize2, Mic, Square } from "lucide-react";
 import Link from "next/link";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import type { AskAnswer } from "@/contracts";
@@ -24,7 +24,7 @@ type Props = {
   onClose: () => void;
 };
 
-/** The bubbles above the orb: a greeting or the recent exchanges (scroll up for older ones), a one-line composer, and the way to the full chat. */
+/** The chat beside the orb: a greeting or the recent exchanges (scroll up for older ones) above, and a one-line composer next to the orb. */
 export function AskBubble({ items, voice, note, suggestions, onSend, onMic, onClose }: Props) {
   const [q, setQ] = useState("");
   const input = useRef<HTMLInputElement>(null);
@@ -41,7 +41,7 @@ export function AskBubble({ items, voice, note, suggestions, onSend, onMic, onCl
   }
 
   return (
-    <div role="dialog" aria-label="Ask the Brain" data-ask-ignore className="fixed bottom-24 right-4 isolate z-40 flex max-h-[calc(100dvh-11rem)] w-[min(380px,calc(100vw-2rem))] flex-col gap-3 duration-200 animate-in fade-in slide-in-from-bottom-2 sm:bottom-26 sm:right-6">
+    <div role="dialog" aria-label="Ask the Brain" data-ask-ignore className="fixed bottom-4 right-4 isolate z-40 flex max-h-[calc(100dvh-6rem)] w-[min(460px,calc(100vw-2rem))] flex-col gap-3 duration-200 animate-in fade-in slide-in-from-bottom-2 sm:bottom-6 sm:right-6">
       {/* Blurs the page behind the chat out to the screen's right edge, fading only on the other sides, so no box shows. */}
       <div aria-hidden className="pointer-events-none absolute -bottom-6 -left-14 -right-6 -top-4 -z-10 bg-background/30 backdrop-blur-md" style={BLUR_EDGES} />
       <div ref={feed} className="scrollbar-thin flex min-h-0 flex-col gap-3 overflow-y-auto pr-1" aria-live="polite">
@@ -63,23 +63,20 @@ export function AskBubble({ items, voice, note, suggestions, onSend, onMic, onCl
       ))}
       {note && <p className="px-2 text-sm text-warn-fg">{note}</p>}
       </div>
-      <form className="flex items-center gap-1 rounded-full border bg-card p-1.5 pl-4 shadow-xl" onSubmit={(e) => { e.preventDefault(); submit(q); }}>
+      {/* The composer shares a row with the orb; the empty square on the right is where the orb sits. */}
+      <div className="flex h-16 shrink-0 items-center gap-2">
+      <form className="flex min-w-0 flex-1 items-center gap-1 rounded-full border bg-card p-1.5 pl-4 shadow-xl" onSubmit={(e) => { e.preventDefault(); submit(q); }}>
         <input ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about this page…" aria-label="Question" className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground" />
         <Button type="button" size="icon-sm" variant="ghost" className={cn("rounded-full", voice === "listening" && "text-primary")} onClick={onMic} aria-label={voice === "listening" ? "Stop listening" : "Talk"}>
           {voice === "listening" ? <Square /> : <Mic />}
         </Button>
+        <Link href="/l1/ask" onClick={onClose} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Open chat" title="Open chat"><Maximize2 className="size-4" /></Link>
         <Button type="submit" size="icon-sm" className="rounded-full" disabled={!q.trim() || busy} aria-label="Ask"><ArrowUp /></Button>
       </form>
-      <div className="flex items-center justify-between px-3 text-xs text-muted-foreground">
-        <Link href="/l1/ask" onClick={onClose} className="hover:text-foreground">Open chat</Link>
-        <kbd className="font-mono">⌘J</kbd>
+      <div className="w-16 shrink-0" aria-hidden />
       </div>
     </div>
   );
-}
-
-function Blob({ children }: { children: ReactNode }) {
-  return <div className="max-w-[92%] rounded-3xl rounded-bl-md border bg-card px-5 py-4 shadow-xl">{children}</div>;
 }
 
 // Three fades (left, top, bottom) kept where all three overlap; the right side stays fully blurred.
@@ -88,6 +85,10 @@ const BLUR_EDGES = {
   maskComposite: "intersect",
   WebkitMaskComposite: "source-in",
 } as const;
+
+function Blob({ children }: { children: ReactNode }) {
+  return <div className="max-w-[92%] rounded-3xl rounded-bl-md border bg-card px-5 py-4 shadow-xl">{children}</div>;
+}
 
 /** The short answer first; the rest and the sources wait behind a click. */
 function AnswerBlob({ a }: { a: AskAnswer }) {
