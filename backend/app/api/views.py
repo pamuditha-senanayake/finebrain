@@ -49,6 +49,7 @@ def escalation_of(run: dict, trace: dict, status: str, ended_at: str | None) -> 
 
 def run_view(lane, run: dict) -> work.Run:
     trace, status = trace_of(lane, run), RUN_STATUS[run["outcome"]]
+    mark = lane.records.load("run_mark", run["run_id"])  # step 15: someone marked it wrong (run_marks.py)
     ended_at = None if status == "awaiting_approval" else run["steps"][-1]["started_at"] if run["steps"] else None
     cost = run["cost"]
     return work.Run(
@@ -57,7 +58,9 @@ def run_view(lane, run: dict) -> work.Run:
         subject=subject_of(trace, run), status=status, started_at=run["steps"][0]["started_at"] if run["steps"] else "",
         ended_at=ended_at, escalation=escalation_of(run, trace, status, ended_at), conversation_id=None,
         cost_tokens=cost["input_tokens"] + cost["output_tokens"], cost_usd=cost["usd_micro"] / 1_000_000,
-        latency_ms=run["latency_ms"], human_touch=run["human_touch"], failure_class="tool_failed" if status == "failed" else None,
+        latency_ms=run["latency_ms"], human_touch=run["human_touch"] or mark is not None,
+        failure_class="marked wrong" if mark else "tool_failed" if status == "failed" else None,
+        marked_wrong={"by": mark["by"], "at": str(mark["at"]), "note": mark["note"]} if mark else None,
     )
 
 

@@ -1,8 +1,9 @@
 # learn_routes.py: Lane C (step 15) on the Finebase HQ API. S13's weekly counting (the consumer of runs.completed,
 # sample history for a tenant with none, a back-fill of earlier runs), the spike check after each count, and
-# POST ops/markTrendKnown. Used by: routes.py (register). Uses: stages_learn.py, stages_spike.py, trend_views.py.
+# POST ops/markTrendKnown and ops/markRunWrong. Used by: routes.py (register). Uses: stages_learn.py, stages_spike.py, trend_views.py, run_marks.py.
 from fastapi import FastAPI, Header, HTTPException, Request
 
+from app.api import run_marks
 from app.api.trend_views import tell_owner
 from app.pipeline import stages_learn, stages_spike
 from app.pipeline.observe import log_event
@@ -11,9 +12,9 @@ from app.pipeline.observe import log_event
 MAY_MARK_KNOWN = {"L1", "L2"}
 
 
-def on_run(lane, envelope) -> None:
-    """Count a finished run, then check the weeks it changed: a spike shows as soon as the count that makes it lands."""
-    for metric, segment in stages_learn.on_run(lane, envelope):
+def raise_spikes(lane, series: list[tuple[str, str]]) -> None:
+    """Check the weeks a count just changed: a spike shows as soon as the count that makes it lands."""
+    for metric, segment in series:
         if trend := stages_spike.check_series(lane, metric, segment, lane.now):
             tell_owner(lane, trend)
 
@@ -29,8 +30,8 @@ def start_counting(lane) -> None:
 
 
 def register(app: FastAPI, lane, check) -> None:
-    """S13's consumer, the start-up back-fill, and Mark as known. Before the general ops route."""
-    lane.bus.subscribe("runs.completed", "counts", "S13", lambda envelope: on_run(lane, envelope))
+    """S13's consumer, the start-up back-fill, Mark as known and Mark as wrong. Before the general ops route."""
+    lane.bus.subscribe("runs.completed", "counts", "S13", lambda envelope: raise_spikes(lane, stages_learn.on_run(lane, envelope)))
     start_counting(lane)
 
     @app.post("/api/t/{tenant}/ops/markTrendKnown")
@@ -44,4 +45,17 @@ def register(app: FastAPI, lane, check) -> None:
             raise HTTPException(404, "not_found") from None
         except stages_spike.NotPossible as reason:
             raise HTTPException(409, str(reason)) from None
+        return {"ok": True}
+
+    @app.post("/api/t/{tenant}/ops/markRunWrong")
+    async def mark_wrong(tenant: str, request: Request, x_persona: str = Header(default="")) -> dict:
+        check(tenant, x_persona)  # anyone who sees a wrong outcome may say so
+        body = await request.json()
+        try:
+            _, counted = run_marks.mark_wrong(lane, str(body.get("runId", "")), x_persona, str(body.get("note") or ""))
+        except LookupError:
+            raise HTTPException(404, "not_found") from None
+        except run_marks.NotPossible as reason:
+            raise HTTPException(409, str(reason)) from None
+        raise_spikes(lane, counted)
         return {"ok": True}

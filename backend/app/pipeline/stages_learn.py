@@ -1,6 +1,7 @@
 # stages_learn.py: S13's weekly counts (step 15). Every finished run adds one to its week: requests per skill, and
-# escalations per agent, each split by channel. The spike check reads these counts. Weeks start on Monday in the
-# tenant's time zone. Used by: api/learn_routes.py, stages_spike.py, tests/test_counts.py. Uses: run_steps.py (signal_of), contracts_run.py.
+# escalations per agent, each split by channel; a run marked wrong counts for its agent too. The spike check reads them.
+# Weeks start on Monday in the tenant's time zone.
+# Used by: api/learn_routes.py, api/run_marks.py, stages_spike.py, tests/test_counts.py. Uses: run_steps.py (signal_of), contracts_run.py.
 import json
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -62,6 +63,13 @@ def count_run(lane, run: dict) -> list[tuple[str, str]]:
     started = datetime.fromisoformat(str(run["steps"][0]["started_at"]).replace("Z", "+00:00"))
     week = week_of(started, zone_of(lane))
     return [(metric, segment) for metric, segment in series_of(lane, run) if lane.counts.add(metric, segment, week, run["run_id"])]
+
+
+def count_mark(lane, run: dict, marked_at: datetime) -> list[tuple[str, str]]:
+    """Count a run someone marked wrong, for its agent, in the week it was marked: that is when the complaint came."""
+    week = week_of(marked_at, zone_of(lane))
+    series = ("Marked wrong", f"{agent_name(lane, run['agent_id'])}, {channel_of(lane, run)}")
+    return [series] if lane.counts.add(*series, week, run["run_id"]) else []
 
 
 def on_run(lane, envelope) -> list[tuple[str, str]]:
