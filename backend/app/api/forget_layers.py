@@ -1,9 +1,9 @@
-# forget_layers.py: step 10, the knowledge layers: search index, graph, S3 files, and the cold archive (13c). Each registers
-# a handler with pipeline/forget.py. Used by: forget_review.py (imports this file to register). Uses: forget.py, stages_version.py, stages_cold.py.
+# forget_layers.py: step 10, the knowledge layers: search index, graph, S3 files, the cold archive (13c) and summaries (13d). Each registers
+# a handler with pipeline/forget.py. Used by: forget_review.py (imports this file to register). Uses: forget.py, stages_version.py, stages_cold.py, stages_summary.py.
 # The record, intake, conversation and vault layers are in forget_layers_data.py.
 import re
 
-from app.pipeline import stages_cold, stages_version
+from app.pipeline import stages_cold, stages_summary, stages_version
 from app.pipeline.contracts_graph import CommitAuthor
 from app.pipeline.forget import ForgetItem, register
 from app.pipeline.stages_version import Draft
@@ -99,5 +99,24 @@ class ColdLayer:
         return mode == "retire" or not self.archived(lane, item)
 
 
-for layer in (IndexLayer(), GraphLayer(), FilesLayer(), ColdLayer()):
+class SummaryLayer:
+    """The summary ladder (step 13d): a summary built on the document's chunks goes, retired or erased, and so do the summaries
+    built on it. The next Distiller night writes them again from what is left."""
+    name, stores, final = "Summaries", ("chunks",), False
+
+    def clear(self, lane, item: ForgetItem) -> tuple[str, str]:
+        cleared = stages_summary.clear_citing(lane, item.chunk_ids)
+        return ("cleared", f"{len(cleared)} cleared, written again tonight") if cleared else ("nothing", "")
+
+    def retire(self, lane, item: ForgetItem) -> tuple[str, str]:
+        return self.clear(lane, item)
+
+    def erase(self, lane, item: ForgetItem) -> tuple[str, str]:
+        return self.clear(lane, item)
+
+    def verify(self, lane, item: ForgetItem, mode: str) -> bool:
+        return not lane.chunks.summaries_citing(item.chunk_ids)
+
+
+for layer in (IndexLayer(), GraphLayer(), FilesLayer(), ColdLayer(), SummaryLayer()):
     register(layer)

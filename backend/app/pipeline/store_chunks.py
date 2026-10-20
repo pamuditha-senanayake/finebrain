@@ -95,6 +95,11 @@ class MemoryChunks:
         if item_id in self.items:
             self.items[item_id] = (self.items[item_id][0], vector)
 
+    def summaries_citing(self, item_ids: list[str]) -> list[str]:
+        """Summaries (step 13d) that list any of these items among their sources."""
+        wanted = set(item_ids)
+        return sorted(item_id for item_id, (item, _) in self.items.items() if wanted & set((item.get("summary") or {}).get("sources", [])))
+
     def set_field(self, field: str, by_item: dict) -> None:
         for item_id, value in by_item.items():
             if item_id in self.items:

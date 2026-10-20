@@ -58,3 +58,9 @@ class TierColumns:
         """Drop a cold item's vector (its words stay, for history), or give it back when it moves up."""
         self.connection.execute("UPDATE chunks SET embedding = %s::vector WHERE tenant_id = %s AND item_id = %s",
                                 (json.dumps(vector) if vector is not None else None, self.tenant_id, item_id))
+
+    def summaries_citing(self, item_ids: list[str]) -> list[str]:
+        """Summaries (step 13d) that list any of these items among their sources."""
+        rows = self.connection.execute("SELECT item_id FROM chunks WHERE tenant_id = %s AND body->'summary'->'sources' ?| %s::text[] ORDER BY item_id",
+                                       (self.tenant_id, item_ids))
+        return [row[0] for row in rows]
