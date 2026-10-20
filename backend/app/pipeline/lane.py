@@ -28,6 +28,7 @@ class Lane:
     audit: object  # S10: hash-chained audit log
     broadcaster: object  # S10: live ui.events for the console stream
     entities: object  # step 13a: the entity registry (store_entities.py)
+    counts: object = None  # step 15: weekly counts for the spike check (store_counts.py)
     grade: object = None  # S7 grader (llm.make_grader); defaults to the fake that passes cited rationales
     choose: object = None  # S3 tie-break (llm.make_chooser); None means close calls go unrouted
     classify: object = None  # S2 domain of an upload (llm.make_chooser with DOMAIN_SYSTEM); None files it under general

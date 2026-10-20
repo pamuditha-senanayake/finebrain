@@ -1,0 +1,9 @@
+{
+  "_about": "Sample history for the spike check on Finebase HQ (step 15). HQ began in October 2026, so it has no earlier weeks to compare with. These are 11 made-up weekly counts ending on the week of 5 October; real runs count from then on. A week that already holds a count is never overwritten.",
+  "weeks_ending": "2026-10-05",
+  "series": [
+    {"metric": "Requests", "segment": "Refund handling, email", "weeks": [3, 2, 4, 3, 2, 3, 4, 2, 3, 3, 2]},
+    {"metric": "Requests", "segment": "Refund handling, chat", "weeks": [1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2]},
+    {"metric": "Escalations", "segment": "Refund worker, email", "weeks": [1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1]}
+  ]
+}
