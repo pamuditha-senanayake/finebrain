@@ -1,6 +1,6 @@
 "use client";
 
-import { Menu, PanelLeftOpen, Search } from "lucide-react";
+import { Brain, Menu, PanelLeftOpen, Search } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -67,9 +67,13 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
                 <Menu />
               </Button>
               {collapsed && (
-                <Button variant="ghost" size="icon-sm" className="max-lg:hidden" onClick={open} onMouseEnter={hover.enter} onMouseLeave={hover.leave} onFocus={hover.enter} aria-label="Open sidebar" title="Open sidebar" data-testid="sidebar-toggle">
-                  <PanelLeftOpen />
-                </Button>
+                // The brand while closed; hovering turns it into the sidebar icon, and a click opens the sidebar.
+                <button type="button" onClick={open} className="group relative grid size-8 place-items-center rounded-lg outline-none transition-colors hover:bg-accent focus-visible:ring-4 focus-visible:ring-ring/40 max-lg:hidden" aria-label="Open sidebar" title="Open sidebar" data-testid="sidebar-toggle">
+                  <span className="grid size-7 place-items-center rounded-lg bg-primary text-primary-foreground transition-opacity duration-200 group-hover:opacity-0 group-focus-visible:opacity-0">
+                    <Brain className="size-4" aria-hidden />
+                  </span>
+                  <PanelLeftOpen className="absolute size-4 text-muted-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />
+                </button>
               )}
               <TenantClusterSwitcher />
               <div className="max-md:hidden">
