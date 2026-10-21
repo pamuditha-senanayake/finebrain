@@ -10,6 +10,15 @@ const DEFAULT_VOICE = "JBFqnCBsd6RMkjVDRZzb";
 /** Answers are spoken short; anything longer is cut, which also caps the cost of one reply. */
 export const MAX_SPOKEN_CHARS = 600;
 
+/** Scribe v2 is the newer, more accurate speech to text model. */
+const LISTEN_MODEL = "scribe_v2";
+
+/** Questions are asked in English; naming it stops Scribe guessing a wrong language from a short clip. */
+const LISTEN_LANGUAGE = "en";
+
+/** Our own words Scribe would otherwise hear as common ones. Kept under 100 so short clips are not billed as 20 seconds. */
+const KEY_TERMS = ["Finebase", "finebrain", "APIT", "EPF", "ETF", "VAT", "Vault", "Commons", "Distiller"];
+
 export class VoiceError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
@@ -46,7 +55,9 @@ function extensionOf(type: string): string {
 /** Recorded audio to text with Scribe. */
 export async function transcribe(audio: Blob): Promise<string> {
   const form = new FormData();
-  form.append("model_id", "scribe_v1");
+  form.append("model_id", LISTEN_MODEL);
+  form.append("language_code", LISTEN_LANGUAGE);
+  for (const term of KEY_TERMS) form.append("keyterms", term);
   form.append("file", audio, `speech.${extensionOf(audio.type)}`);
   const res = await fetch(`${API}/speech-to-text`, { method: "POST", headers: { "xi-api-key": key() }, body: form });
   if (!res.ok) throw new VoiceError(`ElevenLabs could not transcribe (${res.status}).`, 502);
