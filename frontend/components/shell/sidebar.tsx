@@ -1,11 +1,12 @@
 "use client";
 
-// sidebar.tsx: the left sidebar. Open it shows the brand, a close button, the tier switch and the pages; closed it is
-// a thin rail with only the brand icon, which opens it again. Used by: app-shell.tsx.
+// sidebar.tsx: the left sidebar, like Claude's. Open, an icon beside the brand closes it; closed, nothing shows on the
+// left, and the icon in the top bar opens it, or slides it out over the page while hovered. Used by: app-shell.tsx.
 
-import { Brain, PanelLeftClose } from "lucide-react";
+import { Brain, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { canView, useCurrentUser, type Area } from "@/lib/auth";
 import { flags } from "@/lib/flags";
@@ -65,8 +66,11 @@ function TierSwitch({ current, onNavigate }: { current: Area; onNavigate?: () =>
   );
 }
 
-/** The open sidebar. On desktop `onCollapse` adds the close button at the top right, beside the brand. */
-export function Sidebar({ area, onNavigate, onCollapse }: { area: Area; onNavigate?: () => void; onCollapse?: () => void }) {
+/**
+ * The sidebar. On desktop `onToggle` adds the sidebar icon at the top right, beside the brand: it closes a pinned
+ * sidebar, and pins open one that is only peeking.
+ */
+export function Sidebar({ area, onNavigate, onToggle, pinned = true }: { area: Area; onNavigate?: () => void; onToggle?: () => void; pinned?: boolean }) {
   const areas = useAreas();
   const current = areas.find((a) => a.area === area) ?? [...NAV, RESEARCH_NAV].find((a) => a.area === area)!;
   return (
@@ -82,9 +86,9 @@ export function Sidebar({ area, onNavigate, onCollapse }: { area: Area; onNaviga
           </span>
         </span>
       </Link>
-      {onCollapse && (
-        <Button variant="ghost" size="icon-sm" className="absolute right-3 top-3 text-muted-foreground" onClick={onCollapse} aria-label="Hide sidebar" title="Hide sidebar" data-testid="sidebar-toggle">
-          <PanelLeftClose />
+      {onToggle && (
+        <Button variant="ghost" size="icon-sm" className="absolute right-3 top-3 text-muted-foreground" onClick={onToggle} aria-label={pinned ? "Close sidebar" : "Keep sidebar open"} title={pinned ? "Close sidebar" : "Keep sidebar open"}>
+          {pinned ? <PanelLeftClose /> : <PanelLeftOpen />}
         </Button>
       )}
       <TierSwitch current={area} onNavigate={onNavigate} />
@@ -95,13 +99,22 @@ export function Sidebar({ area, onNavigate, onCollapse }: { area: Area; onNaviga
   );
 }
 
-/** The closed sidebar: only the brand icon. Clicking it opens the sidebar. */
-export function SidebarRail({ onExpand }: { onExpand: () => void }) {
-  return (
-    <div className="flex h-full flex-col items-center p-3">
-      <button type="button" onClick={onExpand} className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground outline-none transition-transform hover:scale-105 focus-visible:ring-4 focus-visible:ring-ring/40" aria-label="Show sidebar" title="Show sidebar" data-testid="sidebar-expand">
-        <Brain className="size-4" aria-hidden />
-      </button>
-    </div>
-  );
+/** While the sidebar is closed, hovering its icon or the left edge slides it out over the page. A short delay on leave lets the pointer cross the gap. */
+export function useHoverPeek(enabled: boolean) {
+  const [peek, setPeek] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancel = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  const enter = () => {
+    cancel();
+    setPeek(true);
+  };
+  const leave = () => {
+    cancel();
+    timer.current = setTimeout(() => setPeek(false), 200);
+  };
+  useEffect(() => cancel, []);
+  return { peek: enabled && peek, enter, leave, close: () => { cancel(); setPeek(false); } };
 }

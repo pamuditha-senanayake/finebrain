@@ -1,6 +1,6 @@
 "use client";
 
-import { Menu, Search } from "lucide-react";
+import { Menu, PanelLeftOpen, Search } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { AskOrb } from "./ask-orb";
 import { CommandPalette } from "./command-palette";
 import { HqOffline } from "./hq-offline";
-import { Sidebar, SidebarRail } from "./sidebar";
+import { Sidebar, useHoverPeek } from "./sidebar";
 import { EnvSwitcher, NotificationsSheet, ShellMenu, TenantClusterSwitcher } from "./widgets";
 
 export function AppShell({ area, children }: { area: Area; children: ReactNode }) {
@@ -24,6 +24,8 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
   const collapsed = useUi((s) => s.sidebarCollapsed);
   const toggleSidebar = useUi((s) => s.toggleSidebar);
   const [mobileNav, setMobileNav] = useState(false);
+  const hover = useHoverPeek(collapsed);
+  const open = () => { hover.close(); toggleSidebar(); };
   const allowed = canView(user, area);
   // Full-bleed canvases (maps, graphs, the studio) fill the page. Everything else keeps a readable width, so collapsing the sidebar never stretches tables and cards.
   const pathname = usePathname();
@@ -41,16 +43,28 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
     <BeamScope>
       <div className="flex min-h-dvh flex-col">
         <div className="flex min-h-0 flex-1">
-          <aside className={cn("hidden shrink-0 border-r bg-sidebar lg:block", collapsed ? "w-14" : "w-60")} aria-label="Sidebar">
+          {/* Open: the sidebar takes its place. Closed: nothing on the left, only a thin hover zone on the edge. */}
+          <aside className={cn("hidden w-60 shrink-0 border-r bg-sidebar", !collapsed && "lg:block")} aria-label="Sidebar">
             <div className="sticky top-0 h-dvh">
-              {collapsed ? <SidebarRail onExpand={toggleSidebar} /> : <Sidebar area={area} onCollapse={toggleSidebar} />}
+              <Sidebar area={area} onToggle={toggleSidebar} />
             </div>
           </aside>
+          {collapsed && <div className="fixed inset-y-0 left-0 z-40 hidden w-2 lg:block" onMouseEnter={hover.enter} onMouseLeave={hover.leave} aria-hidden />}
+          {hover.peek && (
+            <aside className="fixed inset-y-0 left-0 z-50 hidden w-60 border-r bg-sidebar shadow-xl duration-150 animate-in fade-in-0 slide-in-from-left-4 lg:block" aria-label="Sidebar preview" onMouseEnter={hover.enter} onMouseLeave={hover.leave}>
+              <Sidebar area={area} onNavigate={hover.close} onToggle={open} pinned={false} />
+            </aside>
+          )}
           <div className="flex min-w-0 flex-1 flex-col">
             <header className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur sm:px-4">
               <Button variant="ghost" size="icon-sm" className="lg:hidden" onClick={() => setMobileNav(true)} aria-label="Open navigation">
                 <Menu />
               </Button>
+              {collapsed && (
+                <Button variant="ghost" size="icon-sm" className="max-lg:hidden" onClick={open} onMouseEnter={hover.enter} onMouseLeave={hover.leave} onFocus={hover.enter} aria-label="Open sidebar" title="Open sidebar" data-testid="sidebar-toggle">
+                  <PanelLeftOpen />
+                </Button>
+              )}
               <TenantClusterSwitcher />
               <div className="max-md:hidden">
                 <EnvSwitcher />
