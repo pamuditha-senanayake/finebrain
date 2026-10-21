@@ -67,30 +67,32 @@ function TierSwitch({ current, onNavigate }: { current: Area; onNavigate?: () =>
 }
 
 /**
- * The sidebar. On desktop `onToggle` adds the sidebar icon at the top right, beside the brand: it closes a pinned
+ * The sidebar. On desktop `onToggle` adds the sidebar icon at the top left, before the brand: it closes a pinned
  * sidebar, and pins open one that is only peeking.
  */
 export function Sidebar({ area, onNavigate, onToggle, pinned = true }: { area: Area; onNavigate?: () => void; onToggle?: () => void; pinned?: boolean }) {
   const areas = useAreas();
   const current = areas.find((a) => a.area === area) ?? [...NAV, RESEARCH_NAV].find((a) => a.area === area)!;
   return (
-    <div className="relative flex h-full flex-col gap-4 p-3">
-      <Link href="/" className="flex items-center gap-2 px-1.5" onClick={onNavigate}>
-        <span className="grid size-7 place-items-center rounded-lg bg-primary text-primary-foreground">
-          <Brain className="size-4" aria-hidden />
-        </span>
-        <span className="leading-tight">
-          <span className="block text-sm font-semibold">{t("app.name")}</span>
-          <span className="block text-[11px] text-muted-foreground">
-            {area === "research" ? t("tier.research") : `${area} · ${t(`tier.${area}`)}`}
+    <div className="flex h-full flex-col gap-4 p-3">
+      <div className="flex items-center gap-1">
+        {onToggle && (
+          <Button variant="ghost" size="icon-sm" className="shrink-0 text-muted-foreground" onClick={onToggle} aria-label={pinned ? "Close sidebar" : "Keep sidebar open"} title={pinned ? "Close sidebar" : "Keep sidebar open"}>
+            {pinned ? <PanelLeftClose /> : <PanelLeftOpen />}
+          </Button>
+        )}
+        <Link href="/" className="flex min-w-0 items-center gap-2 px-1.5" onClick={onNavigate}>
+          <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
+            <Brain className="size-4" aria-hidden />
           </span>
-        </span>
-      </Link>
-      {onToggle && (
-        <Button variant="ghost" size="icon-sm" className="absolute right-3 top-3 text-muted-foreground" onClick={onToggle} aria-label={pinned ? "Close sidebar" : "Keep sidebar open"} title={pinned ? "Close sidebar" : "Keep sidebar open"}>
-          {pinned ? <PanelLeftClose /> : <PanelLeftOpen />}
-        </Button>
-      )}
+          <span className="leading-tight">
+            <span className="block text-sm font-semibold">{t("app.name")}</span>
+            <span className="block text-[11px] text-muted-foreground">
+              {area === "research" ? t("tier.research") : `${area} · ${t(`tier.${area}`)}`}
+            </span>
+          </span>
+        </Link>
+      </div>
       <TierSwitch current={area} onNavigate={onNavigate} />
       <nav aria-label={`${t(current.label)} navigation`} className="min-h-0 flex-1 overflow-auto">
         <NavList area={current} onNavigate={onNavigate} />
