@@ -13,9 +13,11 @@ import { useUi } from "@/lib/store";
 import { canRecord, openMic, recordQuestion, transcribe } from "@/lib/voice/mic";
 import { shortOf, speak, unlockAudio } from "@/lib/voice/speaker";
 import { AskBubble } from "./ask-bubble";
-import { AskHint } from "./ask-hint";
 
 export type Exchange = { id: number; q: string; a: AskAnswer | null };
+
+/** How many exchanges the bubble keeps; older ones scroll up, and the full history is on the Ask the Brain page. */
+const KEEP = 20;
 
 /**
  * Ask the Brain, floating on every page as a glowing orb. Click it or press ⌘J (Ctrl+J) and a bubble opens above it.
@@ -67,12 +69,12 @@ export function AskOrb() {
     const page = findPage(q, user);
     if (page) {
       const answer: AskAnswer = { question: q, answer: `Opening ${page.label}.`, citations: [], withheld: 0 };
-      setItems((list) => [...list.slice(-1), { id, q, a: answer }]);
+      setItems((list) => [...list.slice(1 - KEEP), { id, q, a: answer }]);
       router.push(page.href);
       setTimeout(() => setOpen(false), 500);
       return;
     }
-    setItems((list) => [...list.slice(-1), { id, q, a: null }]); // the bubble keeps the last two exchanges
+    setItems((list) => [...list.slice(1 - KEEP), { id, q, a: null }]);
     setVoice("thinking");
     let answer: AskAnswer;
     try {
@@ -136,7 +138,6 @@ export function AskOrb() {
       {open && (
         <AskBubble items={items} voice={voice} note={note} suggestions={guideFor(pathname).suggestions.slice(0, 2)} onSend={(q) => void send(q, false)} onMic={() => void listen()} onClose={() => setOpen(false)} />
       )}
-      {!open && <AskHint />}
       <button
         type="button"
         onClick={() => setOpen(!open)}
