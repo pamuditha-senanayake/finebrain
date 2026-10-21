@@ -18,6 +18,11 @@ import { HqOffline } from "./hq-offline";
 import { Sidebar, useHoverPeek } from "./sidebar";
 import { EnvSwitcher, NotificationsSheet, ShellMenu, TenantClusterSwitcher } from "./widgets";
 
+// How the sidebar moves, open, closed or peeking: one gentle ease so it glides instead of snapping.
+const EASE = "300ms cubic-bezier(0.22, 1, 0.36, 1)";
+const GROW = `width ${EASE}`;
+const SLIDE = `transform ${EASE}, box-shadow ${EASE}`;
+
 export function AppShell({ area, children }: { area: Area; children: ReactNode }) {
   const { user, isLoading, error, retry } = useCurrentUser();
   const setPalette = useUi((s) => s.setPaletteOpen);
@@ -43,15 +48,16 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
     <BeamScope>
       <div className="flex min-h-dvh flex-col">
         <div className="flex min-h-0 flex-1">
-          {/* Open: the sidebar takes its place. Closed: nothing on the left, only a thin hover zone on the edge. */}
-          <aside className={cn("hidden w-60 shrink-0 border-r bg-sidebar", !collapsed && "lg:block")} aria-label="Sidebar">
-            <div className="sticky top-0 h-dvh">
+          {/* Open: the sidebar takes its place. Closed: its width slides to nothing, leaving only a thin hover zone on the edge. */}
+          <aside className={cn("hidden shrink-0 overflow-x-clip bg-sidebar lg:block", collapsed ? "w-0" : "w-60 border-r")} style={{ transition: GROW }} aria-label="Sidebar" inert={collapsed}>
+            <div className="sticky top-0 h-dvh w-60">
               <Sidebar area={area} onToggle={toggleSidebar} />
             </div>
           </aside>
           {collapsed && <div className="fixed inset-y-0 left-0 z-40 hidden w-2 lg:block" onMouseEnter={hover.enter} onMouseLeave={hover.leave} aria-hidden />}
-          {hover.peek && (
-            <aside className="fixed inset-y-0 left-0 z-50 hidden w-60 border-r bg-sidebar shadow-xl duration-150 animate-in fade-in-0 slide-in-from-left-4 lg:block" aria-label="Sidebar preview" onMouseEnter={hover.enter} onMouseLeave={hover.leave}>
+          {/* The hover peek stays mounted while closed, so it slides out and back instead of popping. */}
+          {collapsed && (
+            <aside className={cn("fixed inset-y-0 left-0 z-50 hidden w-60 border-r bg-sidebar lg:block", hover.peek ? "translate-x-0 shadow-xl" : "pointer-events-none -translate-x-full")} style={{ transition: SLIDE }} aria-label="Sidebar preview" inert={!hover.peek} onMouseEnter={hover.enter} onMouseLeave={hover.leave}>
               <Sidebar area={area} onNavigate={hover.close} onToggle={open} pinned={false} />
             </aside>
           )}
