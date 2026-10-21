@@ -5,7 +5,7 @@
 
 // Config
 const SPEAKING_LEVEL = 0.04; // loudness that counts as speech; low, because noise suppression makes quiet voices quieter
-const SILENCE_AFTER_SPEECH_MS = 2000; // this much quiet after speaking ends the question; long enough for a thinking pause
+const SILENCE_AFTER_SPEECH_MS = 1500; // this much quiet after speaking ends the question; long enough for a thinking pause
 const WAIT_FOR_SPEECH_MS = 7000; // give up if nothing is said
 const LONGEST_QUESTION_MS = 20000;
 

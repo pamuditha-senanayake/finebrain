@@ -10,7 +10,7 @@ import { useAsk, useConversation } from "@/lib/api/conversation";
 import { findPage } from "@/lib/ask-go";
 import { useCurrentUser } from "@/lib/auth";
 import { canRecord, openMic, recordQuestion, transcribe, type Mic as OpenMic } from "@/lib/voice/mic";
-import { shortOf, speak, unlockAudio } from "@/lib/voice/speaker";
+import { playCue, shortOf, speak, unlockAudio } from "@/lib/voice/speaker";
 import { endTurn, failureNote, isOffline, OFFLINE, startTurn, stepSignal, type Turn as VoiceTurn } from "@/lib/voice/turn";
 import { cn } from "@/lib/utils";
 import { AskChat, type Turn } from "./ask-chat";
@@ -134,6 +134,7 @@ export function AskVoice() {
       return;
     }
     setVoice("thinking");
+    playCue();
     try {
       const words = await transcribe(audio, stepSignal(now));
       if (!now.isCurrent()) return;

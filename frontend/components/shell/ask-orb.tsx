@@ -11,7 +11,7 @@ import { guideFor } from "@/lib/page-context";
 import { snapshotPage } from "@/lib/page-snapshot";
 import { useUi } from "@/lib/store";
 import { canRecord, openMic, recordQuestion, transcribe } from "@/lib/voice/mic";
-import { shortOf, speak, unlockAudio } from "@/lib/voice/speaker";
+import { playCue, shortOf, speak, unlockAudio } from "@/lib/voice/speaker";
 import { endTurn, failureNote, isOffline, OFFLINE, startTurn, stepSignal } from "@/lib/voice/turn";
 import { AskBubble } from "./ask-bubble";
 
@@ -137,6 +137,7 @@ export function AskOrb() {
       return setVoice("idle");
     }
     setVoice("thinking");
+    playCue();
     try {
       const words = await transcribe(audio, stepSignal(now));
       if (!now.isCurrent()) return;
