@@ -91,6 +91,7 @@ async function main() {
   console.log(`${answer.success && asked.ok ? "ok  " : "FAIL"} ask${answer.success ? "" : ` ${answer.error.issues[0]?.path.join(".")}: ${answer.error.issues[0]?.message}`}`);
   results.push(answer.success && asked.ok);
   if (answer.success && answer.data.conversationId) results.push(await check(`ask/turns?conversation=${answer.data.conversationId}`, z.array(C.AskTurn)));
+  results.push(await check("ask/conversations", z.array(C.AskConversation)));
   process.exit(results.every(Boolean) ? 0 : 1);
 }
 

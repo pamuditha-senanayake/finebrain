@@ -5,11 +5,13 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.api.ui_models_work import AskTurn
+from app.api.ui_models_work import AskConversation, AskTurn
 
 # Config
 KIND = "ask_turn"
 TURNS_GIVEN_TO_CLAUDE = 12  # the latest turns go in whole; older ones stay stored and shown
+CONVERSATIONS_SHOWN = 30  # the history lists this many, newest first
+TITLE_WORDS = 7
 
 
 class NotYourConversation(Exception):
@@ -40,6 +42,30 @@ def recent(lane, conversation_id: str, persona: str) -> list[tuple[str, str]]:
 
 def remember(lane, conversation_id: str, persona: str, question: str, answer: str, cited: list[str]) -> None:
     lane.records.save(KIND, conversation_id, StoredTurn(conversation_id=conversation_id, persona=persona, question=question, answer=answer, cited=cited, at=lane.now))
+
+
+def title_of(question: str) -> str:
+    """The first question, cut to a few words, names the chat."""
+    words = question.split()
+    return " ".join(words[:TITLE_WORDS]) + ("…" if len(words) > TITLE_WORDS else "")
+
+
+def conversations(lane, persona: str) -> list[dict]:
+    """This person's chats for the history, newest first. Each record's latest version is its last turn."""
+    last_turns = [turn for turn in lane.records.list_kind(KIND) if turn["persona"] == persona]
+    newest = sorted(last_turns, key=lambda turn: str(turn["at"]), reverse=True)[:CONVERSATIONS_SHOWN]
+    listed = []
+    for last in newest:
+        every = lane.records.history(KIND, last["conversation_id"])
+        listed.append(AskConversation(id=last["conversation_id"], title=title_of(every[0]["question"]), at=str(last["at"]), turns=len(every)).ui())
+    return listed
+
+
+def serve(lane, resource: str, params, persona: str) -> list[dict]:
+    """GET ask/turns (one chat) and ask/conversations (the history)."""
+    if resource == "ask/conversations":
+        return conversations(lane, persona)
+    return shown(lane, params.get("conversation", ""), persona)
 
 
 def shown(lane, conversation_id: str, persona: str) -> list[dict]:

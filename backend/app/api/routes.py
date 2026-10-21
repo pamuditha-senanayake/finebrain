@@ -61,9 +61,9 @@ def create_api_app(lane, hq: dict, answerer=None, chatter=None) -> FastAPI:
             return tenant_view(lane, hq)
         if resource == "clusters":
             return clusters_view(lane, hq)
-        if resource == "ask/turns":
+        if resource in ("ask/turns", "ask/conversations"):
             try:
-                return ask_memory.shown(lane, request.query_params.get("conversation", ""), x_persona)
+                return ask_memory.serve(lane, resource, request.query_params, x_persona)
             except ask_memory.NotYourConversation:
                 raise HTTPException(403, "not_your_conversation") from None
         if resource == "documents":

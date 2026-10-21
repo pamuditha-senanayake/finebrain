@@ -14,6 +14,7 @@ import { shortOf, speak, unlockAudio } from "@/lib/voice/speaker";
 import { endTurn, failureNote, isOffline, OFFLINE, startTurn, stepSignal, type Turn as VoiceTurn } from "@/lib/voice/turn";
 import { cn } from "@/lib/utils";
 import { AskChat, type Turn } from "./ask-chat";
+import { AskHistory } from "./ask-history";
 import { AskUpload } from "./ask-upload";
 import { GLIDE, useOrbSize, VoiceOrb, type OrbStage, type VoiceState } from "./voice-orb";
 import { t } from "@/lib/i18n";
@@ -315,6 +316,7 @@ export function AskVoice() {
       <h1 className="sr-only">Ask the Brain</h1>
 
       <div className="flex items-center gap-2 px-6 pt-5 short:pt-3">
+        <AskHistory currentId={conversation.id} onOpen={(id) => { endTurn(turn); stopSpeaking(); setVoice("idle"); conversation.open(id); setTurns([]); setHeard(""); setEarlier(true); }} />
         {before.length > 0 && (
           <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setEarlier(!earlier)} aria-expanded={earlier}>
             <History /> Earlier ({before.length})
