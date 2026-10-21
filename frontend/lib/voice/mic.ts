@@ -78,8 +78,8 @@ export function recordQuestion(mic: Mic, level: Level): Recording {
 }
 
 /** Sends the recording to ElevenLabs through our server route and returns the words. */
-export async function transcribe(audio: Blob): Promise<string> {
-  const res = await fetch("/api/voice/listen", { method: "POST", headers: { "Content-Type": audio.type }, body: audio });
+export async function transcribe(audio: Blob, signal?: AbortSignal): Promise<string> {
+  const res = await fetch("/api/voice/listen", { method: "POST", headers: { "Content-Type": audio.type }, body: audio, signal });
   const data = (await res.json()) as { text?: string; error?: string };
   if (!res.ok) throw new Error(data.error ?? "Voice failed.");
   return (data.text ?? "").trim();

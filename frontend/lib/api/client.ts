@@ -36,9 +36,9 @@ export async function apiGet<T>(path: string, schema: z.ZodType<T>, signal?: Abo
   return parse(res, schema, path);
 }
 
-export async function apiPost<T>(path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+export async function apiPost<T>(path: string, body: unknown, schema: z.ZodType<T>, signal?: AbortSignal): Promise<T> {
   await mocksReady();
-  const res = await fetch(tenantPath(path), { method: "POST", headers: headers(), body: JSON.stringify(body ?? {}) });
+  const res = await fetch(tenantPath(path), { method: "POST", headers: headers(), body: JSON.stringify(body ?? {}), signal });
   return parse(res, schema, path);
 }
 

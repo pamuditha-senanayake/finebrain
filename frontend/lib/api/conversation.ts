@@ -34,15 +34,15 @@ function useConversationKey() {
   return `${tenantId}:${persona ?? currentPersonaId()}`;
 }
 
-export type AskInput = { question: string; page?: { path: string; scope: "page" | "system"; title?: string; snapshot?: string } };
+export type AskInput = { question: string; page?: { path: string; scope: "page" | "system"; title?: string; snapshot?: string }; signal?: AbortSignal };
 
 /** Asks inside the current conversation and keeps the id the brain sends back. */
 export function useAsk() {
   const key = useConversationKey();
   return useMutation({
-    mutationFn: async (input: AskInput) => {
+    mutationFn: async ({ signal, ...input }: AskInput) => {
       const conversationId = useConversations.getState().byKey[key];
-      const answer = await apiPost("ask", { ...input, conversationId }, C.AskAnswer);
+      const answer = await apiPost("ask", { ...input, conversationId }, C.AskAnswer, signal);
       if (answer.conversationId) useConversations.getState().set(key, answer.conversationId);
       return answer;
     },

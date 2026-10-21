@@ -20,12 +20,14 @@ export function unlockAudio() {
 export type Playback = { stop: () => void; done: Promise<void> };
 
 /** Speaks `text` with the ElevenLabs voice; `level` follows the real loudness so the orb moves with it. */
-export async function speak(text: string, level: Level): Promise<Playback> {
-  const res = await fetch("/api/voice/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+export async function speak(text: string, level: Level, signal?: AbortSignal): Promise<Playback> {
+  const res = await fetch("/api/voice/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }), signal });
   if (!res.ok) throw new Error("speak failed");
   unlockAudio();
   const ctx = context!;
   const buffer = await ctx.decodeAudioData(await res.arrayBuffer());
+  // The turn may have been cancelled while the audio downloaded; a stale reply must stay silent.
+  signal?.throwIfAborted();
   const source = ctx.createBufferSource();
   const analyser = ctx.createAnalyser();
   analyser.fftSize = 512;
