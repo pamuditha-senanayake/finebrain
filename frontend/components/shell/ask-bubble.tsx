@@ -29,9 +29,13 @@ export function AskBubble({ items, voice, note, suggestions, onSend, onMic, onCl
   const [q, setQ] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const feed = useRef<HTMLDivElement>(null);
-  useEffect(() => input.current?.focus(), []);
+  useEffect(() => {
+    input.current?.focus();
+  }, []);
   // Keep the newest message in view; older ones scroll away above.
-  useEffect(() => feed.current?.scrollTo({ top: feed.current.scrollHeight, behavior: "smooth" }), [items, note]);
+  useEffect(() => {
+    feed.current?.scrollTo({ top: feed.current.scrollHeight, behavior: "smooth" });
+  }, [items, note]);
   const busy = voice === "thinking";
 
   function submit(text: string) {
