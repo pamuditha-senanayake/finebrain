@@ -12,6 +12,24 @@ This is a core value of the product. Every screen must feel calm and be understo
 
 When a design choice trades clarity for density, choose clarity.
 
+## UI and UX standards: design it, never just drop a control in
+
+Every screen must look and work like a professional product. Needing an input is not a reason to place a bare input. Design the whole interaction first, then build it.
+
+- **Follow established UI/UX standards.** Use known patterns (Nielsen's heuristics, WCAG 2.2 AA, platform conventions) and the components in `components/ui` and `components/brain`. No one-off controls.
+- **Design the flow, not the field.** Before building, answer: what is the person trying to do, what do they need to know first, what comes next, and how do they recover from a mistake.
+- **Starting something gets a proper entry.** Use a clear primary button that opens a dialog or a guided path (choose a type, name it, then continue). Never a lone text box with "+ New".
+- **Chat looks like chat.** Use bubbles, a multi-line composer (Enter sends, Shift+Enter adds a line), auto-scroll to the newest message, and a visible thinking state. Never a one-line box at the bottom of a card.
+- **Progress looks like progress.** Show steps as a numbered step line with done, current and upcoming states. Steps that are not buttons must not look like buttons.
+- **The next action is always obvious.** Put Back on the left and the next step on the right, named for what it does ("Next: paste their answer"). Never vague labels like "They delivered".
+- **Every button says what happens and why.** "Copy request for their coding agent", not "Copy brief". Add one line of context when the reason is not obvious.
+- **Group things the way people think.** Group by platform, owner or purpose. Never one flat list of mixed kinds, and never two pages for the same idea (for example, Connections and Sensors).
+- **Every state is designed.** Cover loading, empty (with a way forward), error (plain words and how to fix), success and disabled (say why).
+- **Ask for the least.** Let people paste one answer and have the system extract the parts. Do not show three separate boxes when one will do. Prefill what is already known.
+- **Accessible by default.** Every control has a visible label or `aria-label`. Everything is reachable by keyboard with a visible focus state. Contrast is AA or better. Nothing relies on colour alone.
+- **Responsive and contained.** Layouts work from phone to wide desktop, nothing spills out of its card, and there is no horizontal scroll.
+- **Check it in the browser before calling it done.** Click through it as a first-time user and look at every state. If any part would confuse someone who has never seen it, it is not finished.
+
 ## Coding style
 
 - Every time you write code, use the skills `/anthropic-skills:zed-coding` and `/anthropic-skills:zed-coding-files`.
