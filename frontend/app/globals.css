@@ -4,6 +4,8 @@
 @import "./focus.css";
 
 @custom-variant dark (&:is(.dark *, .black *));
+/* Short windows, like a laptop with browser bars: tighter spacing so a page still fits. */
+@custom-variant short (@media (max-height: 760px));
 
 @theme inline {
   --color-background: var(--background);
@@ -320,6 +322,9 @@
 }
 
 .scrollbar-thin { scrollbar-width: thin; }
+/* Scrolls by wheel or touch with no bar showing. */
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
 .tabular { font-variant-numeric: tabular-nums; }
 
 /* Brain map: the L1 constellation. Its own surface tokens so it reads as one object in both themes. */
