@@ -77,3 +77,39 @@ def test_visit_2_reuses_the_vault_and_leaves_visit_1_untouched(client, lane):
     visit(client, lane, SECOND)
     assert lane.vault == vault_after_first  # no new vault entries for the same person
     assert signals(lane)[0] == first_before
+
+
+# --- Visit 3: visit 1 arrives again, from Kafka or from the chat webhook
+
+def test_visit_3_kafka_redelivery_changes_nothing(client, lane):
+    """Same event again: the bus knows S2 handled it and skips it."""
+    visit(client, lane, FIRST)
+    visit(client, lane, SECOND)
+    before = (signals(lane), dict(lane.vault), len(lane.object_store))
+    redeliver_first(lane)
+    assert (signals(lane), dict(lane.vault), len(lane.object_store)) == before
+
+
+def test_visit_3_webhook_resend_is_dropped_by_s2(client, lane):
+    """Same chat message as a new event: S2's dedup key stops it, so S3 never sees it twice."""
+    visit(client, lane, FIRST)
+    visit(client, lane, SECOND)
+    before = (signals(lane), dict(lane.vault))
+    visit(client, lane, FIRST)
+    assert (signals(lane), dict(lane.vault)) == before and observe.read_count("s2.duplicate") == 1
+
+
+# --- Rules across every visit
+
+def test_rules_hold_across_all_visits(client, lane):
+    seen_signals = []
+    for step in (FIRST, SECOND, None):
+        visit(client, lane, step) if step else redeliver_first(lane)
+        now = signals(lane)
+        assert now[: len(seen_signals)] == seen_signals  # no visit loses or rewrites earlier work
+        seen_signals = now
+    raw_ids = {envelope.event_id for envelope in lane.bus.topics["signals.raw"]}
+    assert len(seen_signals) <= len(lane.bus.topics["signals.raw"])  # never more signals than raw messages
+    assert all(signal["raw_event_id"] in raw_ids for signal in seen_signals)  # every signal points at its raw message
+    assert all(Signal.model_validate(signal) for signal in seen_signals)  # K2 contract holds on every visit
+    assert not [value for value in ANNA if value in str(seen_signals)]  # no personal data leaves S2
