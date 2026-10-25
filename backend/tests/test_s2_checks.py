@@ -36,3 +36,12 @@ def test_seam_logs_match_k1_and_k2(client, lane, caplog):
     assert (seam_in["connector_id"], seam_in["external_id"], seam_in["source_type"]) == (k1["connector_id"], k1["external_id"], k1["source_type"])
     assert {key: seam_out[key] for key in ("signal_id", "kind", "channel", "dedup_key", "conversation_id")} == {key: k2[key] for key in ("signal_id", "kind", "channel", "dedup_key", "conversation_id")}
     assert not [value for value in ANNA if value in caplog.text]
+
+
+# --- Golden master: Anna's two visits must keep producing exactly this
+
+def test_visits_match_the_frozen_result(client, lane):
+    visit(client, lane, FIRST)
+    visit(client, lane, SECOND)
+    produced = [{key: value for key, value in signal.items() if key not in VOLATILE} for signal in signals(lane)]
+    assert produced == FROZEN
