@@ -103,6 +103,8 @@ def make_task(signal: Signal, rule: dict, score: float, routing: dict, new_id, n
 
 def route(signal: Signal, routing: dict, choose, new_id, now: datetime) -> tuple[TaskRequest | None, str]:
     """S3: (task, "routed" or "planned"), or (None, reason) with reason lane_b, below_threshold or tie_unresolved."""
+    # Seam in: the K2 that arrived, ids and labels only
+    log_event("S3", "seam_in", signal_id=signal.signal_id, kind=signal.kind, channel=signal.channel, conversation_id=signal.conversation_id)
     if signal.kind in SKIP_KINDS:
         return None, "lane_b"
 
@@ -117,4 +119,6 @@ def route(signal: Signal, routing: dict, choose, new_id, now: datetime) -> tuple
     # Step 2: build K3 with the pinned skill; a model pick carries a flag so later stages can weigh it
     flags = signal.flags + ([PLANNED_FLAG] if reason == "planned" else [])
     task = make_task(signal, rule, score, routing, new_id, now, flags)
+    log_event("S3", "seam_out", task_id=task.task_id, signal_ids=task.signal_ids, resolver_rule_id=task.resolver_rule_id,
+              skill_ref=task.skill_ref.model_dump(), agent_id=task.agent_id, match_score=task.match_score, flags=task.flags)
     return task, reason
