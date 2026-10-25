@@ -1,6 +1,6 @@
 "use client";
 
-import { History, Keyboard, Mic, Plus, Send, Square, Volume2, VolumeX, X } from "lucide-react";
+import { Keyboard, Mic, Plus, Send, Square, Volume2, VolumeX, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
@@ -69,7 +69,6 @@ export function AskVoice() {
   const [note, setNote] = useState("");
   const [filed, setFiled] = useState("");
   const onFiled = (message: string, ok: boolean) => (ok ? (setFiled(message), setNote("")) : (setNote(message), setFiled("")));
-  const [earlier, setEarlier] = useState(false);
   const [setup, setSetup] = useState(false);
   const [picker, setPicker] = useState(false);
   const router = useRouter();
@@ -285,14 +284,14 @@ export function AskVoice() {
   }
 
   const last = turns[turns.length - 1];
-  // Earlier turns: what was saved before this page opened, then this visit's turns except the last.
+  // The whole chat shows, scrolled to the newest: what was saved before this page opened, then this visit's turns.
   const saved: Turn[] = conversation.saved.map((t) => ({ q: t.question, a: { question: t.question, answer: t.answer, citations: [], withheld: 0 } }));
   const before = [...saved, ...turns.slice(0, -1)];
   // Three looks: home (orb, greeting, quick questions, bar), big (only the orb, listening or thinking),
   // and chat (messages fill the page, a small orb at the bottom; tap it to talk again).
-  const stage: OrbStage = voice === "listening" || voice === "thinking" ? "big" : earlier || turns.length > 0 ? "small" : "rest";
+  const stage: OrbStage = voice === "listening" || voice === "thinking" ? "big" : before.length > 0 || turns.length > 0 ? "small" : "rest";
   const orb = useOrbSize(stage);
-  const chat = [...(earlier ? before : []), ...(last ? [last] : [])];
+  const chat = [...before, ...(last ? [last] : [])];
   const slash = typing && text.startsWith("/") ? COMMANDS.filter((c) => c.cmd.startsWith(text.trim().split(" ")[0].toLowerCase())) : [];
 
   // The setup interview takes over the page; the orb stays small above it and speaks each question.
@@ -317,14 +316,9 @@ export function AskVoice() {
       <h1 className="sr-only">Ask the Brain</h1>
 
       <div className="flex items-center gap-2 px-6 pt-5 short:pt-3">
-        <AskHistory currentId={conversation.id} onOpen={(id) => { endTurn(turn); stopSpeaking(); setVoice("idle"); conversation.open(id); setTurns([]); setHeard(""); setEarlier(true); }} />
-        {before.length > 0 && (
-          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setEarlier(!earlier)} aria-expanded={earlier}>
-            <History /> Earlier ({before.length})
-          </Button>
-        )}
+        <AskHistory currentId={conversation.id} onOpen={(id) => { endTurn(turn); stopSpeaking(); setVoice("idle"); conversation.open(id); setTurns([]); setHeard(""); }} />
         {(before.length > 0 || turns.length > 0) && (
-          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => { conversation.startOver(); setTurns([]); setHeard(""); setEarlier(false); }}>
+          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => { conversation.startOver(); setTurns([]); setHeard(""); }}>
             <Plus /> New
           </Button>
         )}
