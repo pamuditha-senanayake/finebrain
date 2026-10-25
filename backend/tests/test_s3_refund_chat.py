@@ -16,6 +16,11 @@ from tests.test_s2_checks import FROZEN as S2_FROZEN
 
 # Config
 REFUND_SKILL = {"id": "skill_refund_handling", "version": 3, "branch": "main", "commit_id": "cmt_0007"}
+FROZEN_TASK = {  # Anna's K3, reviewed by hand once, then frozen; ids are checked by the tests above instead
+    "activity_id": "act_refund_request", "skill_ref": REFUND_SKILL, "agent_id": "agent_refund_worker", "on_behalf_of": None,
+    "resolver_rule_id": "rr_refund_chat", "match_score": 1.0, "base_criticality": 0, "due_at": "2026-10-10T14:00:00+05:30",
+    "priority": 3, "flags": [],
+}
 
 
 # --- Helpers
@@ -101,3 +106,11 @@ def test_seam_logs_match_k2_and_k3(lane, caplog):
     assert {key: seam_out[key] for key in ("task_id", "signal_ids", "resolver_rule_id", "skill_ref", "agent_id", "flags")} == {
         key: task[key] for key in ("task_id", "signal_ids", "resolver_rule_id", "skill_ref", "agent_id", "flags")}
     assert "Anna" not in caplog.text and "anna@example.lk" not in caplog.text
+
+
+# --- Golden master: Anna's request must keep producing exactly this task
+
+def test_task_matches_the_frozen_result(lane):
+    anna_asks_for_a_refund(lane)
+    task = payloads(lane, "tasks.created")[0]
+    assert {key: value for key, value in task.items() if key not in ("task_id", "signal_ids")} == FROZEN_TASK
