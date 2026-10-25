@@ -117,6 +117,6 @@ def test_first_message_matches_the_frozen_result(client, lane):
 def test_same_chat_message_twice_is_stored_once_and_normalized_once(client, lane):
     assert send(client, FIRST).status_code == send(client, FIRST).status_code == 202
     lane.bus.drain()
-    assert len(lane.object_store) == 1
+    assert len([uri for uri in lane.object_store if "/raw/" in uri]) == 1  # later stages may store traces of their own
     assert len({event["raw_sha256"] for event in k1_events(lane)}) == 1
     assert len(lane.bus.topics["signals.normalized"]) == 1
