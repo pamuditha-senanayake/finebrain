@@ -111,3 +111,12 @@ def test_first_message_matches_the_frozen_result(client, lane):
     k1 = k1_events(lane)[0]
     assert {key: k1[key] for key in FROZEN_FIRST} == FROZEN_FIRST
 
+
+# --- Redelivery: the same chat message sent twice is stored once and S2 keeps one copy
+
+def test_same_chat_message_twice_is_stored_once_and_normalized_once(client, lane):
+    assert send(client, FIRST).status_code == send(client, FIRST).status_code == 202
+    lane.bus.drain()
+    assert len(lane.object_store) == 1
+    assert len({event["raw_sha256"] for event in k1_events(lane)}) == 1
+    assert len(lane.bus.topics["signals.normalized"]) == 1
