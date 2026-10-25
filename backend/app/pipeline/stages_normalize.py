@@ -59,6 +59,8 @@ def choose_actor_and_subject(message: dict, entities: list[Entity], tenant_id: s
     """A payment is the most useful subject; without one, the customer or uploader is."""
     if "uploaded_by" in message:
         actor = Actor(type="human", ref=message["uploaded_by"])
+    elif not message["email"] and message.get("customer_ref"):
+        actor = Actor(type="customer", ref=message["customer_ref"])  # the site's own customer id, not personal data
     else:
         actor = Actor(type="customer", ref=pii.make_token(tenant_id, message["email"]))
     refs = [entity.value_or_token for entity in entities if entity.type == "payment_ref"]
@@ -84,8 +86,14 @@ def build_signal(k1: RawSignalEnvelope, raw_event_id: str, tenant_id: str, objec
         channel=k1.source_type, actor=actor, subject=subject, text_masked=text_masked,
         language=detect_language(message["text"]), entities=entities, pii_tokens=tokens, flags=flags,
         attachments=save_attachments(object_store, k1.raw_object_uri, k1.external_id, message["attachments"]),
-        sensitivity=pii.sensitivity_for(found), dedup_key=dedup_key,
+        sensitivity=pii.sensitivity_for(found), dedup_key=dedup_key, thread_ref=thread_of(k1),
     )
+
+
+def thread_of(k1: RawSignalEnvelope) -> str | None:
+    """A chat message's conversation, from the session header S1 kept."""
+    session = k1.headers_subset.get("session")
+    return f"{k1.connector_id}:{session}" if k1.source_type == "chat" and session else None
 
 
 def claim(seen_keys, key: str) -> bool:

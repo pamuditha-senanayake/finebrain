@@ -53,10 +53,11 @@ def part_text(part) -> str:
 
 
 def read_chat(body: str) -> dict:
-    """Visitor and text from a web chat message."""
+    """Visitor and text from a web chat message. A connected site may know the customer only by its own id (customer_ref)."""
     try:
         chat = json.loads(body)
-        return {"name": chat["visitor_name"], "email": chat["visitor_email"], "text": chat["text"], "attachments": []}
+        message = {"name": chat.get("visitor_name") or "", "email": chat.get("visitor_email") or "", "text": chat["text"], "attachments": []}
+        return message | ({"customer_ref": str(chat["customer_ref"])} if chat.get("customer_ref") else {})
     except (json.JSONDecodeError, KeyError, TypeError) as error:
         raise ParseError(f"chat body is not a chat message: {type(error).__name__}") from None
 

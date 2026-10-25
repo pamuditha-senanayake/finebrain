@@ -1,0 +1,35 @@
+{
+  "name": "Finebase Labs portal",
+  "purpose": "website_chat",
+  "base_url": "https://finebaselabs-platform-2-one.vercel.app",
+  "auth": "bearer",
+  "auth_header": "Authorization",
+  "docs_url": "HUB_CONNECTION.local.md (kept by the portal owner)",
+  "inbound": {
+    "poll": {"method": "GET", "path": "/api/hub/messages"},
+    "cursor_param": "since",
+    "cursor_field": "nextSince",
+    "items_field": "messages",
+    "fields": {
+      "message_id": "id",
+      "conversation_id": "conversation_id",
+      "sender": "sender",
+      "text": "body",
+      "customer_id": "conversations.customer_id",
+      "created_at": "created_at"
+    },
+    "only_sender": "customer",
+    "ack": {"method": "PATCH", "path": "/api/hub/messages", "body": {"ids": "{ids}"}, "writes": true},
+    "interval_seconds": 2,
+    "push_signature_header": "X-Findbase-Signature"
+  },
+  "actions": {
+    "reply": {"method": "POST", "path": "/api/hub/messages", "body": {"conversationId": "{conversation_id}", "body": "{text}", "senderName": "{agent_name}", "actions": "{buttons}"}, "writes": true},
+    "typing": {"method": "PATCH", "path": "/api/hub/conversations/{conversation_id}", "body": {"typing": true}, "writes": true},
+    "close": {"method": "PATCH", "path": "/api/hub/conversations/{conversation_id}", "body": {"status": "closed"}, "writes": true},
+    "conversation": {"method": "GET", "path": "/api/hub/conversations/{conversation_id}"},
+    "customer": {"method": "GET", "path": "/api/hub/customers/{customer_id}"},
+    "refund_file": {"method": "POST", "path": "/api/hub/refunds", "body": {"orderId": "{order_id}", "reason": "{reason}"}, "writes": true},
+    "refund_decide": {"method": "POST", "path": "/api/hub/refunds/{refund_id}", "body": {"status": "{status}", "note": "{note}", "decidedBy": "{decided_by}"}, "writes": true}
+  }
+}

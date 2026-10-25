@@ -3,10 +3,13 @@
 # Counters live in this process for now; a Prometheus export comes later.
 import json
 import logging
+import os
 from collections import Counter
+from pathlib import Path
 
 # Config
 LOGGER_NAME = "finebrain"
+SEAM_LOG_DIR = os.environ.get("SEAM_LOG_DIR")  # when set, each seam appends what came in and went out to <stage>.jsonl
 
 logger = logging.getLogger(LOGGER_NAME)
 counters: Counter[str] = Counter()
@@ -17,6 +20,16 @@ last_seen: dict[str, str] = {}  # when something last happened, like a connector
 def log_event(stage: str, event: str, **fields) -> None:
     """One line a log tool can parse. Callers pass ids and codes only, never personal data."""
     logger.info(json.dumps({"stage": stage, "event": event, **fields}, default=str, sort_keys=True))
+
+
+def log_seam(stage: str, came_in: dict, went_out: dict) -> None:
+    """One debug line per seam, matching its contract, kept on disk so a run can be read back later."""
+    log_event(stage, "seam", came_in=came_in, went_out=went_out)
+    if not SEAM_LOG_DIR:
+        return
+    Path(SEAM_LOG_DIR).mkdir(parents=True, exist_ok=True)
+    with open(Path(SEAM_LOG_DIR) / f"{stage}.jsonl", "a", encoding="utf-8") as seam_file:
+        seam_file.write(json.dumps({"in": came_in, "out": went_out}, default=str, sort_keys=True) + "\n")
 
 
 def count(name: str, amount: int = 1) -> None:

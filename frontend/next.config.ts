@@ -8,6 +8,7 @@ const researchEnabled = process.env.NEXT_PUBLIC_FLAG_RESEARCH === "enabled";
 // nothing for Cache Components to prerender. It stays off to keep URL hooks free of Suspense rules.
 const nextConfig: NextConfig = {
   pageExtensions: [...(researchEnabled ? ["research.tsx"] : []), "tsx", "ts"],
+  experimental: { agentUpgrade: "security" },
   turbopack: {
     rules: {
       "*.css": {
