@@ -76,3 +76,28 @@ def test_s3_hands_on_one_complete_task(lane):
     assert task["due_at"] == (NOW + timedelta(hours=4)).isoformat() and task["priority"] == 3
     assert task["flags"] == [] and task["on_behalf_of"] is None
     assert lane.bus.topics["tasks.created"][0].correlation_id == lane.bus.topics["signals.raw"][0].correlation_id  # one journey
+
+
+# --- State S3 leaves behind: the signal kept for other workers, one task, nothing unrouted
+
+def test_s3_keeps_the_signal_and_creates_exactly_one_task(lane):
+    anna_asks_for_a_refund(lane)
+    [signal] = payloads(lane, "signals.normalized")
+    assert list(lane.signals) == [signal["signal_id"]]
+    assert lane.records.load("signal", signal["signal_id"])["conversation_id"] == "chat_sess_anna"
+    assert (len(payloads(lane, "tasks.created")), len(payloads(lane, "tasks.unrouted"))) == (1, 0)
+
+
+# --- Seam logs: what came in from S2 and what went out to S4, no personal data
+
+def test_seam_logs_match_k2_and_k3(lane, caplog):
+    with caplog.at_level(logging.INFO, logger=observe.LOGGER_NAME):
+        anna_asks_for_a_refund(lane)
+    lines = [json.loads(record.message) for record in caplog.records if record.message.startswith("{")]
+    seam_in = next(line for line in lines if line["stage"] == "S3" and line["event"] == "seam_in")
+    seam_out = next(line for line in lines if line["stage"] == "S3" and line["event"] == "seam_out")
+    [signal], [task] = payloads(lane, "signals.normalized"), payloads(lane, "tasks.created")
+    assert (seam_in["signal_id"], seam_in["conversation_id"]) == (signal["signal_id"], signal["conversation_id"])
+    assert {key: seam_out[key] for key in ("task_id", "signal_ids", "resolver_rule_id", "skill_ref", "agent_id", "flags")} == {
+        key: task[key] for key in ("task_id", "signal_ids", "resolver_rule_id", "skill_ref", "agent_id", "flags")}
+    assert "Anna" not in caplog.text and "anna@example.lk" not in caplog.text
