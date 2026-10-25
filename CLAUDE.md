@@ -33,7 +33,7 @@ Every screen must look and work like a professional product. Needing an input is
 ## Coding style
 
 - Every time you write code, use the skills `/anthropic-skills:zed-coding` and `/anthropic-skills:zed-coding-files`.
-- Files stay at 150 lines or less. If going over is truly the best way, ask first and give the reason in 30 words or less.
+- Aim for files of 150 lines or less, and few files. This is a guide, not a strict rule: if a longer file or an extra file makes the code clearer, do it, and say why in 30 words or less.
 
 ## File organization
 

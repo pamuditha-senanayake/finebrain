@@ -84,3 +84,12 @@ def test_same_event_is_handled_once():
     lane.bus.redeliver("signals.raw", lane.bus.topics["signals.raw"][0])
     lane.bus.drain()
     assert len(payloads(lane, "tasks.created")) == 1 and len(paid) == 1
+
+
+def test_s4_starts_the_run_that_s5_to_s10_finish():
+    # Contract S4 to S5: one runs.started, before S5's first read, carrying the run id the record closes with
+    lane, _ = run_sample("s2")
+    started, completed = payloads(lane, "runs.started"), payloads(lane, "runs.completed")
+    assert len(started) == 1 and started[0]["run_id"] == completed[-1]["run_id"] == payloads(lane, "access.decisions")[0]["run_id"]
+    assert lane.bus.topics["runs.started"][0].event_id < lane.bus.topics["access.decisions"][0].event_id  # evt_0004 style ids count up
+    assert started[0]["handoff"] is None and started[0]["recipe"]["skill_ref"] == payloads(lane, "tasks.created")[0]["skill_ref"]  # s2 is an email

@@ -1,13 +1,14 @@
 # run_steps.py: the S4 run steps (S5 to S10 for one task), shared by the in-process runner and Temporal.
-# Used by: orchestrate.py, temporal_flow.py, run_approvals.py (the S8 part). Uses: stages_*.py, retrieve_scope.py, contracts_*.py.
+# Used by: orchestrate.py, temporal_flow.py, run_approvals.py (the S8 part). Uses: stages_orchestrate.py (S4 start), stages_*.py, retrieve_scope.py, contracts_*.py.
 from pydantic import BaseModel
 
-from app.pipeline import retrieve_scope, stages_act, stages_govern, stages_reason, stages_record, stages_retrieve
+from app.pipeline import retrieve_scope, stages_act, stages_govern, stages_orchestrate, stages_reason, stages_record, stages_retrieve
 from app.pipeline.retry import call_with_retry
 from app.pipeline.contracts_reason import ContextBundle, ContextQuery, ProposedAction
 from app.pipeline.contracts_run import Decision, GovernanceVerdict, RunStep
-from app.pipeline.contracts_signal import Envelope, Principal, Signal, TaskRequest
+from app.pipeline.contracts_signal import Envelope, Principal, TaskRequest
 from app.pipeline.stages_decide import ApprovalState
+from app.pipeline.stages_orchestrate import signal_of  # kept here too: run_approvals, stages_learn and summary_sources read it from run_steps
 
 # Config
 ACTION_STEP_ID = "step_04"
@@ -28,14 +29,6 @@ class RunState(BaseModel):
     approval: ApprovalState | None = None
 
 
-def signal_of(lane, signal_id: str) -> Signal | None:
-    """The masked signal, from this process's memory or from records (when another worker routed it)."""
-    if signal_id in lane.signals:
-        return lane.signals[signal_id]
-    stored = lane.records.load("signal", signal_id)
-    return Signal.model_validate(stored) if stored else None
-
-
 def make_step(lane, step_id: str, kind: str, decision: str, reason: str, refs: list[str]) -> RunStep:
     """One line of the run's story, for the Agent running history screen."""
     return RunStep(step_id=step_id, kind=kind, started_at=lane.now, duration_ms=0, decision=decision, reason=reason, refs=refs)
@@ -54,10 +47,7 @@ def retrieve_with_retry(lane, query: ContextQuery, cause: Envelope):
 def close_unavailable(lane, envelope: Envelope, task: TaskRequest, run_id: str) -> None:
     """Context could not be read even after a retry: escalate to a human, act on nothing."""
     step = make_step(lane, "step_01", "retrieval", "context_unavailable", "knowledge store unreachable after one retry", [])
-    written = stages_record.write_trace(lane.object_store, stages_record.trace_uri(lane.seed, run_id), {"task": task.model_dump(mode="json"), "steps": [step.model_dump(mode="json")], "outcome": "escalated"})
-    record, event = stages_record.record(task, None, [step], "escalated", None, lane.seed, lane.now, lane.now, run_id=run_id, trace_written=written)
-    lane.bus.publish("runs.completed", "run.completed", record, "recorder", envelope)
-    lane.bus.publish("ui.events", "ui.event", event, "recorder", envelope)
+    stages_orchestrate.close_escalated(lane, envelope, task, run_id, step)
 
 
 def govern_once(lane, task, action, bundle, principal, cause: Envelope, request_text: str):
@@ -88,10 +78,15 @@ def propose_and_govern(lane, task: TaskRequest, bundle, principal: Principal, ru
 
 
 def start_run(lane, envelope: Envelope) -> RunState | None:
-    """S5, S6 and S7 for the task in this envelope. None when the run already closed (context unavailable)."""
-    # Step 1: retrieve what the agent may read about this payment
+    """S4 starts the run, then S5, S6 and S7. None when it did not start or already closed (context unavailable)."""
+    # Step 1: S4 plans the run and hands the chat over; a task it cannot start is closed there
+    started = stages_orchestrate.begin_run(lane, envelope)
+    if started is None:
+        return None
+
+    # Step 2: retrieve what the agent may read about this payment
     task = TaskRequest.model_validate(envelope.payload)
-    run_id = lane.new_id("run")
+    run_id = started.run_id
     principal = Principal.model_validate(lane.seed["agents"][task.agent_id])
     signal = signal_of(lane, task.signal_ids[0])
     refs = [entity.value_or_token for entity in signal.entities if entity.type == "payment_ref"] if signal else []
@@ -104,7 +99,7 @@ def start_run(lane, envelope: Envelope) -> RunState | None:
         close_unavailable(lane, envelope, task, run_id)
         return None
 
-    # Step 2: propose, then govern; a failed gate gets one more try with the reason
+    # Step 3: propose, then govern; a failed gate gets one more try with the reason
     action, decision, verdict = propose_and_govern(lane, task, bundle, principal, run_id, envelope)
     steps = [
         make_step(lane, "step_01", "retrieval", f"{len(bundle.items)} items", f"{bundle.denied_count} withheld", bundle.access_decision_ids),

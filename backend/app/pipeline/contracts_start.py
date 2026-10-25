@@ -1,0 +1,50 @@
+# contracts_start.py: Pydantic models for the S4 seam (K3 TaskRequest in; RunStarted on runs.started, or RunContinued on runs.continued).
+# Used by: stages_orchestrate.py, tests/test_s4_orchestrate_bdd.py. Uses: contracts_signal.py.
+# S5 reads RunStarted to know the run id, the recipe the Planner picked, and the chat the Refund agent was handed.
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+from app.pipeline.contracts_signal import VersionRef
+
+# Config: enum values
+StageName = Literal["S5 Retrieve", "S6 Reason", "S7 Govern", "S8 Decide", "S9 Act", "S10 Record"]
+
+
+class Recipe(BaseModel):
+    """The skill the Planner picked from the library, at the version S3 pinned."""
+    skill_ref: VersionRef
+    name: str
+    allowed_tools: list[str] = Field(min_length=1)
+    steps: list[str] = Field(min_length=1)
+
+
+class Handoff(BaseModel):
+    """The Chat agent passes the conversation to the task's agent, with the customer and chat attached."""
+    handoff_id: str
+    from_agent: str
+    to_agent: str
+    customer_ref: str  # a PiiToken for people, never the raw name
+    thread_ref: str  # "<connection>:<their conversation id>"
+    transcript_signal_ids: list[str] = Field(min_length=1)  # oldest first, ending with this task's message
+
+
+class RunStarted(BaseModel):
+    run_id: str
+    task_id: str
+    signal_id: str
+    agent_id: str
+    request_text: str  # the masked message the Planner read
+    recipe: Recipe
+    plan: list[StageName]
+    handoff: Handoff | None  # None when the signal is not a chat (email, upload)
+
+
+class RunContinued(BaseModel):
+    """A later message on a chat whose run is still open: it joins that run, with no new recipe pick and no new handoff."""
+    run_id: str  # the open run this message joins
+    task_id: str
+    signal_id: str
+    agent_id: str
+    request_text: str
+    transcript_signal_ids: list[str] = Field(min_length=1)  # the chat so far, ending with this message
