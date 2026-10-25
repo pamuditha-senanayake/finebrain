@@ -1,10 +1,12 @@
-# test_s2_checks.py: S2 checks beyond the visits: seam logs against K1 and K2, a frozen golden master, random traffic.
+# test_s2_checks.py: S2 checks beyond the visits: seam logs against K1 and K2, a frozen golden master, random traffic,
+# and the slow email search the S1 to S3 verification found.
 # Uses: tests/test_s2_refund_chat.py (lane, visit helpers), pii.py, observe.py, contracts_signal.py.
 import json
 import logging
 import random
+import time
 
-from app.pipeline import observe
+from app.pipeline import observe, pii
 from app.pipeline.contracts_signal import Signal
 from tests.test_s1_refund_chat import FIRST, SECOND, SESSION, send
 from tests.test_s2_refund_chat import ANNA, ANNA_TOKEN, client, lane, signals, visit  # noqa: F401 (fixtures)
@@ -69,3 +71,14 @@ def test_rules_hold_for_random_conversations(client, lane):
     assert len({signal["dedup_key"] for signal in produced}) == len(produced)
     assert all(Signal.model_validate(signal).conversation_id == SESSION for signal in produced)
     assert not [signal for signal in produced if "@example.lk" in str(signal) or "077 123 4567" in str(signal)]
+
+
+# --- Long text without spaces: finding personal data stays fast (verification test 5)
+
+def test_long_text_without_spaces_stays_fast():
+    """30 KB with no spaces once took 3.6 s in the email search; it must stay far inside the 800 ms budget."""
+    text = "refund please " + "a" * 30_000 + " mail kamal@example.lk"
+    started = time.perf_counter()
+    found = pii.find_personal(text, ANNA[0], ANNA[1])
+    assert time.perf_counter() - started < 0.2
+    assert ("email", "kamal@example.lk") in found  # an email after the long run is still found
