@@ -11,7 +11,8 @@ import { guideFor } from "@/lib/page-context";
 import { snapshotPage } from "@/lib/page-snapshot";
 import { useUi } from "@/lib/store";
 import { canRecord, openMic, recordQuestion, transcribe } from "@/lib/voice/mic";
-import { shortOf, speak, unlockAudio } from "@/lib/voice/speaker";
+import { playCue, shortOf, speak, unlockAudio } from "@/lib/voice/speaker";
+import { endTurn, failureNote, isOffline, OFFLINE, startTurn, stepSignal } from "@/lib/voice/turn";
 import { AskBubble } from "./ask-bubble";
 
 export type Exchange = { id: number; q: string; a: AskAnswer | null };
@@ -38,6 +39,8 @@ export function AskOrb() {
   const seq = useRef(0);
   const recording = useRef<{ stop: () => void } | null>(null);
   const playback = useRef<{ stop: () => void } | null>(null);
+  // The running question; a new one cancels it, so a late answer is never spoken.
+  const turn = useRef<AbortController | null>(null);
   const hidden = pathname.startsWith("/studio") || pathname.startsWith("/l1/ask");
 
   // ⌘J or Ctrl+J opens and closes it from anywhere; Esc closes it.
@@ -55,14 +58,16 @@ export function AskOrb() {
   // Closing stops any listening or speaking.
   useEffect(() => {
     if (open) return;
+    endTurn(turn);
     recording.current?.stop();
     playback.current?.stop();
   }, [open]);
 
   async function send(question: string, spoken: boolean) {
     const q = question.trim();
-    if (!q || ask.isPending) return;
+    if (!q) return;
     unlockAudio();
+    const now = startTurn(turn);
     const id = ++seq.current;
     setNote("");
     // "Go to the library" goes there at once; no model call.
@@ -74,29 +79,37 @@ export function AskOrb() {
       setTimeout(() => setOpen(false), 500);
       return;
     }
+    playback.current?.stop();
+    if (isOffline()) return setNote(OFFLINE);
     setItems((list) => [...list.slice(1 - KEEP), { id, q, a: null }]);
     setVoice("thinking");
     let answer: AskAnswer;
     try {
-      answer = await ask.mutateAsync({ question: q, page: { ...snapshotPage(), scope: "page" } });
+      answer = await ask.mutateAsync({ question: q, page: { ...snapshotPage(), scope: "page" }, signal: stepSignal(now) });
+      // A newer question took over while this one waited; its answer is dropped, not shown or spoken.
+      if (!now.isCurrent()) throw new Error("replaced");
       setItems((list) => list.map((x) => (x.id === id ? { ...x, a: answer } : x)));
-    } catch {
+    } catch (e) {
       setItems((list) => list.filter((x) => x.id !== id));
-      setNote("The brain could not answer, sir. Please try again.");
+      if (!now.isCurrent()) return;
+      setNote(failureNote(e, "The brain could not answer, sir. Please try again."));
       setVoice("idle");
       return;
     }
     if (!spoken) return setVoice("idle");
     try {
       setVoice("speaking");
-      const p = await speak(shortOf(answer.answer).short, level);
+      const p = await speak(shortOf(answer.answer).short, level, stepSignal(now));
       playback.current = p;
       await p.done;
     } catch {
       // The answer is on screen; a reply that cannot be spoken is not an error worth showing.
     } finally {
-      playback.current = null;
-      setVoice("idle");
+      // A newer turn owns the voice and the orb now; leave both to it.
+      if (now.isCurrent()) {
+        playback.current = null;
+        setVoice("idle");
+      }
     }
   }
 
@@ -105,6 +118,8 @@ export function AskOrb() {
     if (voice === "listening") return recording.current?.stop();
     unlockAudio();
     playback.current?.stop();
+    if (isOffline()) return setNote(OFFLINE);
+    const now = startTurn(turn);
     if (!canRecord()) return setNote("Voice is not available in this browser, sir. Please type.");
     setNote("");
     setVoice("listening");
@@ -122,12 +137,15 @@ export function AskOrb() {
       return setVoice("idle");
     }
     setVoice("thinking");
+    playCue();
     try {
-      const words = await transcribe(audio);
+      const words = await transcribe(audio, stepSignal(now));
+      if (!now.isCurrent()) return;
       if (!words) throw new Error("no words");
       void send(words, true);
-    } catch {
-      setNote("I could not make that out, sir. Please try again.");
+    } catch (e) {
+      if (!now.isCurrent()) return;
+      setNote(failureNote(e, "I could not make that out, sir. Please try again."));
       setVoice("idle");
     }
   }

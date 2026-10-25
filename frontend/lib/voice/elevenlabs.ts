@@ -10,6 +10,18 @@ const DEFAULT_VOICE = "JBFqnCBsd6RMkjVDRZzb";
 /** Answers are spoken short; anything longer is cut, which also caps the cost of one reply. */
 export const MAX_SPOKEN_CHARS = 600;
 
+/** Raw 16-bit mono PCM at 24 kHz: the browser can play each chunk the moment it lands (speaker.ts), unlike MP3. */
+export const SPEAK_FORMAT = "pcm_24000";
+
+/** Scribe v2 is the newer, more accurate speech to text model. */
+const LISTEN_MODEL = "scribe_v2";
+
+/** Questions are asked in English; naming it stops Scribe guessing a wrong language from a short clip. */
+const LISTEN_LANGUAGE = "en";
+
+/** Our own words Scribe would otherwise hear as common ones. Kept under 100 so short clips are not billed as 20 seconds. */
+const KEY_TERMS = ["Finebase", "finebrain", "APIT", "EPF", "ETF", "VAT", "Vault", "Commons", "Distiller"];
+
 export class VoiceError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
@@ -22,12 +34,12 @@ function key(): string {
   return k;
 }
 
-/** Text to MP3 audio. Flash is the low latency model, so the reply starts quickly. */
+/** Text to raw PCM audio, streamed. Flash is the low latency model, so the reply starts quickly. */
 export async function speak(text: string): Promise<Response> {
   const voice = process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE;
-  const res = await fetch(`${API}/text-to-speech/${voice}/stream?output_format=mp3_44100_128`, {
+  const res = await fetch(`${API}/text-to-speech/${voice}/stream?output_format=${SPEAK_FORMAT}`, {
     method: "POST",
-    headers: { "xi-api-key": key(), "Content-Type": "application/json", Accept: "audio/mpeg" },
+    headers: { "xi-api-key": key(), "Content-Type": "application/json", Accept: "audio/pcm" },
     body: JSON.stringify({ text: text.slice(0, MAX_SPOKEN_CHARS), model_id: "eleven_flash_v2_5" }),
   });
   if (!res.ok || !res.body) throw new VoiceError(`ElevenLabs could not speak (${res.status}).`, 502);
@@ -46,7 +58,9 @@ function extensionOf(type: string): string {
 /** Recorded audio to text with Scribe. */
 export async function transcribe(audio: Blob): Promise<string> {
   const form = new FormData();
-  form.append("model_id", "scribe_v1");
+  form.append("model_id", LISTEN_MODEL);
+  form.append("language_code", LISTEN_LANGUAGE);
+  for (const term of KEY_TERMS) form.append("keyterms", term);
   form.append("file", audio, `speech.${extensionOf(audio.type)}`);
   const res = await fetch(`${API}/speech-to-text`, { method: "POST", headers: { "xi-api-key": key() }, body: form });
   if (!res.ok) throw new VoiceError(`ElevenLabs could not transcribe (${res.status}).`, 502);
