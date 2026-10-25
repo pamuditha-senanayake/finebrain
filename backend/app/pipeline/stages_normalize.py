@@ -8,7 +8,7 @@ from datetime import datetime
 from app.pipeline import pii
 from app.pipeline.contracts_signal import Actor, Attachment, Entity, RawSignalEnvelope, Signal, Subject
 from app.pipeline.observe import count, log_event
-from app.pipeline.readers import read_message, read_raw
+from app.pipeline.readers import ParseError, read_message, read_raw
 
 # Config
 KIND_FOR_SOURCE = {"upload": "document_arrived"}  # everything else is a customer_message
@@ -55,12 +55,21 @@ def save_attachments(object_store, raw_uri: str, external_id: str, attachments: 
     return saved
 
 
-def choose_actor_and_subject(message: dict, entities: list[Entity], tenant_id: str) -> tuple[Actor, Subject]:
+def customer_key(message: dict, session: str | None) -> str:
+    """The customer's email, or for a chat visitor who gave none, their chat session. Never a shared placeholder."""
+    if message["email"]:
+        return message["email"]
+    if session:
+        return f"chat_session:{session}"  # one visitor per chat; two chats without an email stay two customers
+    raise ParseError("visitor has no email and no chat session")
+
+
+def choose_actor_and_subject(message: dict, entities: list[Entity], tenant_id: str, session: str | None) -> tuple[Actor, Subject]:
     """A payment is the most useful subject; without one, the customer or uploader is."""
     if "uploaded_by" in message:
         actor = Actor(type="human", ref=message["uploaded_by"])
     else:
-        actor = Actor(type="customer", ref=pii.make_token(tenant_id, message["email"]))
+        actor = Actor(type="customer", ref=pii.make_token(tenant_id, customer_key(message, session)))
     refs = [entity.value_or_token for entity in entities if entity.type == "payment_ref"]
     subject = Subject(entity_type="payment", entity_ref=refs[0]) if refs else Subject(entity_type=actor.type, entity_ref=actor.ref)
     return actor, subject
@@ -77,7 +86,7 @@ def build_signal(k1: RawSignalEnvelope, raw_event_id: str, tenant_id: str, objec
 
     # Step 2: understand it, on masked text only
     entities = find_entities(text_masked)
-    actor, subject = choose_actor_and_subject(message, entities, tenant_id)
+    actor, subject = choose_actor_and_subject(message, entities, tenant_id, k1.headers_subset.get("session"))
     flags = ["possible_prompt_injection"] if INJECTION_PATTERN.search(message["text"]) else []
     return Signal(
         signal_id=new_id("sig"), raw_event_id=raw_event_id, kind=KIND_FOR_SOURCE.get(k1.source_type, "customer_message"),

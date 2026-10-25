@@ -1,14 +1,15 @@
 # test_s2_checks.py: S2 checks beyond the visits: seam logs against K1 and K2, a frozen golden master, random traffic,
-# and the slow email search the S1 to S3 verification found.
-# Uses: tests/test_s2_refund_chat.py (lane, visit helpers), pii.py, observe.py, contracts_signal.py.
+# and the two bugs the S1 to S3 verification found (slow email search, visitors without an email merging).
+# Uses: tests/test_s2_refund_chat.py (lane, visit helpers), capture_api.py, pii.py, observe.py, contracts_signal.py.
 import json
 import logging
 import random
 import time
 
-from app.pipeline import observe, pii
+from app.pipeline import capture_api, observe, pii
 from app.pipeline.contracts_signal import Signal
-from tests.test_s1_refund_chat import FIRST, SECOND, SESSION, send
+from tests.golden import SEED
+from tests.test_s1_refund_chat import CHAT, FIRST, SECOND, SESSION, send
 from tests.test_s2_refund_chat import ANNA, ANNA_TOKEN, client, lane, signals, visit  # noqa: F401 (fixtures)
 
 # Config
@@ -82,3 +83,30 @@ def test_long_text_without_spaces_stays_fast():
     found = pii.find_personal(text, ANNA[0], ANNA[1])
     assert time.perf_counter() - started < 0.2
     assert ("email", "kamal@example.lk") in found  # an email after the long run is still found
+
+
+# --- Chat visitors without an email (verification test 10)
+
+def send_without_email(client, external_id: str, name: str, session: str | None):
+    """A chat message whose visitor gave no email, in the given chat session (or none)."""
+    body = json.dumps({"visitor_name": name, "visitor_email": None, "text": "refund please"}).encode()
+    headers = {"content-type": "application/json", "x-external-id": external_id, "x-signature": capture_api.sign(SEED["connectors"][CHAT]["secret"], body)}
+    return client.post(f"/capture/{CHAT}", content=body, headers={**headers, **({"session": session} if session else {})})
+
+
+def test_visitors_without_email_stay_separate_customers(client, lane):
+    """Two chats without an email are two customers; two messages in one chat are the same one."""
+    for external_id, name, session in (("anon_1", "Kamal Silva", "sess_a"), ("anon_2", "Nimali Perera", "sess_b"), ("anon_3", "Kamal Silva", "sess_a")):
+        assert send_without_email(client, external_id, name, session).status_code == 202
+    lane.bus.drain()
+    first, second, third = signals(lane)
+    assert first["actor"]["ref"] != second["actor"]["ref"] and first["entity_ids"] != second["entity_ids"]
+    assert first["actor"] == third["actor"] and first["entity_ids"] == third["entity_ids"]
+
+
+def test_visitor_without_email_or_session_is_dead_lettered(client, lane):
+    """Nothing tells this visitor apart from any other, so S2 refuses it rather than guess."""
+    assert send_without_email(client, "anon_x", "Kamal Silva", None).status_code == 202
+    lane.bus.drain()
+    [letter] = lane.bus.dead_letters("signals.raw")
+    assert (letter.error_code, letter.retryable) == ("ParseError", False) and signals(lane) == []
