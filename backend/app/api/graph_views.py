@@ -48,7 +48,7 @@ def agent_view(lane, hq: dict, agent: dict) -> g.Agent:
     return g.Agent(
         id=agent_id, tenant_id=lane.seed["tenant_id"], name=about.get("name", agent_id), kind=about.get("kind", "worker"), tier=agent["tier"],
         cluster_id=lane.seed["cluster_id"], description=about.get("description", ""), autonomy="supervised",
-        skills=[VersionRef(**{key: skills[rule["skill_id"]]["_ref"][key] for key in ("id", "version", "branch")}) for rule in rules if rule["skill_id"] in skills],
+        skills=[VersionRef(**{key: skills[skill_id]["_ref"][key] for key in ("id", "version", "branch")}) for skill_id in dict.fromkeys(rule["skill_id"] for rule in rules) if skill_id in skills],
         capabilities=agent["capabilities"], access_level=ACCESS_BY_TIER[agent["tier"]], sensors=[], templates=[], policies=policies,
         status="working" if any(lane.now - started(run) < WORKING_WINDOW for run in recent) else "idle", work_kind=None,
         dri=about.get("dri", ""), queue_depth=sum(run["outcome"] == "awaiting_approval" for run in runs), throughput_per_hour=round(len(recent) / 24, 2),
