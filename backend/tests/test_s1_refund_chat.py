@@ -70,3 +70,17 @@ def test_when_anna_answers_yes_then_it_is_a_second_message_in_the_same_session(c
     assert [event["external_id"] for event in events] == [FIRST["id"], SECOND["id"]]
     assert {event["headers_subset"]["session"] for event in events} == {SESSION}
     assert len(lane.object_store) == 2
+
+
+# --- Seam logs: what came in and what went out, matching K1, with no personal data
+
+def test_seam_logs_record_what_came_in_and_went_out(client, lane, caplog):
+    with caplog.at_level(logging.INFO, logger=observe.LOGGER_NAME):
+        send(client, FIRST)
+    lines = [json.loads(record.message) for record in caplog.records]
+    seam_in = next(line for line in lines if line["event"] == "seam_in")
+    seam_out = next(line for line in lines if line["event"] == "seam_out")
+    k1 = k1_events(lane)[0]
+    assert (seam_in["connector_id"], seam_in["external_id"], seam_in["content_type"]) == (CHAT, FIRST["id"], "application/json")
+    assert {key: seam_out[key] for key in K1_FIELDS if key in seam_out} == {key: k1[key] for key in seam_out if key in K1_FIELDS}
+    assert "Anna" not in caplog.text and "refund for my last order" not in caplog.text
