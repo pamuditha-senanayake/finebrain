@@ -102,3 +102,11 @@ def test_rules_hold_for_random_traffic(client, lane):
     assert [event["external_id"] for event in events] == sent_ok  # none lost, none invented, order kept
     assert len(lane.object_store) == len(events) <= 200
     assert all(event["signature_verified"] for event in events)
+
+
+# --- Golden master: Anna's first message must keep producing exactly this
+
+def test_first_message_matches_the_frozen_result(client, lane):
+    send(client, FIRST)
+    k1 = k1_events(lane)[0]
+    assert {key: k1[key] for key in FROZEN_FIRST} == FROZEN_FIRST
