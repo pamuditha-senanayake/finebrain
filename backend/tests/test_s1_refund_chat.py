@@ -18,7 +18,7 @@ FIRST = {"id": "chat_msg_anna_1", "text": "I want a refund for my last order"}
 SECOND = {"id": "chat_msg_anna_2", "text": "yes, that one"}
 FROZEN_FIRST = {  # reviewed by hand once, then frozen
     "raw_object_uri": "s3://brain/finebase_labs/raw/2026/10/10/chat_msg_anna_1.json",
-    "raw_sha256": "4ac87e7c39b64d40a711fcee3890c7461eae40f1fa707c9736477d8b3e6b03f9", "size_bytes": 109, "headers_subset": {"session": SESSION},
+    "raw_sha256": "db71bf623ae3a954cf2f729525ab28dbd33e400028c6d05ac810e2ec07f41620", "size_bytes": 145, "headers_subset": {"session": SESSION},
 }
 K1_FIELDS = ("connector_id", "grant_id", "source_type", "external_id", "raw_object_uri", "raw_sha256", "size_bytes", "content_type")
 
@@ -37,7 +37,7 @@ def client(lane):
 
 
 def chat_body(message: dict) -> bytes:
-    return json.dumps({"visitor_name": "Anna", "text": message["text"], "sent_at": "2026-10-10T09:55:00+05:30"}).encode()
+    return json.dumps({"visitor_name": "Anna", "visitor_email": "anna@example.lk", "text": message["text"], "sent_at": "2026-10-10T09:55:00+05:30"}).encode()
 
 
 def send(client, message=FIRST, connector_id=CHAT, body=None, secret=None, content_type="application/json"):
@@ -83,7 +83,7 @@ def test_seam_logs_record_what_came_in_and_went_out(client, lane, caplog):
     k1 = k1_events(lane)[0]
     assert (seam_in["connector_id"], seam_in["external_id"], seam_in["content_type"]) == (CHAT, FIRST["id"], "application/json")
     assert {key: seam_out[key] for key in K1_FIELDS if key in seam_out} == {key: k1[key] for key in seam_out if key in K1_FIELDS}
-    assert "Anna" not in caplog.text and "refund for my last order" not in caplog.text
+    assert "Anna" not in caplog.text and "anna@example" not in caplog.text and "refund for my last order" not in caplog.text
 
 
 # --- Rules that always hold (the exact output varies, these never do)
@@ -110,3 +110,4 @@ def test_first_message_matches_the_frozen_result(client, lane):
     send(client, FIRST)
     k1 = k1_events(lane)[0]
     assert {key: k1[key] for key in FROZEN_FIRST} == FROZEN_FIRST
+
