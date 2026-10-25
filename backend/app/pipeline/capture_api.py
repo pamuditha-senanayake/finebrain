@@ -16,6 +16,7 @@ ALLOWED_CONTENT_TYPES = {"message/rfc822", "application/json", "text/plain"}
 SIGNATURE_HEADER = "x-signature"  # "sha256=<hex of HMAC-SHA256(secret, body)>"
 EXTERNAL_ID_HEADER = "x-external-id"  # the source's own message id, used for dedup in S2
 RETRY_AFTER_SECONDS = "5"
+SEAM_OUT_FIELDS = ("connector_id", "external_id", "raw_object_uri", "raw_sha256", "size_bytes", "content_type")
 
 
 def sign(secret: str, body: bytes) -> str:
@@ -67,6 +68,9 @@ def publish_or_503(lane, raw: dict) -> dict:
         count("s1.unavailable")
         log_event("S1", "unavailable", connector_id=raw["connector_id"], error=type(error).__name__)
         raise HTTPException(status_code=503, detail="unavailable", headers={"Retry-After": RETRY_AFTER_SECONDS}) from None
+    # Seam out: the K1 that left S1, ids and hashes only
+    k1 = envelope.payload
+    log_event("S1", "seam_out", **{key: k1[key] for key in SEAM_OUT_FIELDS})
     count("s1.captured")
     count(f"s1.captured.{raw['connector_id']}")
     touch(f"s1.last_event.{raw['connector_id']}", envelope.occurred_at.isoformat())
