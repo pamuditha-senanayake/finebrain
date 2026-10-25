@@ -7,7 +7,7 @@ from datetime import datetime
 
 from app.pipeline import pii
 from app.pipeline.contracts_signal import Actor, Attachment, Entity, RawSignalEnvelope, Signal, Subject
-from app.pipeline.observe import count
+from app.pipeline.observe import count, log_event
 from app.pipeline.readers import read_message, read_raw
 
 # Config
@@ -100,6 +100,9 @@ def claim(seen_keys, key: str) -> bool:
 
 def normalize(k1: RawSignalEnvelope, raw_event_id: str, tenant_id: str, object_store, vault, seen_keys, new_id) -> Signal | None:
     """S2: K1 to a masked K2, or None when this signal is a duplicate."""
+    # Seam in: the K1 that arrived, ids only
+    log_event("S2", "seam_in", connector_id=k1.connector_id, external_id=k1.external_id, source_type=k1.source_type)
+
     # Step 1: claim the dedup key; a redelivery or a second worker stops here
     dedup_key = f"{tenant_id}:{k1.source_type}:{k1.external_id}"
     if not claim(seen_keys, dedup_key):
@@ -115,4 +118,6 @@ def normalize(k1: RawSignalEnvelope, raw_event_id: str, tenant_id: str, object_s
         raise
     count(f"s2.normalized.{k1.connector_id}")
 
+    # Seam out: the K2 that leaves, ids and labels only (the masked text stays out of the log)
+    log_event("S2", "seam_out", signal_id=signal.signal_id, kind=signal.kind, channel=signal.channel, dedup_key=signal.dedup_key, conversation_id=signal.conversation_id)
     return signal
