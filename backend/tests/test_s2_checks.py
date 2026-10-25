@@ -45,3 +45,27 @@ def test_visits_match_the_frozen_result(client, lane):
     visit(client, lane, SECOND)
     produced = [{key: value for key, value in signal.items() if key not in VOLATILE} for signal in signals(lane)]
     assert produced == FROZEN
+
+
+# --- Random traffic: many messages in Anna's chat, personal data and resends mixed in
+
+def random_conversation(generator, number: int) -> list[dict]:
+    """A few messages, some with personal data inside, the first one maybe resent by the webhook."""
+    email = f"customer{number}@example.lk"
+    messages = [{"id": f"chat_{number}_{turn}", "text": generator.choice(["refund please", f"mail me at {email}", "call 077 123 4567", "yes"])} for turn in range(generator.randint(1, 4))]
+    return messages + ([messages[0]] if generator.random() < 0.3 else [])
+
+
+def test_rules_hold_for_random_conversations(client, lane):
+    generator = random.Random(2026)  # fixed seed so a failure can be replayed
+    sent_ids = []
+    for number in range(100):
+        for message in random_conversation(generator, number):
+            assert send(client, message).status_code == 202
+            sent_ids.append(message["id"])
+    lane.bus.drain()
+    produced = signals(lane)
+    assert len(produced) == len(set(sent_ids))  # one signal per distinct message: none lost, none doubled
+    assert len({signal["dedup_key"] for signal in produced}) == len(produced)
+    assert all(Signal.model_validate(signal).conversation_id == SESSION for signal in produced)
+    assert not [signal for signal in produced if "@example.lk" in str(signal) or "077 123 4567" in str(signal)]
