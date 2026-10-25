@@ -84,3 +84,21 @@ def test_seam_logs_record_what_came_in_and_went_out(client, lane, caplog):
     assert (seam_in["connector_id"], seam_in["external_id"], seam_in["content_type"]) == (CHAT, FIRST["id"], "application/json")
     assert {key: seam_out[key] for key in K1_FIELDS if key in seam_out} == {key: k1[key] for key in seam_out if key in K1_FIELDS}
     assert "Anna" not in caplog.text and "refund for my last order" not in caplog.text
+
+
+# --- Rules that always hold (the exact output varies, these never do)
+
+def test_rules_hold_for_random_traffic(client, lane):
+    """Random mix of good and bad messages: nothing is lost, nothing is invented, refusals store nothing."""
+    generator = random.Random(2026)  # fixed seed so a failure can be replayed
+    sent_ok = []
+    for number in range(200):
+        message = {"id": f"chat_msg_{number}", "text": "x" * generator.randint(0, 500)}
+        bad = generator.choice([None, "secret", "type", "connector"])
+        kwargs = {"secret": "wrong"} if bad == "secret" else {"content_type": "image/png"} if bad == "type" else {"connector_id": "conn_nobody"} if bad == "connector" else {}
+        status = send(client, message, **kwargs).status_code
+        sent_ok += [message["id"]] if status == 202 else []
+    events = k1_events(lane)
+    assert [event["external_id"] for event in events] == sent_ok  # none lost, none invented, order kept
+    assert len(lane.object_store) == len(events) <= 200
+    assert all(event["signature_verified"] for event in events)
