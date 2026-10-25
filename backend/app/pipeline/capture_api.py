@@ -90,5 +90,7 @@ def register(app: FastAPI, lane) -> None:
         connector = lane.seed["connectors"].get(connector_id)
         connector = connector if isinstance(connector, dict) else None  # the "_about" note is not a connector
         content_type = request.headers.get("content-type", "").split(";")[0].strip()
+        # Seam in: what arrived, ids and sizes only (the body can hold personal data)
+        log_event("S1", "seam_in", connector_id=connector_id, external_id=request.headers.get(EXTERNAL_ID_HEADER), content_type=content_type, size_bytes=len(body))
         check_request(connector_id, connector, content_type, body, request.headers)
         return publish_or_503(lane, build_raw(connector_id, connector, content_type, body, request.headers))
