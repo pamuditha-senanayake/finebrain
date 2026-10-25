@@ -126,6 +126,7 @@ class Signal(BaseModel):
     dedup_key: str
     flags: list[str] = []  # added in S2 step 7, e.g. possible_prompt_injection; optional so old messages validate
     entity_ids: list[str] = []  # added in step 13a: the registry ids of the real things it is about; optional so old messages validate
+    conversation_id: str | None = None  # the chat session this message belongs to, so a reply joins the first message; optional so old messages validate
     domain: str | None = None  # added in step 13a: one of item_tags.DOMAINS; None on messages from before it
 
 

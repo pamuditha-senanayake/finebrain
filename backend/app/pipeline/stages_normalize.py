@@ -84,7 +84,7 @@ def build_signal(k1: RawSignalEnvelope, raw_event_id: str, tenant_id: str, objec
         channel=k1.source_type, actor=actor, subject=subject, text_masked=text_masked,
         language=detect_language(message["text"]), entities=entities, pii_tokens=tokens, flags=flags,
         attachments=save_attachments(object_store, k1.raw_object_uri, k1.external_id, message["attachments"]),
-        sensitivity=pii.sensitivity_for(found), dedup_key=dedup_key,
+        sensitivity=pii.sensitivity_for(found), dedup_key=dedup_key, conversation_id=k1.headers_subset.get("session"),
     )
 
 
@@ -114,4 +114,5 @@ def normalize(k1: RawSignalEnvelope, raw_event_id: str, tenant_id: str, object_s
         count(f"s2.failed.{k1.connector_id}")
         raise
     count(f"s2.normalized.{k1.connector_id}")
+
     return signal
