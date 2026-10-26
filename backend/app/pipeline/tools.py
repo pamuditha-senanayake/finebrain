@@ -1,5 +1,5 @@
-# tools.py: the Lane A tool registry. Each tool has a strict argument schema, an action type, and a money flag.
-# Used by: stages_reason.py (S6 offers and checks tools), stages_act.py and tool_runners.py (S9 runs them). Uses: contracts_signal.py.
+# tools.py: the Lane A tool registry. Each tool has a strict argument schema, an action type, a money flag, and the
+# runner it goes to (the graph's tool node carries it as its endpoint, and S9 reads it from there). Used by: stages_reason.py (S6 offers and checks tools), stages_act.py and tool_runners.py (S9 runs them). Uses: contracts_signal.py.
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -35,13 +35,13 @@ class EscalateArgs(ToolCall):
 
 TOOLS = {
     "issue_refund": {
-        "tool_id": "tool_payment_refund", "version": 1, "args": RefundArgs, "touches_money": True,
-        "runner": "payment_gateway", "rate_per_minute": 10,
+        "tool_id": "tool_payment_refund", "version": 2, "args": RefundArgs, "touches_money": True,
+        "runner": "shop_database", "rate_per_minute": 10,  # version 2: refunds in the shop's own database (tools_write.py)
         "description": "Refund a customer's payment, fully or in part, to the original payment method.",
     },
     "reply_customer": {
-        "tool_id": "tool_reply_email", "version": 1, "args": ReplyArgs, "touches_money": False,
-        "runner": "email", "rate_per_minute": 60,
+        "tool_id": "tool_reply_email", "version": 2, "args": ReplyArgs, "touches_money": False,
+        "runner": "chat", "rate_per_minute": 60,  # version 2: into the customer's own chat (tools_chat.py)
         "description": "Send the customer a written reply.",
     },
     "escalate": {

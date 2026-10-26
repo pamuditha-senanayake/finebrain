@@ -40,7 +40,7 @@ def call_once(action: ProposedAction, arguments: dict, key: str, tenant_id: str,
     """One attempt: within the rate limit, through the tool's runner."""
     if not tooling["limiter"].allow(tenant_id, action.tool_id, TOOLS[action.action_type]["rate_per_minute"], now):
         raise RateLimited(f"{action.tool_id} limit reached")
-    return run_tool(action.action_type, action.tool_id, arguments, key, tooling["runners"])
+    return run_tool(action.action_type, action.tool_id, arguments, key, tooling["runners"], tooling.get("endpoints", {}).get(action.action_type))
 
 
 def describe(action: ProposedAction, arguments: dict, key: str, response: dict | None, error: Exception | None, new_id, now: datetime) -> ActionResult:

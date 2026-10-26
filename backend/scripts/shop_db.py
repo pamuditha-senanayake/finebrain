@@ -1,7 +1,8 @@
 # shop_db.py: builds the Finebase Labs shop as its own Postgres database (finebase_shop) on the local server, from
-# samples/shop_world.json, with a read-only user the brain connects as. S5's order lookup reads it through conn_db.py,
-# exactly as it would read a customer's real database. Run from backend/:  uv run python scripts/shop_db.py
-# Used by: tests/test_s5_*.py, scripts/s5_volume.py. Uses: store_postgres.py (the owner address), psycopg.
+# samples/shop_world.json, with a read-only user the brain connects as and a refund user that may only add refunds and set
+# an order's status. S5 reads and S9 refunds through conn_db.py, exactly as on a customer's real database.
+# Run from backend/:  uv run python scripts/shop_db.py
+# Used by: tests/test_s5_*.py, tests/test_s9_real.py, scripts/s5_volume.py, scripts/s9_volume.py. Uses: store_postgres.py, psycopg.
 import json
 import sys
 from pathlib import Path
@@ -15,6 +16,7 @@ from app.pipeline import store_postgres
 SHOP_DB = "finebase_shop"
 OWNER_URL = store_postgres.DATABASE_URL  # the local server's owner, who may create databases
 READER, READER_PASSWORD = "brain_shop_reader", "test-only-shop-reader"
+REFUNDER, REFUNDER_PASSWORD = "brain_shop_refunder", "test-only-shop-refunder"
 WORLD = json.loads((Path(__file__).resolve().parents[1] / "samples" / "shop_world.json").read_text())
 SCHEMA = """
 DROP SCHEMA IF EXISTS shop CASCADE; CREATE SCHEMA shop;
@@ -32,6 +34,15 @@ DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{READER}') TH
 GRANT CONNECT ON DATABASE {SHOP_DB} TO {READER}; GRANT USAGE ON SCHEMA shop TO {READER};
 GRANT SELECT ON ALL TABLES IN SCHEMA shop TO {READER};
 """
+REFUNDER_ROLE = f"""
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{REFUNDER}') THEN
+  CREATE ROLE {REFUNDER} LOGIN PASSWORD '{REFUNDER_PASSWORD}' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT; END IF; END $$;
+ALTER ROLE {REFUNDER} SET statement_timeout = '5s';
+GRANT CONNECT ON DATABASE {SHOP_DB} TO {REFUNDER}; GRANT USAGE ON SCHEMA shop TO {REFUNDER};
+GRANT SELECT ON shop.customers, shop.orders, shop.refunds TO {REFUNDER};
+GRANT INSERT ON shop.refunds TO {REFUNDER};
+GRANT UPDATE (status) ON shop.orders TO {REFUNDER};
+"""
 
 
 def url_for(database: str, user: str = "finebrain:finebrain") -> str:
@@ -43,6 +54,11 @@ def url_for(database: str, user: str = "finebrain:finebrain") -> str:
 def reader_url() -> str:
     """What the shop hands the brain: a user that can only read."""
     return url_for(SHOP_DB, f"{READER}:{READER_PASSWORD}")
+
+
+def refunder_url() -> str:
+    """What the shop hands the brain for refunds: a user that may only add a refund and set an order's status."""
+    return url_for(SHOP_DB, f"{REFUNDER}:{REFUNDER_PASSWORD}")
 
 
 def owner_url() -> str:
@@ -67,6 +83,7 @@ def load_world(world: dict = WORLD) -> None:
             with shop.cursor() as cursor:
                 cursor.executemany(f"INSERT INTO shop.{table} ({', '.join(columns)}) VALUES ({', '.join(['%s'] * len(columns))})", rows)
         shop.execute(READER_ROLE)
+        shop.execute(REFUNDER_ROLE)
 
 
 def setup(world: dict = WORLD) -> str:
@@ -77,5 +94,5 @@ def setup(world: dict = WORLD) -> str:
 
 
 if __name__ == "__main__":
-    print(f"shop ready: {SHOP_DB}, read-only user {READER}")
+    print(f"shop ready: {SHOP_DB}, read-only user {READER}, refund user {REFUNDER}")
     setup()

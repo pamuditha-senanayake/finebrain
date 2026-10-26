@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 
 from app.pipeline import conn_db
-from app.pipeline.conn_call import Connection, all_connections
+from app.pipeline.conn_call import Connection, orders_database
 from app.pipeline.conn_spec import OrderMap
 
 # Config
@@ -28,8 +28,8 @@ def checked(name: str) -> str:
 
 
 def orders_connection(lane) -> Connection | None:
-    """The live shop database whose orders the brain may read, if the tenant has one."""
-    return next((c for c in all_connections(lane) if c.kind == "database" and c.status == "live" and c.orders_map), None)
+    """The live shop database whose orders the brain may read, if the tenant has one. Read by key, never by listing."""
+    return orders_database(lane)
 
 
 # --- SQL built from the map

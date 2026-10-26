@@ -24,7 +24,7 @@ def tooling(gateway=None, sender=None, sleeps=None) -> dict:
     return {
         "limiter": MemoryRateLimiter(), "results": MemoryResults(),
         "sleep": (sleeps.append if sleeps is not None else lambda seconds: None),
-        "runners": {"payment_gateway": gateway or fakes.make_fake_gateway()[0], "email": sender or fakes.make_fake_sender()[0]},
+        "runners": {"shop_database": gateway or fakes.make_fake_gateway()[0], "chat": sender or fakes.make_fake_sender()[0]},
     }
 
 
@@ -132,3 +132,9 @@ def test_valkey_limiter_and_results():
     results.put("key_1", {"status": "succeeded"})
     results.put("key_1", {"status": "overwritten?"})
     assert results.get("key_1") == {"status": "succeeded"} and results.get("key_2") is None
+
+
+@pytest.mark.parametrize("stamp", ["2026-10-26T12:08:55.33838+00:00", "2026-10-26T12:08:55.338+00:00", "2026-10-26T12:08:55Z", "2026-10-26T12:08:55.1234567+00:00"])
+def test_a_chats_timestamp_reads_whatever_its_fraction_digits(stamp):
+    from app.pipeline.tools_chat import read_time  # the portal drops trailing zeros, which Python 3.10 cannot read alone
+    assert read_time(stamp).replace(microsecond=0).isoformat() == "2026-10-26T12:08:55+00:00"

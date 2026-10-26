@@ -17,7 +17,7 @@ from app.pipeline.ui_stream import subscribe_broadcaster
 
 # --- Wiring
 
-def build_lane(seed: dict, model: Model, gateway: Gateway, now: datetime, make_adapters=make_memory_adapters, choose=None, grade=None, new_id=None,
+def build_lane(seed: dict, model: Model, gateway: Gateway | None, now: datetime, make_adapters=make_memory_adapters, choose=None, grade=None, new_id=None,
                classify=None, extract=None, resolve=None) -> Lane:
     """Build the adapters, then subscribe one consumer group per stage. A live tenant passes new_id so ids stay unique across restarts."""
     new_id = new_id or make_id_maker()

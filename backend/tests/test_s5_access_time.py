@@ -134,7 +134,7 @@ def test_a_map_that_carries_sql_is_refused_before_the_database(anna):
     _, decision = ask(lane, query_for(lane, task))
     assert "orders unavailable" in decision.reason
     with psycopg.connect(shop_db.owner_url()) as shop:
-        assert shop.execute("SELECT count(*) FROM shop.orders").fetchone()[0] == 4  # nothing reached the shop
+        assert shop.execute("SELECT count(*) FROM shop.orders").fetchone()[0] == len(shop_db.WORLD["orders"])  # nothing reached the shop
 
 
 def test_a_paused_connection_is_not_read(anna):

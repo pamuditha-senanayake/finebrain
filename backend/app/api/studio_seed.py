@@ -29,7 +29,7 @@ def tool_nodes(skills: list[dict], dri: str) -> list[tuple[str, str, dict]]:
         capability = "" if CAPABILITY_FOR_ACTION.get(tool) in OPEN_CAPABILITIES else CAPABILITY_FOR_ACTION.get(tool, "")
         fields = {"level": "prebuilt", "endpoint": TOOLS[tool]["runner"], "capability": capability, "sensitivity": "confidential" if SIDE_EFFECT[tool] == "money" else "internal",
                   "sideEffect": SIDE_EFFECT[tool], "rateLimitPerMin": TOOLS[tool]["rate_per_minute"] or 0, "code": ""}
-        nodes.append(("tool", f"tool:{tool}", {STUDIO: meta(f"tool:{tool}", "tool", None, tool.replace("_", " "), dri, fields)}))
+        nodes.append(("tool", f"tool:{tool}", {STUDIO: meta(f"tool:{tool}", "tool", None, tool.replace("_", " "), dri, fields)}, TOOLS[tool]["version"]))
     return nodes
 
 

@@ -27,11 +27,13 @@ class ToolFailed(Exception):
 
 # --- Running one tool
 
-def run_tool(action_type: str, tool_id: str, arguments: dict, key: str, runners: dict) -> dict:
-    """Send the call to the tool's runner. Escalate has no outside call."""
-    runner = TOOLS[action_type]["runner"]
+def run_tool(action_type: str, tool_id: str, arguments: dict, key: str, runners: dict, endpoint: str | None = None) -> dict:
+    """Send the call to the tool's runner: the graph's endpoint when given, else the registry's. Escalate has no outside call."""
+    runner = endpoint or TOOLS[action_type]["runner"]
     if runner == "none":
         return HANDED_TO_HUMAN
+    if runners.get(runner) is None:
+        raise ToolFailed("no_runner", False)  # an endpoint nothing serves, for example a typo in Studio: a person must fix it
     response = runners[runner](tool_id, arguments, key)
     if response["status"] == "failed":
         error = response.get("error") or {"code": "unknown_error", "retryable": False}

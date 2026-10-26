@@ -11,8 +11,8 @@ from app.pipeline.conn_spec import DatabaseSpec, Manifest
 # Config
 ANSWER_FENCE = re.compile(r"```brain-connection\s*(\{.*?\})\s*```", re.DOTALL)
 ANY_FENCE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)
-KEY_LINE = re.compile(r"(api[_ ]?key|webhook[_ ]?secret|push[_ ]?secret|database[_ ]?url)\s*[:=]\s*[\"'`]?([^\s\"'`]+)", re.IGNORECASE)
-SECRET_FOR = {"api": "api_key", "webhook": "webhook_secret", "push": "webhook_secret", "database": "database_url"}
+KEY_LINE = re.compile(r"(?<![a-z_])(refund[_ ]?database[_ ]?url|api[_ ]?key|webhook[_ ]?secret|push[_ ]?secret|database[_ ]?url)\s*[:=]\s*[\"'`]?([^\s\"'`]+)", re.IGNORECASE)
+SECRET_FOR = {"api": "api_key", "webhook": "webhook_secret", "push": "webhook_secret", "database": "database_url", "refund": "refund_database_url"}
 FEED_SHAPE = {"poll": {"method": "GET", "path": "/path/of/the/feed"}, "cursor_param": "since", "cursor_field": "nextSince", "items_field": "items",
               "fields": {"message_id": "id", "conversation_id": "thread_id", "sender": "from", "text": "body", "customer_id": "customer_id"},
               "only_sender": "customer", "interval_seconds": 2}
