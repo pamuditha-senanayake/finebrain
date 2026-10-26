@@ -144,4 +144,5 @@ def test_a_restart_embeds_nothing_already_indexed_and_survives_a_refusing_embedd
     def refusing(texts, kind):
         raise RuntimeError("voyage /embeddings answered 429")
     load_chunks(lane.chunks, lane.graph, refusing)
-    assert "item_policy_window" not in lane.chunks.items  # not loaded, and no crash: it waits for the next start
+    item, vector = lane.chunks.items["item_policy_window"]  # no crash, and never missing: kept by its words until a later start embeds it
+    assert vector is None and lane.chunks.waiting_for_vector() == [item]

@@ -69,7 +69,7 @@ class PostgresChunks(store_chunks_tiers.TierColumns):
 
     def row(self, item: dict, embedding: list[float]) -> tuple:
         return (self.tenant_id, item["item_id"], item["kind"], Jsonb(item), item.get("valid_from"), item.get("valid_to"), item["recorded_at"],
-                json.dumps(embedding), item.get("domain"), item.get("entity_ids", []))
+                json.dumps(embedding) if embedding is not None else None, item.get("domain"), item.get("entity_ids", []))
 
     def add(self, item: dict, embedding: list[float]) -> None:
         self.connection.execute(f"{UPSERT} ON CONFLICT DO NOTHING", self.row(item, embedding))
@@ -91,6 +91,11 @@ class PostgresChunks(store_chunks_tiers.TierColumns):
     def untagged(self) -> list[dict]:
         """Chunks stored before step 13a, for the back-fill."""
         rows = self.connection.execute("SELECT body FROM chunks WHERE tenant_id = %s AND domain IS NULL ORDER BY item_id", (self.tenant_id,))
+        return [row[0] for row in rows]
+
+    def waiting_for_vector(self) -> list[dict]:
+        """Live items stored by their words only, after an embedding outage. Cold items keep no vector on purpose."""
+        rows = self.connection.execute("SELECT body FROM chunks WHERE tenant_id = %s AND embedding IS NULL AND tier <> 'cold'", (self.tenant_id,))
         return [row[0] for row in rows]
 
     def known(self, item_ids: list[str]) -> set[str]:

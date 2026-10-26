@@ -2,7 +2,7 @@
 # Used by: orchestrate.py, temporal_flow.py, run_approvals.py (the S8 part). Uses: stages_orchestrate.py (S4 start), stages_*.py, retrieve_scope.py, contracts_*.py.
 from pydantic import BaseModel
 
-from app.pipeline import retrieve_scope, stages_act, stages_govern, stages_orchestrate, stages_reason, stages_record, stages_retrieve
+from app.pipeline import retrieve_case, retrieve_scope, stages_act, stages_govern, stages_orchestrate, stages_reason, stages_record, stages_retrieve
 from app.pipeline.retry import call_with_retry
 from app.pipeline.contracts_reason import ContextBundle, ContextQuery, ProposedAction
 from app.pipeline.contracts_run import Decision, GovernanceVerdict, RunStep
@@ -37,7 +37,7 @@ def make_step(lane, step_id: str, kind: str, decision: str, reason: str, refs: l
 def retrieve_with_retry(lane, query: ContextQuery, cause: Envelope):
     """S5 with one retry. Publishes the access decision so the audit log sees every read."""
     bundle, decision = call_with_retry(
-        lambda: stages_retrieve.retrieve(query, lane.chunks, lane.embed, lane.rerank, lane.seed["people"], lane.new_id, lane.now, lane.commons),
+        lambda: retrieve_case.retrieve_for_run(lane, query),  # knowledge, plus this case's orders and chat
         lambda error: isinstance(error, stages_retrieve.ContextUnavailable), attempts=RETRIEVE_ATTEMPTS, base_delay=0.2,
     )
     lane.bus.publish("access.decisions", "access.decided", decision, "internal", cause)
@@ -77,6 +77,15 @@ def propose_and_govern(lane, task: TaskRequest, bundle, principal: Principal, ru
     return action, decision, verdict
 
 
+def query_for(lane, task: TaskRequest, signal, principal: Principal, run_id: str) -> ContextQuery:
+    """K4 for this run: what the case names, its entities and domain, and who and which chat it is about."""
+    refs = [entity.value_or_token for entity in signal.entities if entity.type == "payment_ref"] if signal else []
+    scope = {"entity_ids": retrieve_scope.linked(lane.entities, signal.entity_ids), "domains": [signal.domain] if signal.domain else []} if signal else {}
+    customer = signal.actor.ref if signal and signal.actor.type == "customer" else None
+    return ContextQuery(run_id=run_id, principal=principal, on_behalf_of=task.on_behalf_of, query_text=QUERY_TEXT, entity_refs=refs, branch="main",
+                        node_types=["policy", "fact"], customer_ref=customer, conversation_id=signal.conversation_id if signal else None, **scope)
+
+
 def start_run(lane, envelope: Envelope) -> RunState | None:
     """S4 starts the run, then S5, S6 and S7. None when it did not start or already closed (context unavailable)."""
     # Step 1: S4 plans the run and hands the chat over; a task it cannot start is closed there
@@ -84,15 +93,11 @@ def start_run(lane, envelope: Envelope) -> RunState | None:
     if started is None:
         return None
 
-    # Step 2: retrieve what the agent may read about this payment
+    # Step 2: retrieve what the agent may read about this case: knowledge, the customer's orders, the chat so far
     task = TaskRequest.model_validate(envelope.payload)
     run_id = started.run_id
     principal = stages_orchestrate.principal_of(lane, task.agent_id)  # the graph, as Workflow Studio last saved it
-    signal = signal_of(lane, task.signal_ids[0])
-    refs = [entity.value_or_token for entity in signal.entities if entity.type == "payment_ref"] if signal else []
-    scope = {"entity_ids": retrieve_scope.linked(lane.entities, signal.entity_ids), "domains": [signal.domain] if signal.domain else []} if signal else {}
-    query = ContextQuery(run_id=run_id, principal=principal, on_behalf_of=task.on_behalf_of, query_text=QUERY_TEXT, entity_refs=refs, branch="main",
-                         node_types=["policy", "fact"], **scope)
+    query = query_for(lane, task, signal_of(lane, task.signal_ids[0]), principal, run_id)
     try:
         bundle = retrieve_with_retry(lane, query, envelope)
     except stages_retrieve.ContextUnavailable:
