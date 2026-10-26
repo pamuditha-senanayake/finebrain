@@ -1,6 +1,7 @@
 # studio_rules.py: how risky a Studio change is and who may confirm it. Base level by kind and intent, one step up when
 # it touches money, personal data, public content or another cluster, at least C2 when breaking; then the route: apply
-# now, send for approval, or view only. A port of baseLevel, touchesFor and authorityFor in the mock engine.
+# now, send for approval, or view only. An L1 is the top of the chain, so their own change applies at once up to their
+# ceiling (C4) and is logged; L2 sends for approval. A port of baseLevel, touchesFor and authorityFor in the mock engine.
 # Used by: studio_review.py. Uses: studio_spec.py, studio_state.py, views.py (MAX_APPROVAL).
 from app.api.studio_spec import refs_of, spec
 from app.api.views import MAX_APPROVAL
@@ -81,11 +82,9 @@ def authority(person_id: str, person: dict, flow: dict | None, level: int, verdi
         return {"canApply": False, "route": "view_only", "approver": "the workflow DRI" if flow else "an L2 steward", "reason": "L3 can view workflows and suggest edits, but cannot change them."}
     if tier == "L2":
         return {"canApply": False, "route": "approval", "approver": APPROVER[max(level, 2)][2], "reason": "L2 drafts changes and sends them for approval. It cannot apply a change itself."}
-    owns = bool(flow) and (flow["dri"] == person_id or person_id in flow.get("editors", []))
-    if verdict != "breaking" and level <= 1:
+    if level > ceiling:
+        return {"canApply": False, "route": "approval", "approver": APPROVER[level][2], "reason": f"C{level} is above your ceiling of C{ceiling}."}
+    if level <= 1 and verdict != "breaking":
         return {"canApply": True, "route": "apply", "approver": "you", "reason": f"C{level} is logged and applied right away."}
-    if verdict != "breaking" and level == 2 and level <= ceiling:
-        return {"canApply": True, "route": "apply", "approver": "you", "reason": f"You {'own this workflow' if owns else 'are L1'} and C2 is inside your approval ceiling."}
-    why = ("The Edit Review Agent marked this breaking, so a second person must look." if verdict == "breaking"
-           else f"C{level} needs {APPROVER[level][2]}, and nobody approves their own change." if level >= 3 else f"C{level} is above your ceiling of C{ceiling}.")
-    return {"canApply": False, "route": "approval", "approver": APPROVER[2][2] if verdict == "breaking" and level < 2 else APPROVER[level][2], "reason": why}
+    warning = " The Edit Review Agent marked it breaking, so check the diagram first." if verdict == "breaking" else ""
+    return {"canApply": True, "route": "apply", "approver": "you", "reason": f"You are L1, so C{level} applies on your own approval and is logged.{warning}"}

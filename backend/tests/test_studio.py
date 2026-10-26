@@ -27,7 +27,9 @@ def test_review_is_rebuilt_on_the_server():
     body = {"input": change("policy", "policy_refund", {"fields": {"param.days": 45}}), "workflowId": REFUND_WF}
     proposal = client.post(f"/api/t/{TENANT}/studio/review", json=body, headers={"x-persona": FOUNDER}).json()["proposal"]
     assert proposal["changes"] == [{"field": "param.days", "label": "Window in days", "before": "30 days", "after": "45 days"}]
-    assert (proposal["review"]["criticality"], proposal["review"]["authority"]["route"]) == (3, "approval")
+    assert (proposal["review"]["criticality"], proposal["review"]["authority"]["route"]) == (3, "apply")  # an L1 approves their own change
+    drafted = client.post(f"/api/t/{TENANT}/studio/review", json=body, headers={"x-persona": STEWARD}).json()["proposal"]
+    assert drafted["review"]["authority"]["route"] == "approval"  # an L2 steward sends it for approval
 
 
 # --- Applying at once
@@ -49,9 +51,10 @@ def test_a_skill_edit_reaches_what_s6_reads():
     steps = node(lane, "skill", "skill_refund_handling")["studio"]["fields"]["steps"]
     new_steps = [*steps[:-1], "tool: If the payment cannot be found, escalate to a person. [tool:escalate]"]
     result = op(client, "studioApply", {"input": change("skill", "skill_refund_handling", {"fields": {"steps": new_steps}}), "acknowledgeBreaking": True}).json()
-    assert result["status"] == "routed"  # a skill that moves money is C3: it waits for a second person
+    assert result["status"] == "applied"  # C3, applied on the L1's own approval
+    lane.bus.drain()
     skill = node(lane, "skill", "skill_refund_handling")
-    assert skill["steps"][-1].startswith("If the payment cannot be found, or the request is unclear")  # nothing changed yet
+    assert skill["steps"][-1] == "If the payment cannot be found, escalate to a person."  # what S6 reads
 
 
 def test_a_new_template_is_added_to_its_workflow():
@@ -79,11 +82,21 @@ def test_a_steward_drafts_and_never_applies():
     assert result["status"] == "routed"
 
 
+def test_an_l1_applies_their_own_c3_and_c4_changes_at_once():
+    client, lane = build()
+    policy = change("policy", "policy_refund", {"fields": {"param.days": 45, "statement": "Customers may request a refund within 45 days of the purchase date."}})
+    assert op(client, "studioApply", {"input": policy, "acknowledgeBreaking": True}).json()["status"] == "applied"  # C3
+    grant = change("agent", "agent_refund_worker", {"fields": {"capabilities": ["kb.read", "refund.propose", "reply.draft"]}})
+    assert op(client, "studioApply", {"input": grant, "acknowledgeBreaking": True}).json()["status"] == "applied"  # C4
+    lane.bus.drain()
+    assert node(lane, "policy", "policy_refund")["window_days"] == 45 and "reply.draft" in node(lane, "agent", "agent_refund_worker")["capabilities"]
+
+
 def test_breaking_needs_to_be_acknowledged():
     client, _ = build()
     no_agent = change("skill", "skill_refund_handling", {"fields": {"agents": []}})
     assert op(client, "studioApply", {"input": no_agent}).status_code == 409
-    assert op(client, "studioApply", {"input": no_agent, "acknowledgeBreaking": True}).json()["status"] == "routed"
+    assert op(client, "studioApply", {"input": no_agent, "acknowledgeBreaking": True}, STEWARD).json()["status"] == "routed"
 
 
 def test_nothing_to_change_is_refused():

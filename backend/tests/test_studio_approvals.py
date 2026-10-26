@@ -1,5 +1,5 @@
-# test_studio_approvals.py: Studio changes that need a person (step 9d). They wait as a change request on a branch with
-# an S8 approval; the drafter never approves; C4 needs two leaders and a cooling period; an approval merges through S14
+# test_studio_approvals.py: Studio changes that need a person (step 9d): an L2 steward drafts them (an L1's own change
+# applies at once, see test_studio.py). They wait as a change request on a branch with an S8 approval; the drafter never approves; C4 needs two leaders and a cooling period; an approval merges through S14
 # and the pipeline then reads the new values; a node that moved on makes a conflict. Uses: tests/studio_helpers.py.
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -11,7 +11,7 @@ from tests.studio_helpers import FOUNDER, REFUND_WF, SECOND, STEWARD, THIRD, bui
 LONGER_WINDOW = {"fields": {"param.days": 45, "statement": "Customers may request a refund within 45 days of the purchase date."}}
 
 
-def routed(client, patch: dict, kind: str = "policy", target: str = "policy_refund", persona: str = FOUNDER) -> tuple[str, str]:
+def routed(client, patch: dict, kind: str = "policy", target: str = "policy_refund", persona: str = STEWARD) -> tuple[str, str]:
     result = op(client, "studioApply", {"input": change(kind, target, patch, workflow=REFUND_WF if kind != "tool" else None), "acknowledgeBreaking": True}, persona).json()
     assert result["status"] == "routed", result
     _, request = get(client, f"change-requests/{result['changeRequestId']}")
@@ -24,8 +24,8 @@ def test_a_policy_change_waits_then_reaches_the_pipeline():
     assert node(lane, "policy", "policy_refund")["window_days"] == 30  # nothing changes before approval
     _, approval = get(client, f"approvals/{approval_id}")
     assert (approval["subject"], approval["status"], approval["criticality"]) == ({"kind": "change_request", "id": cr_id}, "pending", 3)
-    assert decide(client, lane, approval_id, FOUNDER).json() == {"error": "requester_cannot_decide"}
-    assert decide(client, lane, approval_id, SECOND).status_code == 200
+    assert decide(client, lane, approval_id, STEWARD).status_code >= 400  # the drafter never approves
+    assert decide(client, lane, approval_id, FOUNDER).status_code == 200
     assert node(lane, "policy", "policy_refund")["window_days"] == 45  # what S7 reads
     wording = [k for k in lane.graph.latest("knowledge") if (k.get("version_ref") or {}).get("id") == "policy_refund" and not k.get("valid_to")]
     assert [k["text"] for k in wording] == [LONGER_WINDOW["fields"]["statement"]]  # what S6 reads: the old wording is closed
