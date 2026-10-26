@@ -99,11 +99,30 @@ def close_escalated(lane, envelope: Envelope, task: TaskRequest, run_id: str, st
 
 
 def refuse(lane, envelope: Envelope, task: TaskRequest, reason: str) -> None:
-    """S4 cannot start the task: count it, log it, and close it as escalated."""
+    """S4 cannot start the task: count it, log it, close it as escalated, and in a chat tell the customer a person will reply."""
     count(f"s4.not_started.{reason}")
     log_event("S4", "not_started", task_id=task.task_id, reason=reason)
     step = RunStep(step_id="step_00", kind="judgment", started_at=lane.now, duration_ms=0, decision=reason, reason=f"S4 could not start: {reason}", refs=task.signal_ids)
-    close_escalated(lane, envelope, task, lane.new_id("run"), step)
+    run_id = lane.new_id("run")
+    close_escalated(lane, envelope, task, run_id, step)
+    tell_customer(lane, signal_of(lane, task.signal_ids[0]), run_id)
+
+
+def tell_customer(lane, signal: Signal | None, run_id: str) -> None:
+    """Best effort, once per run: nobody waits in silence because the brain could not start. A failed notice is only counted."""
+    from app.pipeline import tools_chat  # here, not at the top: tools_chat reads signals through this module
+    where = tools_chat.destination_for(lane, signal)
+    if where is None:
+        return
+    text = lane.seed.get("handoff_message", conversation_log.HANDOFF_TEXT)
+    try:
+        answer = tools_chat.send(lane, *where, {"message_plain": text}, f"{lane.seed['tenant_id']}:{run_id}:s4.handoff")
+    except Exception as error:  # the chat or Valkey being down must not undo the run's record
+        answer = {"status": "failed", "error": {"code": type(error).__name__}}
+    if answer["status"] == "succeeded":
+        conversation_log.remember_reply(lane, signal.conversation_id, text, "system", "system", run_id, signal.signal_id)
+    else:
+        count("s4.notice_not_sent")
 
 
 # --- Entry point

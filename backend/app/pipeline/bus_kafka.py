@@ -14,7 +14,9 @@ from app.pipeline.kafka_admin import DEFAULT_BOOTSTRAP, BusUnavailable, create_t
 
 # Config
 IDLE_SECONDS = 1.5  # drain stops after this long with no new message
-POLL_SECONDS = 0.1
+POLL_SECONDS = 0  # librdkafka fetches in the background: ask each consumer without waiting, so one idle group never holds up the rest
+IDLE_PAUSE_SECONDS = 0.005  # a round that found nothing pauses this long, so an idle drain does not spin
+LOW_LATENCY = {"fetch.wait.max.ms": 10, "fetch.min.bytes": 1}  # a chat waits on every hop: hand each message on at once, not after 500 ms
 DLQ_SUFFIX = ".dlq"
 FLUSH_SECONDS = 10  # a broker that will not take messages fails loudly instead of hanging
 
@@ -37,6 +39,7 @@ class KafkaBus:
         self.subscribers: dict[str, list[tuple[str, str, Handler]]] = {}
         self.consumers: dict[str, Consumer] = {}  # one per consumer group
         self.handled = handled if handled is not None else set()  # "group:event_id"; a Valkey key set in production
+        self.tick: Callable[[], None] | None = None  # set by a live app to move its clock to now on every round
 
     # --- Publishing
 
@@ -85,7 +88,7 @@ class KafkaBus:
         """One consumer group per stage. Partitions are assigned directly, so there is no rebalance wait."""
         self.ensure_topics([topic])
         self.subscribers.setdefault(topic, []).append((group, stage, handler))
-        consumer = self.consumers.setdefault(group, Consumer({"bootstrap.servers": self.bootstrap, "group.id": self.topic_prefix + group}))
+        consumer = self.consumers.setdefault(group, Consumer({"bootstrap.servers": self.bootstrap, "group.id": self.topic_prefix + group, **LOW_LATENCY}))
         wanted = {topic for topic, entries in self.subscribers.items() if any(entry[0] == group for entry in entries)}
         consumer.assign([TopicPartition(self.topic_prefix + name, 0, OFFSET_BEGINNING) for name in wanted])
 
@@ -94,8 +97,12 @@ class KafkaBus:
         self.flush()
         idle_since = time.monotonic()
         while time.monotonic() - idle_since < IDLE_SECONDS:
+            if self.tick:
+                self.tick()  # the pipeline's clock follows real time even while a long drain runs
             if self.poll_once():
                 idle_since = time.monotonic()
+            else:
+                time.sleep(IDLE_PAUSE_SECONDS)
             self.flush()
 
     def poll_once(self) -> bool:

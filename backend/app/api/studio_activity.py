@@ -2,7 +2,9 @@
 # what the pipeline reads about it: the activity's owner agent, its one skill, its policies and the connections its
 # sensors listen to, on the workflow node; and one routing rule per connection, so every message on that connection goes
 # to this activity (S3 reads the owner and skill from the activity, never from the rule). A draft or paused activity keeps
-# its rules paused. Used by: studio_changes.py (drafts_of), studio_findings.py, studio_chat_context.py. Uses: conn_call.py, stages_version.py.
+# its rules paused. A policy of the activity whose wording never reached knowledge (saved before that was built) gets it
+# on the next change, so its owner reads it. Used by: studio_changes.py (drafts_of), studio_findings.py, studio_chat_context.py. Uses: conn_call.py, stages_version.py.
+from app.api import studio_model
 from app.pipeline.conn_call import all_connections
 from app.pipeline.stages_version import Draft
 
@@ -79,4 +81,12 @@ def drafts(lane, drafts_so_far: list[Draft], flow_id: str, flow_after: dict | No
     if flow_after is None:
         return drafts_so_far + rule_drafts(lane, None, None, sources, activity_id)
     fields = activity_fields(flow_after, items_after, sources)
-    return with_activity(lane, drafts_so_far, flow_after, fields) + rule_drafts(lane, flow_after, fields, sources, activity_id)
+    return with_activity(lane, drafts_so_far, flow_after, fields) + rule_drafts(lane, flow_after, fields, sources, activity_id) + missing_wording(lane, drafts_so_far, fields, items_after)
+
+
+def missing_wording(lane, drafts_so_far: list[Draft], fields: dict, items: dict[str, dict]) -> list[Draft]:
+    """The wording of each of the activity's policies that has none in knowledge yet, read by key."""
+    written = {d.node_id for d in drafts_so_far if d.node_type == "knowledge"}
+    missing = [pid for pid in fields["policies"] if f"{pid}_statement" not in written and latest(lane, "knowledge", f"{pid}_statement") is None
+               and (items[pid].get("fields") or {}).get("statement")]
+    return [d for pid in missing for d in studio_model.wording_drafts(lane, items[pid], latest(lane, "policy", pid))]

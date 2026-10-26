@@ -17,7 +17,7 @@ from app.pipeline.tools import TOOLS
 WAITING_KIND = "run_waiting"  # records kind keyed by run id: the run, while it waits for the customer
 CUSTOMER_WAIT_SECONDS = 48 * 3600  # no answer by then: the run is abandoned and the console says so; a tenant may set customer_wait_seconds
 STUDIO = "studio"  # where a graph node keeps its Studio fields (app/api/studio_model.py)
-HANDOFF_TEXT = "Thanks for your message. A person from our team will reply here soon."  # a tenant may set handoff_message
+HANDOFF_TEXT = conversation_log.HANDOFF_TEXT  # a tenant may set handoff_message
 WAITING_TEXT = "Thanks. A person is checking this now and will reply here soon."  # a tenant may set waiting_message
 
 

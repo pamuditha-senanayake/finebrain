@@ -8,6 +8,7 @@ from app.pipeline.observe import count, log_event
 # Config
 REPLIES_KIND = "conversation_reply"  # keyed by conversation id; one version per message the brain's side sent
 STATE_KIND = "conversation_state"  # keyed by conversation id; who has the chat now
+HANDOFF_TEXT = "Thanks for your message. A person from our team will reply here soon."  # a tenant may set handoff_message
 
 
 def remember_reply(lane, conversation_id: str | None, text: str, by: str, author: str, run_id: str | None = None, after: str | None = None) -> None:

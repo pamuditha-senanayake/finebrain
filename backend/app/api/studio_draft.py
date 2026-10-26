@@ -5,6 +5,7 @@ import copy
 import re
 import uuid
 
+from app.api.studio_options import CAPABILITY_LABELS
 from app.api.studio_spec import FIELDS, KIND_LABEL, TOOL_LEVEL_LABEL, format_value, is_ref, label
 
 # Config
@@ -61,8 +62,21 @@ def materialize(st, tenant: dict, person_id: str, change: dict) -> tuple[dict | 
     base = copy.deepcopy(before) if before else {"id": item_id, "kind": kind, "workflowId": None if kind == "tool" else flow["id"], "name": name, "description": "", "topics": [],
                                                  "status": "active", "version": 0, "dri": (flow or {}).get("dri", person_id), "fields": default_fields(kind), "updatedAt": "", "updatedBy": person_id}
     after = {**base, **{key: patch[key] for key in ("name", "description", "topics", "status", "dri") if patch.get(key) is not None},
-             "fields": {**base["fields"], **(patch.get("fields") or {})}}
+             "fields": normalized(kind, {**base["fields"], **(patch.get("fields") or {})})}
     return before, after, flow
+
+
+def normalized(kind: str, fields: dict) -> dict:
+    """The words a person or the assistant used, turned into the ids the pipeline checks: "Reply to customers" is
+    reply.draft, "reply_customer" is tool:reply_customer. Anything unknown is kept, and the review flags it."""
+    ids = {label.lower(): cid for cid, label in CAPABILITY_LABELS.items()} | {cid.lower(): cid for cid in CAPABILITY_LABELS}
+    if kind == "agent" and isinstance(fields.get("capabilities"), list):
+        fields["capabilities"] = list(dict.fromkeys(ids.get(str(c).strip().lower(), c) for c in fields["capabilities"]))
+    if kind == "tool" and fields.get("capability"):
+        fields["capability"] = ids.get(str(fields["capability"]).strip().lower(), fields["capability"])
+    if kind == "skill" and isinstance(fields.get("tools"), list):
+        fields["tools"] = list(dict.fromkeys(t if str(t).startswith("tool:") else f"tool:{t}" for t in fields["tools"]))
+    return fields
 
 
 def snapshot(target: dict) -> dict:
