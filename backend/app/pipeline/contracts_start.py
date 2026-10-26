@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.pipeline.contracts_signal import VersionRef
+from app.pipeline.contracts_signal import TaskRequest, VersionRef
 
 # Config: enum values
 StageName = Literal["S5 Retrieve", "S6 Reason", "S7 Govern", "S8 Decide", "S9 Act", "S10 Record"]
@@ -25,7 +25,7 @@ class Handoff(BaseModel):
     from_agent: str
     to_agent: str
     customer_ref: str  # a PiiToken for people, never the raw name
-    thread_ref: str  # "<connection>:<their conversation id>"
+    conversation_id: str  # the chat session (K2 conversation_id); unique within a tenant
     transcript_signal_ids: list[str] = Field(min_length=1)  # oldest first, ending with this task's message
 
 
@@ -48,3 +48,14 @@ class RunContinued(BaseModel):
     agent_id: str
     request_text: str
     transcript_signal_ids: list[str] = Field(min_length=1)  # the chat so far, ending with this message
+
+
+class OpenRun(BaseModel):
+    """One run S4 started on a conversation. Versions of one record per conversation, so finding the open run is one read."""
+    run_id: str
+    task: TaskRequest  # kept whole, so a follow-up S3 cannot route can still join this run with the same skill and agent
+
+
+class ConversationMessage(BaseModel):
+    """One message on a conversation, in arrival order. The versions of one record are the chat so far."""
+    signal_id: str

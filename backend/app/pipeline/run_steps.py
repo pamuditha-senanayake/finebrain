@@ -87,7 +87,7 @@ def start_run(lane, envelope: Envelope) -> RunState | None:
     # Step 2: retrieve what the agent may read about this payment
     task = TaskRequest.model_validate(envelope.payload)
     run_id = started.run_id
-    principal = Principal.model_validate(lane.seed["agents"][task.agent_id])
+    principal = stages_orchestrate.principal_of(lane, task.agent_id)  # the graph, as Workflow Studio last saved it
     signal = signal_of(lane, task.signal_ids[0])
     refs = [entity.value_or_token for entity in signal.entities if entity.type == "payment_ref"] if signal else []
     scope = {"entity_ids": retrieve_scope.linked(lane.entities, signal.entity_ids), "domains": [signal.domain] if signal.domain else []} if signal else {}

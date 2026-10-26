@@ -1,147 +1,198 @@
-# test_s4_repeat_visits.py: S4 when one chat reaches it more than once, as in the full refund BDD.
+# test_s4_repeat_visits.py: S4 when one chat reaches it more than once, as in the full refund BDD. Real S1, S2, S3; S4 by hand.
 # Visit 1: "I want a refund for my last order" starts the run and hands the chat to the Refund agent.
-# Visit 2: "yes, that one" joins that open run: no new recipe pick, no second handoff.
-# Visit 3: a message after the run closed starts a fresh run. Other agents and other chats never share a run.
-# Uses: stages_orchestrate.py, stages_record.py, contracts_start.py, tests/test_s4_orchestrate_bdd.py (helpers), test_s1_refund_bdd.py.
+# Visit 2: "yes, that one" matches no rule, so S3 hands it on for the open run; S4 joins it: inbox, runs.continued, no new run.
+# Visit 3: a message after the run closed starts a fresh run. Other chats never share a run; two workers never start two.
+# Uses: stages_orchestrate.py, stages_orchestrate_chat.py, stages_record.py, tests/test_s4_orchestrate_bdd.py, tests/test_s1_refund_chat.py.
 import json
 import random
+import threading
 
 import pytest
+from fastapi.testclient import TestClient
 
-from app.pipeline import observe, stages_record
-from app.pipeline.contracts_signal import VersionRef
-from app.pipeline.contracts_start import RunContinued, RunStarted
-from tests.golden import NOW
-from tests.test_s1_refund_bdd import CONFIRM, REFUND_ASK, poll, portal_message, shop as s1_shop
-from tests.test_s4_orchestrate_bdd import k3, published, start
+from app.pipeline import capture_api, observe, stages_record
+from app.pipeline import stages_orchestrate_chat as chat
+from app.pipeline.contracts_signal import TaskRequest
+from app.pipeline.contracts_start import RunStarted
+from tests.golden import NOW, SEED
+from tests.test_s1_refund_chat import CHAT, FIRST, SECOND, SESSION
+from tests.test_s4_orchestrate_bdd import lane as s4_lane
+from tests.test_s4_orchestrate_bdd import published, start, tasks
 
 # Config
-shop = s1_shop  # "Given the shop website chat is connected", shared with S1
-ANOTHER_ASK = "I want a refund for another order too"
-BILLING = {"agent_id": "agent_billing_helper", "activity_id": "act_billing_question", "resolver_rule_id": "rr_billing_question",
-           "skill_ref": VersionRef(id="skill_billing_answers", version=1, branch="main", commit_id="cmt_0003")}
-BEN = {"conversation_id": "c-2", "conversations": {"customer_id": "cust-ben"}}
+lane = s4_lane  # the S4 lane fixture: real S1 to S3, S4 handed each task by the test
+AGAIN = {"id": "chat_msg_anna_3", "text": "I want a refund for another order too"}
+BILLING = {"id": "chat_msg_anna_b", "text": "Also a billing question: why was I charged twice on my invoice?"}
 
 
-def says(lane, inbox, body: str, **who) -> str:
-    """One more chat message through the real S1 and S2, at a later time. Returns its K2 signal id."""
-    inbox.append(portal_message(len(inbox) + 1, body, **who))
-    poll(lane)
+def post(lane, message: dict, session: str = SESSION, email: str = "anna@example.lk") -> None:
+    """One chat message through the webhook, from any visitor, then S1, S2 and S3 catch up."""
+    body = json.dumps({"visitor_name": "Visitor", "visitor_email": email, "text": message["text"], "sent_at": "2026-10-10T09:55:00+05:30"}).encode()
+    headers = {"content-type": "application/json", "x-external-id": message["id"], "session": session,
+               "x-signature": capture_api.sign(SEED["connectors"][CHAT]["secret"], body)}
+    assert TestClient(capture_api.create_app(lane)).post(f"/capture/{CHAT}", content=body, headers=headers).status_code == 202
     lane.bus.drain()
-    return lane.records.list_kind("signal")[-1]["signal_id"]
+
+
+def latest_task(lane):
+    return tasks(lane)[-1]
 
 
 def close_run(lane, run_id: str, outcome: str) -> None:
     """S10 closes (or pauses) the run, as the recorder saves it from runs.completed."""
-    started = next(run for run in lane.records.list_kind("run_started") if run["run_id"] == run_id)
-    record, _ = stages_record.record(k3(started["signal_id"]), None, [], outcome, None, lane.seed, NOW, NOW, run_id=run_id)
+    task_id = next(run["task_id"] for run in published(lane, "runs.started") if run["run_id"] == run_id)
+    task = TaskRequest.model_validate(next(t.payload for t in tasks(lane) if t.payload["task_id"] == task_id))
+    record, _ = stages_record.record(task, None, [], outcome, None, lane.seed, NOW, NOW, run_id=run_id)
     lane.records.save("run", run_id, record)
-
-
-def continued(lane) -> list[RunContinued]:
-    return [RunContinued.model_validate(payload) for payload in published(lane, "runs.continued")]
 
 
 # --- Visit 2 joins the open run
 
-def test_visit_2_the_confirmation_joins_the_open_refund_run(shop):
-    lane, inbox = shop
-    ask = says(lane, inbox, REFUND_ASK)
-    first = start(lane, k3(ask))
-    confirm = says(lane, inbox, CONFIRM)
-    assert start(lane, k3(confirm)) is None  # no new run for S5 to S10
-    [joined] = continued(lane)
-    assert joined.run_id == first.run_id and joined.agent_id == "agent_refund_worker" and joined.request_text == CONFIRM
-    assert joined.transcript_signal_ids == [ask, confirm]
-    assert len(published(lane, "runs.started")) == 1  # one recipe pick, one handoff
+def test_visit_2_the_confirmation_joins_the_open_refund_run(lane):
+    post(lane, FIRST)
+    first = start(lane, latest_task(lane))
+    post(lane, SECOND)
+    follow_up = latest_task(lane)
+    assert chat.CONTINUES_FLAG in follow_up.payload["flags"]  # S3 matched no rule but found the chat's open run
+    assert start(lane, follow_up) is None  # no new run for S5 to S10
+    [joined] = chat.inbox(lane, first.run_id)
+    assert (joined.request_text, joined.transcript_signal_ids) == (SECOND["text"], ["sig_0001", "sig_0002"])
+    assert published(lane, "runs.continued")[0]["run_id"] == first.run_id and len(published(lane, "runs.started")) == 1
 
 
-def test_visit_2_while_the_run_waits_for_approval_still_joins_it(shop):
-    lane, inbox = shop
-    first = start(lane, k3(says(lane, inbox, REFUND_ASK)))
+def test_visit_2_while_the_run_waits_for_approval_still_joins_it(lane):
+    post(lane, FIRST)
+    first = start(lane, latest_task(lane))
     close_run(lane, first.run_id, "awaiting_approval")
-    start(lane, k3(says(lane, inbox, CONFIRM)))
-    assert [joined.run_id for joined in continued(lane)] == [first.run_id]
+    post(lane, SECOND)
+    start(lane, latest_task(lane))
+    assert [message.signal_id for message in chat.inbox(lane, first.run_id)] == ["sig_0002"]
 
 
-def test_the_same_visit_delivered_twice_joins_once(shop):
-    lane, inbox = shop
-    start(lane, k3(says(lane, inbox, REFUND_ASK)))
-    confirm = says(lane, inbox, CONFIRM)
-    start(lane, k3(confirm))
-    start(lane, k3(confirm))
-    assert len(continued(lane)) == 1
+def test_the_same_visit_delivered_twice_joins_once(lane):
+    post(lane, FIRST)
+    first = start(lane, latest_task(lane))
+    post(lane, SECOND)
+    start(lane, latest_task(lane))
+    start(lane, latest_task(lane))
+    assert len(chat.inbox(lane, first.run_id)) == 1 and len(published(lane, "runs.continued")) == 1
 
 
 # --- Visit 3 after the run closed starts fresh
 
 @pytest.mark.parametrize("outcome", ["resolved", "escalated", "failed", "blocked", "abandoned"])
-def test_visit_3_after_the_run_closed_starts_a_fresh_run(shop, outcome):
-    lane, inbox = shop
-    ask = says(lane, inbox, REFUND_ASK)
-    first = start(lane, k3(ask))
-    confirm = says(lane, inbox, CONFIRM)
-    start(lane, k3(confirm))
+def test_visit_3_after_the_run_closed_starts_a_fresh_run(lane, outcome):
+    post(lane, FIRST)
+    first = start(lane, latest_task(lane))
+    post(lane, SECOND)
+    start(lane, latest_task(lane))
     close_run(lane, first.run_id, outcome)
-    again = says(lane, inbox, ANOTHER_ASK)
-    second = start(lane, k3(again))
+    post(lane, AGAIN)
+    second = start(lane, latest_task(lane))
     assert second.run_id != first.run_id and second.recipe.skill_ref.id == "skill_refund_handling"
-    assert second.handoff.transcript_signal_ids == [ask, confirm, again]  # the new run still sees the whole chat
+    assert second.handoff.transcript_signal_ids == ["sig_0001", "sig_0002", "sig_0003"]  # the new run still sees the whole chat
+
+
+def test_a_thank_you_after_the_run_closed_is_not_forced_into_a_run(lane):
+    post(lane, FIRST)
+    close_run(lane, start(lane, latest_task(lane)).run_id, "resolved")
+    post(lane, {"id": "chat_msg_anna_t", "text": "thanks!"})
+    assert len(tasks(lane)) == 1 and published(lane, "tasks.unrouted")[-1]["text_masked"] == "thanks!"
 
 
 # --- Other agents and other chats never share a run
 
-def test_a_billing_question_mid_refund_gets_its_own_run_and_the_refund_continues(shop):
-    lane, inbox = shop
-    refund = start(lane, k3(says(lane, inbox, REFUND_ASK)))
-    billing = start(lane, k3(says(lane, inbox, "Also, why was I charged twice?"), **BILLING))
-    start(lane, k3(says(lane, inbox, CONFIRM)))
+def test_a_billing_question_mid_refund_gets_its_own_run_and_a_reply_joins_the_newest(lane):
+    post(lane, FIRST)
+    refund = start(lane, latest_task(lane))
+    post(lane, BILLING)
+    billing = start(lane, latest_task(lane))
+    post(lane, SECOND)
+    start(lane, latest_task(lane))
     assert billing.run_id != refund.run_id and billing.handoff.to_agent == "agent_billing_helper"
-    assert [joined.run_id for joined in continued(lane)] == [refund.run_id]
+    assert published(lane, "runs.continued")[0]["run_id"] == billing.run_id  # an unmatched reply goes to the chat's newest open run
 
 
-def test_two_customers_chatting_at_once_never_share_a_run(shop):
-    lane, inbox = shop
-    amara = start(lane, k3(says(lane, inbox, REFUND_ASK)))
-    ben = start(lane, k3(says(lane, inbox, REFUND_ASK, **BEN)))
-    start(lane, k3(says(lane, inbox, CONFIRM, **BEN)))
-    assert ben.run_id != amara.run_id and ben.handoff.customer_ref == "cust-ben"
-    [joined] = continued(lane)
-    assert joined.run_id == ben.run_id and len(joined.transcript_signal_ids) == 2  # Ben's chat only, never Amara's
+def test_two_customers_chatting_at_once_never_share_a_run(lane):
+    post(lane, FIRST)
+    anna = start(lane, latest_task(lane))
+    post(lane, {"id": "chat_msg_ben_1", "text": FIRST["text"]}, session="chat_sess_ben", email="ben@example.lk")
+    ben = start(lane, latest_task(lane))
+    post(lane, {"id": "chat_msg_ben_2", "text": SECOND["text"]}, session="chat_sess_ben", email="ben@example.lk")
+    start(lane, latest_task(lane))
+    assert ben.run_id != anna.run_id and ben.handoff.customer_ref != anna.handoff.customer_ref
+    [joined] = chat.inbox(lane, ben.run_id)
+    assert joined.transcript_signal_ids == ["sig_0002", "sig_0003"] and chat.inbox(lane, anna.run_id) == []
+
+
+# --- Two workers on one chat at the same moment
+
+class LockedKeys(set):
+    """A key set whose claim is atomic across threads, as Valkey SET NX is across workers."""
+    lock = threading.Lock()
+
+    def claim(self, key: str) -> bool:
+        with self.lock:
+            return not (key in self or self.add(key))
+
+
+def test_two_workers_starting_one_chat_at_once_make_one_run(lane):
+    lane.seen_keys = LockedKeys()
+    post(lane, FIRST)
+    post(lane, {"id": "chat_msg_anna_r", "text": "please refund my last order"})  # a second refund ask, routed on its own
+    first, second = tasks(lane)[-2:]
+    workers = [threading.Thread(target=start, args=(lane, envelope)) for envelope in (first, second)]
+    [worker.start() for worker in workers]
+    [worker.join() for worker in workers]
+    assert len(published(lane, "runs.started")) == 1 and len(published(lane, "runs.continued")) == 1
+
+
+def test_a_worker_that_lost_the_claim_and_sees_no_run_retries_later(lane, monkeypatch):
+    monkeypatch.setattr(chat, "WAIT_DELAY", 0)
+    post(lane, FIRST)
+    lane.seen_keys.add(f"{SEED['tenant_id']}:s4:start:{SESSION}:agent_refund_worker:0")  # another worker holds the claim
+    with pytest.raises(chat.ConversationBusy):
+        start(lane, latest_task(lane))
+    lane.seen_keys.discard(f"{SEED['tenant_id']}:s4:start:{SESSION}:agent_refund_worker:0")  # it crashed and let go
+    assert start(lane, latest_task(lane)).run_id  # the bus delivers the task again, and it starts
 
 
 # --- The whole conversation, through the seam log
 
-def test_the_seam_log_shows_every_visit_in_order(shop, tmp_path, monkeypatch):
-    lane, inbox = shop
+def test_the_seam_log_shows_every_visit_in_order(lane, tmp_path, monkeypatch):
     monkeypatch.setattr(observe, "SEAM_LOG_DIR", str(tmp_path))
-    first = start(lane, k3(says(lane, inbox, REFUND_ASK)))
-    start(lane, k3(says(lane, inbox, CONFIRM)))
+    post(lane, FIRST)
+    first = start(lane, latest_task(lane))
+    post(lane, SECOND)
+    start(lane, latest_task(lane))
     close_run(lane, first.run_id, "resolved")
-    start(lane, k3(says(lane, inbox, ANOTHER_ASK)))
+    post(lane, AGAIN)
+    start(lane, latest_task(lane))
     lines = [json.loads(line) for line in (tmp_path / "S4.jsonl").read_text().splitlines()]
-    assert [line["out"]["request_text"] for line in lines] == [REFUND_ASK, CONFIRM, ANOTHER_ASK]
-    assert ["handoff" in line["out"] for line in lines] == [True, False, True]  # visit 2 joins, so no handoff
+    assert [line["out"]["request_text"] for line in lines] == [FIRST["text"], SECOND["text"], AGAIN["text"]]
+    assert ["handoff" in line["out"] for line in lines] == [True, False, True]  # visit 2 joins, so no hand-off
 
 
 # --- Rules that always hold, over many random conversations
 
 @pytest.mark.parametrize("seed", range(30))
-def test_rules_hold_for_any_conversation(shop, seed):
-    lane, inbox = shop
+def test_rules_hold_for_any_conversation(lane, seed):
     picker = random.Random(seed)
-    seen, closed = [], set()
-    for _ in range(picker.randint(2, 8)):
-        seen.append(says(lane, inbox, picker.choice([REFUND_ASK, CONFIRM, ANOTHER_ASK, "ok"])))
-        start(lane, k3(seen[-1]))
-        assert len({run["run_id"] for run in published(lane, "runs.started")} - closed) == 1  # one chat, one agent: one open run
-        if picker.random() < 0.3:  # S10 closes the latest run now and then
+    handled, closed = 0, set()
+    for turn in range(picker.randint(2, 8)):
+        post(lane, {"id": f"m{seed}_{turn}", "text": picker.choice([FIRST["text"], SECOND["text"], AGAIN["text"], BILLING["text"], "ok"])})
+        for envelope in tasks(lane)[handled:]:
+            start(lane, envelope)
+        handled = len(tasks(lane))
+        open_agents = [run["agent_id"] for run in published(lane, "runs.started") if run["run_id"] not in closed]
+        assert len(open_agents) == len(set(open_agents))  # one chat: never two open runs for one agent
+        if picker.random() < 0.3 and published(lane, "runs.started"):  # S10 closes the latest run now and then
             closed.add(published(lane, "runs.started")[-1]["run_id"])
             close_run(lane, published(lane, "runs.started")[-1]["run_id"], picker.choice(["resolved", "escalated"]))
-    runs, joins = [RunStarted.model_validate(p) for p in published(lane, "runs.started")], continued(lane)
-    # Every visit is handled exactly once, by a new run or by joining one; joins point at a run on this chat
-    assert sorted([run.task_id for run in runs] + [join.task_id for join in joins]) == sorted(f"task_{s}" for s in seen)
-    assert {join.run_id for join in joins} <= {run.run_id for run in runs}
-    # Each transcript is the chat up to that visit, so it never loses an earlier message
-    assert all(item.transcript_signal_ids == seen[: seen.index(item.signal_id) + 1] for item in joins)
-    assert all(run.handoff.transcript_signal_ids == seen[: seen.index(run.signal_id) + 1] for run in runs)
+    runs, joins = [RunStarted.model_validate(p) for p in published(lane, "runs.started")], published(lane, "runs.continued")
+    order = [s["signal_id"] for s in lane.records.history(chat.MESSAGES_KIND, SESSION)]
+    # Every task is handled exactly once, by a new run or by joining one, and joins only point at runs that exist
+    assert sorted([run.task_id for run in runs] + [join["task_id"] for join in joins]) == sorted({t.payload["task_id"] for t in tasks(lane)})
+    assert {join["run_id"] for join in joins} <= {run.run_id for run in runs}
+    # Each hand-off carries the chat up to that message, so no earlier message is ever lost
+    assert all(run.handoff.transcript_signal_ids == order[: order.index(run.signal_id) + 1] for run in runs)

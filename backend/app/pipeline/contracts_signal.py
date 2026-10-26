@@ -128,7 +128,6 @@ class Signal(BaseModel):
     entity_ids: list[str] = []  # added in step 13a: the registry ids of the real things it is about; optional so old messages validate
     conversation_id: str | None = None  # the chat session this message belongs to, so a reply joins the first message; optional so old messages validate
     domain: str | None = None  # added in step 13a: one of item_tags.DOMAINS; None on messages from before it
-    thread_ref: str | None = None  # a chat's conversation as "<connection>:<their conversation id>"; None for email and uploads
 
 
 # --- K3 TaskRequest (S3 to S4, topic tasks.created)

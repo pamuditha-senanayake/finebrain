@@ -95,14 +95,8 @@ def build_signal(k1: RawSignalEnvelope, raw_event_id: str, tenant_id: str, objec
         channel=k1.source_type, actor=actor, subject=subject, text_masked=text_masked,
         language=detect_language(message["text"]), entities=entities, pii_tokens=tokens, flags=flags,
         attachments=save_attachments(object_store, k1.raw_object_uri, k1.external_id, message["attachments"]),
-        sensitivity=pii.sensitivity_for(found), dedup_key=dedup_key, thread_ref=thread_of(k1), conversation_id=k1.headers_subset.get("session"),
+        sensitivity=pii.sensitivity_for(found), dedup_key=dedup_key, conversation_id=k1.headers_subset.get("session"),
     )
-
-
-def thread_of(k1: RawSignalEnvelope) -> str | None:
-    """A chat message's conversation, from the session header S1 kept."""
-    session = k1.headers_subset.get("session")
-    return f"{k1.connector_id}:{session}" if k1.source_type == "chat" and session else None
 
 
 def claim(seen_keys, key: str) -> bool:

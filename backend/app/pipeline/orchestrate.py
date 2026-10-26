@@ -3,7 +3,7 @@
 # Each task runs in-process, or as a Temporal workflow when the adapters include a Temporal runner.
 from datetime import datetime
 
-from app.pipeline import entity_match, item_tags, run_approvals, run_steps, stages_extract, stages_file, stages_librarian, stages_intake, stages_normalize, stages_route, stages_version
+from app.pipeline import entity_match, item_tags, run_approvals, run_steps, stages_extract, stages_file, stages_librarian, stages_intake, stages_normalize, stages_orchestrate_chat, stages_route, stages_version
 from app.pipeline.adapters import make_memory_adapters
 from app.pipeline.audit import subscribe_audit
 from app.pipeline.contracts_run import Decision
@@ -94,9 +94,11 @@ def on_signal(lane: Lane, envelope: Envelope) -> None:
     signal = Signal.model_validate(envelope.payload)
     lane.signals[signal.signal_id] = signal
     keep_signal(lane, signal)
+    stages_orchestrate_chat.remember_message(lane, signal)
     task, reason = stages_route.route(signal, stages_route.read_routing(lane.graph), lane.choose, lane.new_id, lane.now)
     if reason == "lane_b":
         return
+    task = task or stages_orchestrate_chat.continuation_task(lane, signal, lane.new_id)
     if task is None:
         lane.bus.publish("tasks.unrouted", "task.unrouted", signal, "resolver", envelope)
         return
