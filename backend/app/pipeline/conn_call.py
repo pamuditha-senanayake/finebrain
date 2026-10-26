@@ -78,7 +78,8 @@ def note_role(lane, connection: Connection) -> None:
     if plays_orders(connection) and current != connection.connection_id:
         lane.records.save(ROLE_KIND, ORDERS, Role(connection_id=connection.connection_id))
     elif not plays_orders(connection) and current == connection.connection_id:
-        lane.records.save(ROLE_KIND, ORDERS, Role(connection_id=None))
+        other = next((c for c in all_connections(lane) if plays_orders(c) and c.connection_id != connection.connection_id), None)  # on a save, never a run
+        lane.records.save(ROLE_KIND, ORDERS, Role(connection_id=other.connection_id if other else None))
 
 
 def orders_database(lane) -> Connection | None:

@@ -138,6 +138,14 @@ def test_pausing_the_shop_clears_its_role_and_switching_it_back_restores_it():
     assert tools_write.refunds_connection(lane).connection_id == "conn_shop_db"
 
 
+def test_pausing_one_of_two_shop_databases_hands_the_role_to_the_other():
+    lane = full_lane()
+    first = conn_call.load(lane, "conn_shop_db")
+    second = conn_call.save(lane, first.model_copy(update={"connection_id": "conn_shop_db_2"}))
+    conn_call.save(lane, second.model_copy(update={"status": "paused"}))
+    assert conn_call.orders_database(lane).connection_id == tools_write.refunds_connection(lane).connection_id == "conn_shop_db"  # the first still serves
+
+
 # --- The same chat on real infra
 
 @pytest.mark.skipif(bool(missing_infra(S5_PARTS)), reason="infra not answering")
