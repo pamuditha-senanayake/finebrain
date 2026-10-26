@@ -9,7 +9,7 @@ from app.pipeline.contracts_signal import TaskRequest
 from app.pipeline.stages_record import describe_title
 
 # Config
-RUN_STATUS = {"resolved": "succeeded", "escalated": "escalated", "failed": "failed", "blocked": "blocked", "awaiting_approval": "awaiting_approval", "abandoned": "failed"}
+RUN_STATUS = {"resolved": "succeeded", "escalated": "escalated", "failed": "failed", "blocked": "blocked", "awaiting_approval": "awaiting_approval", "abandoned": "failed", "awaiting_customer": "running"}
 STEP_TITLES = {"retrieval": "Read the knowledge it may see", "judgment": "Proposed an action", "access_check": "Access check", "tool": "Called the tool", "human": "Waiting for a person", "quality_gate": "Quality gate"}
 MAX_APPROVAL = {"L1": 4, "L2": 2, "L3": 1}
 

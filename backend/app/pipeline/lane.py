@@ -40,3 +40,4 @@ class Lane:
     signals: dict = field(default_factory=dict)  # signal_id to K2, so S4 can read entities
     approvals: dict = field(default_factory=dict)  # approval_id to its cause and task
     pending: dict = field(default_factory=dict)  # approval_id to a paused run (in-process only)
+    waiting: dict = field(default_factory=dict)  # run_id to when its wait for the customer ends (in-process only; Temporal keeps its own timer)

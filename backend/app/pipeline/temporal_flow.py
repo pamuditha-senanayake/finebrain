@@ -13,7 +13,7 @@ with workflow.unsafe.imports_passed_through():  # these never run inside the wor
 
     from temporalio.client import Client
 
-    from app.pipeline import run_approvals, run_steps
+    from app.pipeline import run_approvals, run_finish, run_resume, run_steps
     from app.pipeline.contracts_signal import Envelope
     from app.pipeline.run_steps import RunState
 
@@ -50,12 +50,24 @@ class RunActivities:
         return run_steps.start_run(self.lane, envelope)
 
     @activity.defn(name="act_and_finish")
-    async def act(self, run: RunState) -> None:
-        run_steps.act_and_finish(self.lane, run, None)
+    async def act(self, run: RunState) -> str:
+        return run_finish.act_and_finish(self.lane, run, None)
+
+    @activity.defn(name="resume_run")
+    async def resume(self, envelope: Envelope) -> RunState | None:
+        return run_resume.resume_run(self.lane, envelope.payload, envelope)
+
+    @activity.defn(name="customer_wait_seconds")
+    async def customer_wait_seconds(self) -> float:
+        return run_finish.customer_wait(self.lane).total_seconds()
+
+    @activity.defn(name="abandon_run")
+    async def abandon(self, run_id: str) -> None:
+        run_resume.abandon(self.lane, run_id)
 
     @activity.defn(name="close_without_acting")
     async def close(self, run: RunState) -> None:
-        run_steps.close_without_acting(self.lane, run)
+        run_finish.close_without_acting(self.lane, run)
 
     @activity.defn(name="open_approval")
     async def open_approval(self, run: RunState) -> RunState:
@@ -93,17 +105,39 @@ class TaskWorkflow:
         # Step 1: S5, S6 and S7
         run = await step(RunActivities.start, envelope, timeout=REASON_TIMEOUT)
 
-        # Step 2: act now, close, or wait for people (None: closed early, context unavailable)
-        if run is not None and run.verdict.route == "execute":
-            await step(RunActivities.act, run)
-        elif run is not None and run.verdict.route != "approval_required":
-            await step(RunActivities.close, run)
-        elif run is not None:
-            paused = await step(RunActivities.open_approval, run)
-            while paused is not None:
-                paused = await self.next_turn(paused)
+        # Step 2: act now, close, or wait for people (None: closed early, context unavailable, or joined to another run)
+        outcome = await self.route(run) if run is not None else "done"
+
+        # Step 3: while the agent waits for the customer's answer, a durable timer runs; their message takes the next turn
+        while outcome == "awaiting_customer":
+            outcome = await self.next_customer_turn(run.action.run_id)
         self.phase = "done"
         return self.phase
+
+    async def route(self, run: RunState) -> str:
+        """After S7: act (S9, S10), close, or wait for approvers (S8). Returns the outcome."""
+        if run.verdict.route == "execute":
+            return await step(RunActivities.act, run)
+        if run.verdict.route != "approval_required":
+            await step(RunActivities.close, run)
+            return "closed"
+        paused = await step(RunActivities.open_approval, run)
+        while paused is not None:
+            paused = await self.next_turn(paused)
+        return "decided"
+
+    async def next_customer_turn(self, run_id: str) -> str:
+        """Wait for the customer, as long as the tenant allows. No answer: abandon. An answer: S5 to S7 again, then route."""
+        wait = timedelta(seconds=await step(RunActivities.customer_wait_seconds))
+        self.phase = "awaiting_customer"
+        try:
+            await workflow.wait_condition(lambda: bool(self.messages), timeout=wait)
+        except asyncio.TimeoutError:
+            await step(RunActivities.abandon, run_id)
+            return "abandoned"
+        self.phase = "running"
+        resumed = await step(RunActivities.resume, self.messages.pop(0), timeout=REASON_TIMEOUT)
+        return "awaiting_customer" if resumed is None else await self.route(resumed)
 
     async def next_turn(self, paused: RunState) -> RunState | None:
         """One turn of S8: sleep through cooling and act, or wait for a decision until the round's deadline."""

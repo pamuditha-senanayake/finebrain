@@ -13,7 +13,7 @@ from app.pipeline.temporal_flow import TEMPORAL_ADDRESS, RunActivities, TaskWork
 
 # Config
 WAIT_SECONDS = 30
-AT_REST = {"awaiting_approval", "cooling", "done"}
+AT_REST = {"awaiting_approval", "awaiting_customer", "cooling", "done"}
 
 
 class TemporalRunner:
@@ -36,7 +36,8 @@ class TemporalRunner:
         return Worker(
             self.client, task_queue=self.task_queue, workflows=[TaskWorkflow],
             activities=[activities.start, activities.act, activities.close, activities.open_approval,
-                        activities.handle_decision, activities.expire, activities.release],
+                        activities.handle_decision, activities.expire, activities.release,
+                        activities.resume, activities.abandon, activities.customer_wait_seconds],
         )
 
     def call(self, coroutine):

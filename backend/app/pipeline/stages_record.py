@@ -72,6 +72,7 @@ def describe_title(task: TaskRequest, action: ProposedAction | None) -> str:
 def record(
     task: TaskRequest, action: ProposedAction | None, steps: list[RunStep], outcome: RunOutcome,
     approval_id: str | None, seed: dict, started_at: datetime, now: datetime, run_id: str | None = None, trace_written: bool = True,
+    decided_by: str | None = None,
 ) -> tuple[RunRecord, UiEvent]:
     """S10: close the run as K10 and tell the console as K11. The UI never sees personal data.
     action is None when the run closed early, for example when context was unavailable."""
@@ -83,7 +84,7 @@ def record(
         template_fills=[], human_touch=approval_id is not None,
         cost=describe_cost(action) if action else Cost(input_tokens=0, output_tokens=0, usd_micro=0),
         latency_ms=int((now - started_at).total_seconds() * 1000),
-        trace_object_uri=trace_uri(seed, run_id) if trace_written else "pending:" + trace_uri(seed, run_id),
+        trace_object_uri=trace_uri(seed, run_id) if trace_written else "pending:" + trace_uri(seed, run_id), decided_by=decided_by,
     )
 
     # Step 2: one live event, about the approval when there is one

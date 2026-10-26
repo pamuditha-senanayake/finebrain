@@ -25,7 +25,9 @@ V4_STARTS = next(k["valid_from"] for k in WORLD["knowledge"] if k["item_id"] == 
 def world_seed(seed: dict = SEED) -> dict:
     """The seed with the world added. The 30 day window closes when the 45 day one starts, as a release would close it."""
     knowledge = [{**k, "valid_to": V4_STARTS} if k["item_id"] == "item_policy_window" else k for k in seed["knowledge"]]
-    return {**seed, "knowledge": knowledge + WORLD["knowledge"], "agents": {**seed["agents"], **WORLD["agents"]}}
+    refund_agent = {**seed["agents"]["agent_refund_worker"], "capabilities": [*seed["agents"]["agent_refund_worker"]["capabilities"], "reply.draft"]}
+    agents = {**seed["agents"], "agent_refund_worker": refund_agent, **WORLD["agents"]}  # it must answer in the chat, as staff grant in Studio
+    return {**seed, "knowledge": knowledge + WORLD["knowledge"], "agents": agents}
 
 
 needs_postgres = pytest.mark.skipif(not store_postgres.database_is_up(), reason="Postgres is not running: the shop database lives there")
