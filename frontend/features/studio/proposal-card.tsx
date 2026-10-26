@@ -58,7 +58,8 @@ export function ProposalCard({
   const apply = useOp<{ input: Proposal["input"]; acknowledgeBreaking: boolean; note: string }>("studioApply");
   const suggest = useOp<{ input: Proposal["input"]; note: string }>("studioSuggest");
   const hl = useMemo(() => highlightOf(proposal), [proposal]);
-  const inDiagram = !!detail && (proposal.input.kind !== "tool" || detail.items.some((i) => i.id === proposal.input.targetId));
+  const newWorkflow = proposal.input.kind === "workflow" && proposal.input.intent === "create";  // the open workflow is not the one being made
+  const inDiagram = !!detail && !newWorkflow && (proposal.input.kind !== "tool" || detail.items.some((i) => i.id === proposal.input.targetId));
   const viewOnly = rv.authority.route === "view_only";
   const blocked = rv.verdict === "breaking" && !ack;
 

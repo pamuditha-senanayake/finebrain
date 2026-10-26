@@ -1,6 +1,6 @@
 # Engineering the graph and the memory
 
-> **Proposal, not built yet.** What runs today is in `CB_System_Reference.md`. Each change here lands with its own tests, then that file is updated.
+> **Section 1 is built; the rest is a proposal.** What runs today is in `CB_System_Reference.md`. Each change here lands with its own tests, then that file is updated.
 
 ## The problem
 
@@ -22,6 +22,8 @@ The graph should work the same way. First we name the action, like "refund a pay
 | Tool | What can it touch? | issue_refund |
 
 Today a routing rule points straight at a skill and an agent. We should change one link. The rule should point to the activity, and the activity to its owner. Then a new way of asking for a refund needs only a new rule. The owner, skill and policy stay as they are.
+
+**Built.** In Workflow Studio a workflow is the activity. Its graph node `wf_{activity}` names its owner agent, its one skill, its policies and the connections its sensors listen to. A rule names only the activity, and S3 reads the owner and skill from it. Studio writes one rule per connection, so every message on that connection reaches the activity. S5 gives the owner its activity's policies by key. Checked by `tests/test_activity_bdd.py` and `test_activity_real.py`.
 
 ## 2. Nobody reaches the graph from outside
 
@@ -73,4 +75,4 @@ So we fix both sides. Every output gets a field list, and each field says what i
 
 ## The order
 
-First, we put the activity at the center of the graph. Next, we add the access tests and the as of lookup. Then we build the memory inspector and the time slider. After that, we add field lists and the citation check for every field. Finally, we run the memory tests on real infra.
+First, we put the activity at the center of the graph (done). Next, we add the access tests and the as of lookup. Then we build the memory inspector and the time slider. After that, we add field lists and the citation check for every field. Finally, we run the memory tests on real infra.

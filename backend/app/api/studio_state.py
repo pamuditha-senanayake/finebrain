@@ -1,20 +1,21 @@
 # studio_state.py: Workflow Studio's items and workflows in memory, with the lookups the review and the views need:
-# a workflow's members and scope, who uses a shared tool, and what points at an item.
-# Used by: studio_findings.py, studio_review.py, studio_views.py. Uses: studio_model.py, studio_spec.py.
-from app.api import studio_model
+# a workflow's members and scope, who uses a shared tool, what points at an item, and the connections a sensor can listen to.
+# Used by: studio_findings.py, studio_review.py, studio_views.py. Uses: studio_model.py, studio_spec.py, studio_activity.py.
+from app.api import studio_activity, studio_model
 from app.api.studio_spec import refs_of
 
 
 class Studio:
     """Items and workflows as Studio sees them, with the lookups the review needs."""
 
-    def __init__(self, items: list[dict], flows: list[dict]):
+    def __init__(self, items: list[dict], flows: list[dict], sources: dict[str, dict] | None = None):
         self.items = {item["id"]: item for item in items}
         self.flows = {flow["id"]: flow for flow in flows}
+        self.sources = sources or {}  # connection id to its name and status, for sensors
 
     @classmethod
     def of(cls, lane) -> "Studio":
-        return cls(studio_model.items(lane), studio_model.workflows(lane))
+        return cls(studio_model.items(lane), studio_model.workflows(lane), studio_activity.message_sources(lane))
 
     def members(self, flow: dict) -> list[dict]:
         order = studio_model.MEMBER_KINDS

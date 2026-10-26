@@ -29,6 +29,7 @@ class ContextQuery(BaseModel):
     domains: list[str] = []  # step 13b: and to these domains plus general; empty means every domain
     customer_ref: str | None = None  # the case's customer, as S2's masked token; S5 looks up their orders. Optional so old queries validate
     conversation_id: str | None = None  # the case's chat; S5 adds the chat so far. Optional so old queries validate
+    policy_ids: list[str] = []  # the run's activity's own policies: S5 adds their current wording by key, whatever the search finds
     as_of_valid: datetime | None = None  # None means now
     as_of_recorded: datetime | None = None
     branch: str

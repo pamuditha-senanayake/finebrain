@@ -95,7 +95,7 @@ def build_signal(k1: RawSignalEnvelope, raw_event_id: str, tenant_id: str, objec
         channel=k1.source_type, actor=actor, subject=subject, text_masked=text_masked,
         language=detect_language(message["text"]), entities=entities, pii_tokens=tokens, flags=flags,
         attachments=save_attachments(object_store, k1.raw_object_uri, source_id(k1).replace(":", "/"), message["attachments"]),
-        sensitivity=pii.sensitivity_for(found), dedup_key=dedup_key, conversation_id=conversation_of(k1),
+        sensitivity=pii.sensitivity_for(found), dedup_key=dedup_key, conversation_id=conversation_of(k1), connector_id=k1.connector_id,
     )
 
 

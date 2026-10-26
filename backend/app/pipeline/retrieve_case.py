@@ -1,6 +1,7 @@
 # retrieve_case.py: S5 for one run. Knowledge comes from stages_retrieve.py; this adds what is true about this case only:
-# the customer's latest orders from the shop's database (read only, as of the asked time) and the chat so far. Both obey
-# the same access rules as knowledge, and both are left out, never guessed, when they cannot be read.
+# the activity's own policies (their current wording, read by key, so an agent always knows its rules), the customer's
+# latest orders from the shop's database (read only, as of the asked time) and the chat so far. All obey the same access
+# rules as knowledge, and are left out, never guessed, when they cannot be read.
 # Used by: run_steps.py (S4's run asks S5 here). Uses: stages_retrieve.py, tools_read.py, stages_orchestrate_chat.py, observe.py.
 from datetime import datetime
 
@@ -13,6 +14,19 @@ from app.pipeline.observe import count, log_event, log_seam
 ORDER_SENSITIVITY = "confidential"  # a customer's orders and payments
 CHAT_SENSITIVITY = "internal"  # masked chat text
 CHAT_MESSAGES_SHOWN = 20  # the latest messages; a long chat keeps its end, where the case is
+
+
+# --- The activity's own policies
+
+def policy_items(lane, query: ContextQuery) -> list[dict]:
+    """Each named policy's current statement (Studio keeps it as "<policy>_statement"), by key. A closed one is not shown."""
+    items = []
+    for policy_id in query.policy_ids:
+        versions = lane.graph.history("knowledge", f"{policy_id}_statement")
+        node = versions[-1] if versions else None
+        if node and not node.get("_closed") and not node.get("valid_to"):
+            items.append({key: value for key, value in node.items() if key != "_ref"})
+    return items
 
 
 # --- Orders from the shop
@@ -87,9 +101,10 @@ def retrieve_for_run(lane, query: ContextQuery) -> tuple[ContextBundle, object]:
     if decision.decision != "allow":
         return bundle, decision
 
-    # Step 2: the case's orders and chat, kept only when the principal (and the person it acts for) may read them
+    # Step 2: the activity's own policies, the case's orders and its chat, kept only when the principal (and the person it acts for) may read them
     orders, note = orders_for(lane, query, lane.now)
-    case = orders + chat_items(lane, query, lane.now)
+    found = {item.item_id for item in bundle.items}
+    case = [item for item in policy_items(lane, query) if item["item_id"] not in found] + orders + chat_items(lane, query, lane.now)
     readable = stages_retrieve.readable_for(query, lane.seed["people"])
     shown = [ContextItem.model_validate(item) for item in case if item["sensitivity"] in readable]
     withheld = len(case) - len(shown)
