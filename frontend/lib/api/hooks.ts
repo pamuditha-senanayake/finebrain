@@ -93,6 +93,8 @@ export const useStudioWorkflow = (id: string) => useResource(`studio/workflows/$
 export const useStudioHealth = (id: string) => useResource(`studio/workflows/${id}/health`, z.object({ findings: z.array(C.Finding), fixes: z.array(C.Suggestion) }), { enabled: !!id });
 export const useStudioHistory = (targetId: string) => useResource(`studio/revisions?target=${encodeURIComponent(targetId)}`, list(C.Revision), { enabled: !!targetId });
 export const useStudioActivity = (workflowId: string) => useResource(`studio/revisions?workflow=${encodeURIComponent(workflowId)}`, list(C.Revision), { enabled: !!workflowId });
+/** Studio's pick lists; a demo workspace has none, so its forms fall back to typing (the review still checks). */
+export const useStudioOptions = () => useResource("studio/options", C.StudioOptions, { retry: false, staleTime: 60_000 });
 export const useStudioTools = () => useResource("studio/tools", list(z.object({ tool: C.StudioItem, workflows: z.array(z.object({ id: z.string(), name: z.string() })) })));
 export const useStudioPending = () => useResource("studio/pending", list(C.PendingChange));
 

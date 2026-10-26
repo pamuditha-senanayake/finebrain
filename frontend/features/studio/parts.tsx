@@ -11,14 +11,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useHumans, useStudioReview, useStudioTools } from "@/lib/api/hooks";
+import { useHumans, useStudioOptions, useStudioReview, useStudioTools } from "@/lib/api/hooks";
 import { useCurrentUser } from "@/lib/auth";
 import type { Highlight } from "@/lib/studio/graph";
 import { FIELD_SPECS, KIND_LABEL, TOOL_LEVEL_LABEL, describeCron, fieldLabel, isParam, visibleSpecs, type FieldSpec } from "@/lib/studio/spec";
 import { cn } from "@/lib/utils";
 import { KindIcon } from "./cards";
 import { ProposalCard } from "./proposal-card";
-import { SourceSelect } from "./source-select";
+import { GROUPED, TYPED_HINTS, typedField } from "./typed-field";
 
 type Draft = { name: string; description: string; topics: string; status: ItemStatus; dri: string; fields: ItemFields };
 
@@ -36,6 +36,7 @@ export function ItemForm({ kind, item, detail, onDone, onCancel, onShowDiagram }
   const { user } = useCurrentUser();
   const humans = useHumans();
   const tools = useStudioTools();
+  const studioOptions = useStudioOptions();
   const [d, setD] = useState<Draft>(() => draftOf(item, kind, detail.workflow.dri));
   const [reply, setReply] = useState<ChatReply | null>(null);
   const [applied, setApplied] = useState<ApplyResult | undefined>();
@@ -46,6 +47,9 @@ export function ItemForm({ kind, item, detail, onDone, onCancel, onShowDiagram }
   const params = Object.keys(d.fields).filter(isParam);
   const setField = (k: string, v: FieldValue) => setD((x) => ({ ...x, fields: { ...x.fields, [k]: v } }));
   const options = (ref: MemberKind) => (ref === "tool" ? (tools.data ?? []).map((t) => t.tool) : detail.items.filter((i) => i.kind === ref));
+  const toolNames = new Map(options("tool").map((t) => [t.id, t.name]));
+  const skillTools = (Array.isArray(d.fields.tools) ? d.fields.tools.map(String) : []).map((id) => ({ id, label: toolNames.get(id) ?? id.replace("tool:", "") }));
+  const typed = (key: string) => typedField({ kind, field: key, fields: d.fields, set: setField, options: studioOptions.data, tools: skillTools });
 
   const submit = (input: ProposalInput) => review.mutate({ input, workflowId: detail.workflow.id }, { onSuccess: (r) => { setApplied(undefined); setReply(r); } });
   const save = () => {
@@ -85,16 +89,19 @@ export function ItemForm({ kind, item, detail, onDone, onCancel, onShowDiagram }
             <SelectContent>{(humans.data ?? []).filter((h) => h.tier !== "L3").map((h) => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}</SelectContent>
           </Select>
         </FormRow>
-        {specs.map((s) => (
-          <FormRow key={s.key} label={s.label} hint={s.key === "cron" ? describeCron(String(d.fields.cron ?? "")) : kind === "sensor" && s.key === "source" ? "The connection whose messages wake this workflow" : s.hint ?? (s.unit ? `In ${s.unit}` : undefined)} wide={s.type === "longtext" || s.key === "steps" || s.type === "refs"}>
-            {s.key === "level" ? <LevelSelect value={String(d.fields.level ?? "prebuilt")} onChange={(v) => setField("level", v)} />
-              : kind === "sensor" && s.key === "source" ? <SourceSelect value={String(d.fields.source ?? "")} onChange={(v) => setField("source", v)} />
-              : <FieldInput spec={s} value={d.fields[s.key]} onChange={(v) => setField(s.key, v)} options={s.ref ? options(s.ref) : []} />}
-          </FormRow>
-        ))}
+        {specs.map((s) => {
+          const own = typed(s.key);
+          const hint = own && s.key === "cron" ? undefined : TYPED_HINTS[`${kind}.${s.key}`] ?? (s.key === "cron" ? describeCron(String(d.fields.cron ?? "")) : s.key === "steps" && own ? undefined : s.hint ?? (s.unit ? `In ${s.unit}` : undefined));
+          return (
+            <FormRow key={s.key} label={s.label} hint={hint} wide={s.type === "longtext" || s.key === "steps" || s.type === "refs"} group={!!own && GROUPED.has(`${kind}.${s.key}`)}>
+              {s.key === "level" ? <LevelSelect value={String(d.fields.level ?? "prebuilt")} onChange={(v) => setField("level", v)} />
+                : own ?? <FieldInput spec={s} value={d.fields[s.key]} onChange={(v) => setField(s.key, v)} options={s.ref ? options(s.ref) : []} />}
+            </FormRow>
+          );
+        })}
         {params.map((k) => (
-          <FormRow key={k} label={fieldLabel("policy", k)} hint={k.endsWith("Minor") ? "In minor units (cents)" : undefined}>
-            {typeof d.fields[k] === "boolean" ? <Switch checked={d.fields[k] as boolean} onCheckedChange={(v) => setField(k, v)} /> : <Input value={String(d.fields[k] ?? "")} onChange={(e) => setField(k, typeof item?.fields[k] === "number" ? Number(e.target.value) || 0 : e.target.value)} inputMode={typeof item?.fields[k] === "number" ? "numeric" : undefined} />}
+          <FormRow key={k} label={fieldLabel("policy", k)} hint={TYPED_HINTS[`policy.${k}`]}>
+            {typed(k) ?? (typeof d.fields[k] === "boolean" ? <Switch checked={d.fields[k] as boolean} onCheckedChange={(v) => setField(k, v)} /> : <Input value={String(d.fields[k] ?? "")} onChange={(e) => setField(k, typeof item?.fields[k] === "number" ? Number(e.target.value) || 0 : e.target.value)} inputMode={typeof item?.fields[k] === "number" ? "numeric" : undefined} />)}
           </FormRow>
         ))}
         {hasCode && (
@@ -149,7 +156,15 @@ function LevelSelect({ value, onChange }: { value: string; onChange: (v: string)
   );
 }
 
-function FormRow({ label, hint, wide, children }: { label: string; hint?: string; wide?: boolean; children: React.ReactNode }) {
+function FormRow({ label, hint, wide, group, children }: { label: string; hint?: string; wide?: boolean; group?: boolean; children: React.ReactNode }) {
+  if (group) {  // several controls: a labelled group, since one label can only name one control
+    return (
+      <div role="group" aria-label={label} className={cn("space-y-1", wide && "md:col-span-2")}>
+        <span className="flex items-baseline justify-between gap-2 text-xs font-medium">{label}{hint && <span className="truncate text-[11px] font-normal text-muted-foreground">{hint}</span>}</span>
+        {children}
+      </div>
+    );
+  }
   return (
     <label className={cn("block space-y-1", wide && "md:col-span-2")}>
       <span className="flex items-baseline justify-between gap-2 text-xs font-medium">

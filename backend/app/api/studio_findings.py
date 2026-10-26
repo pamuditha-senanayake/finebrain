@@ -8,11 +8,15 @@ from typing import get_args
 from app.api.studio_spec import refs_of, valid_cron
 from app.api.studio_state import Studio
 from app.pipeline.contracts_signal import SourceType
+from app.pipeline.stages_govern import CAPABILITY_FOR_ACTION
+from app.pipeline.stages_retrieve import READ_CAPABILITY
+from app.pipeline.tool_runners import RUNNERS
 from app.pipeline.tools import TOOLS
 
 # Config
 TOOL_TAG = re.compile(r"\s*\[.*\]$")
 CHANNELS = set(get_args(SourceType))  # a sensor of a seeded workflow names its channel; keyword rules route those
+CHECKED = {READ_CAPABILITY, *CAPABILITY_FOR_ACTION.values()}  # the capabilities S5 and S7 check
 
 
 def fix(label: str, change: dict) -> dict:
@@ -109,6 +113,13 @@ def more_findings(st: Studio, it: dict, scope: list[dict], say) -> None:
         say("warn", f"{it['name']} runs no skill in this workflow.")
     if kind == "template" and active and not any((x["kind"] == "skill" and it["id"] in x["fields"].get("templates", [])) or (x["kind"] == "loop" and x["fields"].get("learning") == it["id"]) for x in scope):
         say("warn", f"No skill fills {it['name']}, so it will go stale.")
+    if kind == "tool" and active and f.get("level") != "custom" and str(f.get("endpoint") or "") not in RUNNERS:
+        say("break", f"{it['name']} goes to \"{f.get('endpoint') or 'nothing'}\", which S9 does not serve, so every call fails. Endpoints: {', '.join(RUNNERS)}.")
+    if kind == "tool" and f.get("capability") and f["capability"] not in CHECKED:
+        say("warn", f"{it['name']} needs \"{f['capability']}\", which no check uses. Pick one of: {', '.join(sorted(CHECKED))}.")
+    for capability in (f.get("capabilities") or []) if kind == "agent" else []:
+        if capability not in CHECKED:
+            say("warn", f"{it['name']} holds \"{capability}\", which no check uses, so it allows nothing.")
     if kind == "tool" and f.get("level") == "custom":
         failed = sandbox_test(str(f.get("code", "")))
         say("break" if failed else "info", f"{it['name']} failed its sandbox test run: {failed}" if failed else f"{it['name']} passed its sandbox test run.")
