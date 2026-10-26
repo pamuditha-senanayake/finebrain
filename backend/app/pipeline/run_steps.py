@@ -2,7 +2,8 @@
 # Used by: orchestrate.py, temporal_flow.py, run_approvals.py (the S8 part). Uses: stages_orchestrate.py (S4 start), stages_*.py, retrieve_scope.py, contracts_*.py.
 from pydantic import BaseModel
 
-from app.pipeline import retrieve_case, retrieve_scope, stages_act, stages_govern, stages_orchestrate, stages_reason, stages_record, stages_retrieve
+from app.pipeline import retrieve_case, retrieve_scope, stages_act, stages_orchestrate_chat, stages_govern, stages_orchestrate, stages_reason, stages_record, stages_retrieve
+from app.pipeline.observe import count, log_event
 from app.pipeline.retry import call_with_retry
 from app.pipeline.contracts_reason import ContextBundle, ContextQuery, ProposedAction
 from app.pipeline.contracts_run import Decision, GovernanceVerdict, RunStep
@@ -15,6 +16,14 @@ ACTION_STEP_ID = "step_04"
 QUERY_TEXT = "refund window and automatic approval limit"
 OUTCOME_FOR_ROUTE = {"block": "blocked", "escalate": "escalated"}
 RETRIEVE_ATTEMPTS = 2  # reference doc section 8 (K4): one retry, then escalate context_unavailable
+TURNS_KIND = "run_turn"  # records kind keyed by run id: one version per S6 turn, so a later turn knows what was said
+
+
+class Turn(BaseModel):
+    """What the agent did on one message of the run: the next turn reads it (did we already ask the customer?)."""
+    signal_id: str
+    action_type: str
+    arguments: dict
 
 
 class RunState(BaseModel):
@@ -68,13 +77,56 @@ def propose_and_govern(lane, task: TaskRequest, bundle, principal: Principal, ru
     signal = signal_of(lane, task.signal_ids[0])
     request_text = (signal.text_masked or "") if signal else ""
     skill = lane.graph.at_version("skill", task.skill_ref.id, task.skill_ref.version) or {}  # the version pinned at route time
+    previous = previous_turns(lane, run_id)
     for _ in range(2):
-        action = stages_reason.propose(task, bundle, request_text, skill, lane.model, run_id, ACTION_STEP_ID, lane.seed["cluster_id"], feedback, f"{lane.now:%d %B %Y}")
+        action = stages_reason.propose(task, bundle, request_text, skill, lane.model, run_id, ACTION_STEP_ID, lane.seed["cluster_id"], feedback, f"{lane.now:%d %B %Y}", previous)
         decision, verdict = govern_once(lane, task, action, bundle, principal, cause, request_text)
         feedback = failed_gates(verdict)
         if not feedback or action.action_type == "escalate":
             break
+    remember_turn(lane, run_id, task.signal_ids[0], action)
     return action, decision, verdict
+
+
+# --- Turns: S6 on each message of a run
+
+def previous_turns(lane, run_id: str) -> list[dict]:
+    """The agent's earlier turns in this run, oldest first. An outage reads as none, so S6 asks again rather than refunding."""
+    try:
+        return [Turn.model_validate(version).model_dump() for version in lane.records.history(TURNS_KIND, run_id)]
+    except Exception:
+        return []
+
+
+def remember_turn(lane, run_id: str, signal_id: str, action: ProposedAction) -> None:
+    """Best effort: a records outage must not stop the run. The next turn then sees no earlier question, so it asks again."""
+    try:
+        lane.records.save(TURNS_KIND, run_id, Turn(signal_id=signal_id, action_type=action.action_type, arguments=action.arguments))
+    except Exception as error:
+        count("s6.turn_not_saved")
+        log_event("S6", "turn_not_saved", run_id=run_id, error=type(error).__name__)
+
+
+def reason_turn(lane, task: TaskRequest, run_id: str, cause: Envelope):
+    """S5 then S6 for one message of a run: the bundle, and the agent's proposal, remembered for the next turn."""
+    # Step 1: S5, fresh for this message: knowledge, the customer's orders, the chat so far
+    signal = signal_of(lane, task.signal_ids[0])
+    bundle = retrieve_with_retry(lane, query_for(lane, task, signal, stages_orchestrate.principal_of(lane, task.agent_id), run_id), cause)
+
+    # Step 2: S6 on the pinned skill, knowing what it said in earlier turns
+    skill = lane.graph.at_version("skill", task.skill_ref.id, task.skill_ref.version) or {}
+    action = stages_reason.propose(task, bundle, (signal.text_masked or "") if signal else "", skill, lane.model, run_id, ACTION_STEP_ID,
+                                   lane.seed["cluster_id"], None, f"{lane.now:%d %B %Y}", previous_turns(lane, run_id))
+    remember_turn(lane, run_id, task.signal_ids[0], action)
+    return bundle, action
+
+
+def continue_turn(lane, joined: dict, cause: Envelope):
+    """A later chat message joined an open run: the run's own task (skill, agent) goes on with that message."""
+    signal = signal_of(lane, joined["signal_id"])
+    open_run = stages_orchestrate_chat.open_run(lane, signal.conversation_id, joined["agent_id"])
+    task = open_run.task.model_copy(update={"signal_ids": [joined["signal_id"]]})
+    return reason_turn(lane, task, joined["run_id"], cause)
 
 
 def query_for(lane, task: TaskRequest, signal, principal: Principal, run_id: str) -> ContextQuery:

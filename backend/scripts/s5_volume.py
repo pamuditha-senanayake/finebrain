@@ -35,7 +35,7 @@ def big_world(customers: int) -> dict:
             paid = START + timedelta(days=generator.randint(0, 640), minutes=generator.randint(0, 1440))
             order_id = f"ORD-{number}-{order}"
             world["orders"].append({"id": order_id, "customer_id": f"cus_{number}", "product": "Item", "total_minor": generator.randint(1, 200) * 10000,
-                                    "currency": "LKR", "status": "paid", "paid_at": paid.isoformat(), "payment_ref": f"pay_FB_{paid:%Y%m%d}_{number % 10000:04d}{order}"[:25]})
+                                    "currency": "LKR", "status": "paid", "paid_at": paid.isoformat(), "payment_ref": f"pay_FB_{paid:%Y%m%d}_{len(world['orders']) % 10000:04d}"})  # the real pattern; unique below 10,000 orders
             if generator.random() < 0.2:
                 world["refunds"].append({"id": f"RF-{order_id}", "order_id": order_id, "amount_minor": 10000, "status": "approved", "created_at": (paid + timedelta(days=3)).isoformat()})
     return world
