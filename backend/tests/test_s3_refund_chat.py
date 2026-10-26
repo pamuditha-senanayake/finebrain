@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from app.pipeline import capture_api, fakes, observe, orchestrate
 from app.pipeline.contracts_signal import TaskRequest
 from tests.golden import NOW, SEED
-from tests.test_s1_refund_chat import FIRST, send
+from tests.test_s1_refund_chat import CONVERSATION, FIRST, send
 from tests.test_s2_checks import FROZEN as S2_FROZEN
 
 # Config
@@ -89,7 +89,7 @@ def test_s3_keeps_the_signal_and_creates_exactly_one_task(lane):
     anna_asks_for_a_refund(lane)
     [signal] = payloads(lane, "signals.normalized")
     assert list(lane.signals) == [signal["signal_id"]]
-    assert lane.records.load("signal", signal["signal_id"])["conversation_id"] == "chat_sess_anna"
+    assert lane.records.load("signal", signal["signal_id"])["conversation_id"] == CONVERSATION
     assert (len(payloads(lane, "tasks.created")), len(payloads(lane, "tasks.unrouted"))) == (1, 0)
 
 

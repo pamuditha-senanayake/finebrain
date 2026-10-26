@@ -85,6 +85,7 @@ class TaskWorkflow:
     def __init__(self) -> None:
         self.phase, self.handled = "running", 0
         self.inbox: list[Envelope] = []
+        self.messages: list[Envelope] = []  # later chat messages S4 joined to this run, for S6 to read
         self.deadline, self.round_seen = None, 0
 
     @workflow.run
@@ -128,6 +129,10 @@ class TaskWorkflow:
     def decide(self, envelope: Envelope) -> None:
         self.inbox.append(envelope)
 
+    @workflow.signal
+    def add_message(self, envelope: Envelope) -> None:
+        self.messages.append(envelope)
+
     @workflow.query
     def progress(self) -> dict:
-        return {"phase": self.phase, "handled": self.handled}
+        return {"phase": self.phase, "handled": self.handled, "messages": len(self.messages)}

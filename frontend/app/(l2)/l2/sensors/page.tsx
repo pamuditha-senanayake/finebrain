@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import { Sensors } from "@/features/l2/sensors";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Sensors" };
-
+// Sensors now live inside Connections: a connection's feed is its sensor.
 export default function Page() {
-  return <Sensors />;
+  redirect("/l2/connections");
 }

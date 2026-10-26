@@ -43,13 +43,13 @@ def find_entities(text: str) -> list[Entity]:
     return money + refs + dates
 
 
-def save_attachments(object_store, raw_uri: str, external_id: str, attachments: list) -> list[Attachment]:
-    """Store each attachment next to the raw body: brain/{tenant}/attachments/{external_id}/{file}."""
+def save_attachments(object_store, raw_uri: str, folder: str, attachments: list) -> list[Attachment]:
+    """Store each attachment next to the raw body: brain/{tenant}/attachments/{connector}/{external_id}/{file}."""
     base = raw_uri.split("/raw/")[0]
     saved = []
     for filename, mime, data in attachments:
         safe_name = UNSAFE_FILENAME.sub("_", filename)
-        uri = f"{base}/attachments/{external_id}/{safe_name}"
+        uri = f"{base}/attachments/{folder}/{safe_name}"
         object_store[uri] = data
         saved.append(Attachment(object_uri=uri, mime=mime, sha256=hashlib.sha256(data).hexdigest()))
     return saved
@@ -68,6 +68,8 @@ def choose_actor_and_subject(message: dict, entities: list[Entity], tenant_id: s
     """A payment is the most useful subject; without one, the customer or uploader is."""
     if "uploaded_by" in message:
         actor = Actor(type="human", ref=message["uploaded_by"])
+    elif not message["email"] and message.get("customer_ref"):
+        actor = Actor(type="customer", ref=message["customer_ref"])  # the site's own customer id, not personal data
     else:
         actor = Actor(type="customer", ref=pii.make_token(tenant_id, customer_key(message, session)))
     refs = [entity.value_or_token for entity in entities if entity.type == "payment_ref"]
@@ -86,15 +88,27 @@ def build_signal(k1: RawSignalEnvelope, raw_event_id: str, tenant_id: str, objec
 
     # Step 2: understand it, on masked text only
     entities = find_entities(text_masked)
-    actor, subject = choose_actor_and_subject(message, entities, tenant_id, k1.headers_subset.get("session"))
+    actor, subject = choose_actor_and_subject(message, entities, tenant_id, conversation_of(k1))
     flags = ["possible_prompt_injection"] if INJECTION_PATTERN.search(message["text"]) else []
     return Signal(
         signal_id=new_id("sig"), raw_event_id=raw_event_id, kind=KIND_FOR_SOURCE.get(k1.source_type, "customer_message"),
         channel=k1.source_type, actor=actor, subject=subject, text_masked=text_masked,
         language=detect_language(message["text"]), entities=entities, pii_tokens=tokens, flags=flags,
-        attachments=save_attachments(object_store, k1.raw_object_uri, k1.external_id, message["attachments"]),
-        sensitivity=pii.sensitivity_for(found), dedup_key=dedup_key, conversation_id=k1.headers_subset.get("session"),
+        attachments=save_attachments(object_store, k1.raw_object_uri, source_id(k1).replace(":", "/"), message["attachments"]),
+        sensitivity=pii.sensitivity_for(found), dedup_key=dedup_key, conversation_id=conversation_of(k1),
     )
+
+
+def source_id(k1: RawSignalEnvelope) -> str:
+    """The message's id, scoped by its connector: a website chat and an app chat may both number from 1.
+    Uploads keep their bare document id, which Lane B and forgetting look up by."""
+    return k1.external_id if k1.source_type == "upload" else f"{k1.connector_id}:{k1.external_id}"
+
+
+def conversation_of(k1: RawSignalEnvelope) -> str | None:
+    """A chat's conversation, scoped by its connector, so two chat tools that reuse a session id never share a thread."""
+    session = k1.headers_subset.get("session")
+    return f"{k1.connector_id}:{session}" if session else None
 
 
 def claim(seen_keys, key: str) -> bool:
@@ -113,7 +127,7 @@ def normalize(k1: RawSignalEnvelope, raw_event_id: str, tenant_id: str, object_s
     log_event("S2", "seam_in", connector_id=k1.connector_id, external_id=k1.external_id, source_type=k1.source_type)
 
     # Step 1: claim the dedup key; a redelivery or a second worker stops here
-    dedup_key = f"{tenant_id}:{k1.source_type}:{k1.external_id}"
+    dedup_key = f"{tenant_id}:{k1.source_type}:{source_id(k1)}"
     if not claim(seen_keys, dedup_key):
         count("s2.duplicate")
         return None

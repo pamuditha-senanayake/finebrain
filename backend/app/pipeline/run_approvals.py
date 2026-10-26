@@ -2,9 +2,9 @@
 # Shared by the in-process runner and Temporal. Used by: orchestrate.py, temporal_flow.py. Uses: run_steps.py, stages_decide.py.
 from datetime import timedelta
 
-from app.pipeline import run_steps, stages_act, stages_decide
+from app.pipeline import run_steps, stages_act, stages_decide, stages_orchestrate
 from app.pipeline.contracts_run import Decision, UiEvent
-from app.pipeline.contracts_signal import Envelope, Principal
+from app.pipeline.contracts_signal import Envelope
 from app.pipeline.observe import count, log_event
 from app.pipeline.run_steps import ACTION_STEP_ID, RunState
 
@@ -64,7 +64,10 @@ def act_if_still_valid(lane, run: RunState, decision: Decision) -> RunState | No
     if stages_act.policy_is_stale(run.verdict, policies):
         count("s9.policy_changed")
         approved_level = run.verdict.criticality
-        principal = Principal.model_validate(lane.seed["agents"][run.task.agent_id])
+        principal = stages_orchestrate.principal_of(lane, run.task.agent_id)
+        if principal is None:  # removed in Workflow Studio while the run waited
+            run_steps.finish_run(lane, run, "escalated")
+            return None
         signal = run_steps.signal_of(lane, run.task.signal_ids[0])
         _, run.verdict = run_steps.govern_once(lane, run.task, run.action, run.bundle, principal, run.cause, signal.text_masked if signal else "")
         if run.verdict.route in ("block", "escalate"):
@@ -81,7 +84,10 @@ def request_changes(lane, run: RunState, decision: Decision) -> RunState | None:
     if run.approval.changes_requested:
         run_steps.finish_run(lane, run, "escalated")  # a second round of changes needs a person, not another proposal
         return None
-    principal = Principal.model_validate(lane.seed["agents"][run.task.agent_id])
+    principal = stages_orchestrate.principal_of(lane, run.task.agent_id)
+    if principal is None:  # removed in Workflow Studio while the run waited
+        run_steps.finish_run(lane, run, "escalated")
+        return None
     run.action, _, run.verdict = run_steps.propose_and_govern(lane, run.task, run.bundle, principal, run.action.run_id, run.cause, f"The approver asked for changes: {decision.comment}")
     if run.verdict.route == "execute":
         return run_steps.act_and_finish(lane, run, None)

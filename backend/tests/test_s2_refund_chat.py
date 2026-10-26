@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from app.pipeline import capture_api, fakes, observe, orchestrate, pii
 from app.pipeline.contracts_signal import Signal
 from tests.golden import NOW, SEED
-from tests.test_s1_refund_chat import FIRST, SECOND, SESSION, send
+from tests.test_s1_refund_chat import CONVERSATION, FIRST, SECOND, send
 
 # Config
 TENANT = SEED["tenant_id"]
@@ -52,7 +52,7 @@ def signals(lane) -> list[dict]:
 def test_visit_1_turns_the_refund_request_into_a_masked_signal(client, lane):
     visit(client, lane, FIRST)
     [signal] = signals(lane)
-    assert (signal["kind"], signal["channel"], signal["conversation_id"]) == ("customer_message", "chat", SESSION)
+    assert (signal["kind"], signal["channel"], signal["conversation_id"]) == ("customer_message", "chat", CONVERSATION)
     assert signal["text_masked"] == "I want a refund for my last order"
     assert signal["actor"] == {"type": "customer", "ref": ANNA_TOKEN}
     assert lane.vault[ANNA_TOKEN] == ANNA[1] and signal["sensitivity"] == "confidential"
@@ -65,7 +65,7 @@ def test_visit_2_joins_the_same_conversation_and_customer(client, lane):
     visit(client, lane, SECOND)
     first, second = signals(lane)
     assert second["text_masked"] == "yes, that one"
-    assert second["conversation_id"] == first["conversation_id"] == SESSION
+    assert second["conversation_id"] == first["conversation_id"] == CONVERSATION
     assert second["actor"] == first["actor"]  # same Anna, same token: S2 reuses visit 1's identity
     assert second["entity_ids"] == first["entity_ids"]  # and the same customer record from the registry
     assert second["signal_id"] != first["signal_id"] and second["dedup_key"] != first["dedup_key"]

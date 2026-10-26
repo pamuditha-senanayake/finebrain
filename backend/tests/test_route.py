@@ -7,7 +7,7 @@ import anthropic
 import httpx
 import pytest
 
-from app.pipeline import fakes, llm, stages_route
+from app.pipeline import llm, stages_route
 from app.pipeline.adapters import seeded
 from app.pipeline.contracts_signal import Entity, Signal
 from app.pipeline.store_graph import MemoryGraph, PostgresGraph
@@ -22,7 +22,7 @@ REFUND_SIGNAL = Signal.model_validate(golden("s2", "Signal"))
 # --- Helpers
 
 def route(signal: Signal, routing: dict | None = None, choose=None):
-    return stages_route.route(signal, routing or stages_route.read_routing(GRAPH), choose, fakes.make_id_maker(), NOW)
+    return stages_route.route(signal, routing or stages_route.read_routing(GRAPH), choose, NOW)
 
 
 def signal_with(**changes) -> Signal:

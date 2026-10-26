@@ -32,6 +32,7 @@ export const en = {
   "nav.skills": "Skills studio",
   "nav.resolver": "Resolver",
   "nav.templates": "Templates",
+  "nav.connections": "Connections",
   "nav.sensors": "Sensors",
   "nav.loops": "Loops",
   "nav.readiness": "Readiness scheduler",

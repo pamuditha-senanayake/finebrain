@@ -42,6 +42,12 @@ export async function apiPost<T>(path: string, body: unknown, schema: z.ZodType<
   return parse(res, schema, path);
 }
 
+export async function apiSend<T>(method: "PATCH" | "DELETE", path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+  await mocksReady();
+  const res = await fetch(tenantPath(path), { method, headers: headers(), body: JSON.stringify(body ?? {}) });
+  return parse(res, schema, path);
+}
+
 export async function apiGlobal<T>(path: string, schema: z.ZodType<T>): Promise<T> {
   await mocksReady();
   const res = await fetch(`${config.apiBaseUrl}/api/${path}`, { headers: headers() });

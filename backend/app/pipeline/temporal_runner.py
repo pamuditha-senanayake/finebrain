@@ -59,6 +59,10 @@ class TemporalRunner:
         self.call(handle.signal(TaskWorkflow.decide, envelope))
         self.wait_until_at_rest(task_id, handled_before=before + 1)
 
+    def send_message(self, task_id: str, envelope: Envelope) -> None:
+        """S4 joined a later chat message to this run: hand it to the workflow. It does not wait, the run goes on by itself."""
+        self.call(self.client.get_workflow_handle(self.workflow_id(task_id)).signal(TaskWorkflow.add_message, envelope))
+
     def progress(self, task_id: str) -> dict:
         return self.call(self.client.get_workflow_handle(self.workflow_id(task_id)).query(TaskWorkflow.progress))
 

@@ -95,7 +95,7 @@ def test_s2_drops_redelivery():
 @pytest.mark.parametrize("run_key", ["s2", "s3"])
 def test_s3_routes_refunds(run_key):
     _, _, signal = run_intake(run_key)
-    task, _ = stages_route.route(signal, ROUTING, None, fakes.make_id_maker(), NOW)
+    task, _ = stages_route.route(signal, ROUTING, None, NOW)
     expected = golden(run_key, "TaskRequest")
     assert (task.activity_id, task.agent_id, task.base_criticality) == (expected["activity_id"], expected["agent_id"], expected["base_criticality"])
     assert task.skill_ref.model_dump() == expected["skill_ref"]
@@ -103,7 +103,7 @@ def test_s3_routes_refunds(run_key):
 
 def test_s3_leaves_invoice_chat_unrouted():
     _, _, signal = run_intake("s4")
-    assert stages_route.route(signal, ROUTING, None, fakes.make_id_maker(), NOW) == (None, "below_threshold")
+    assert stages_route.route(signal, ROUTING, None, NOW) == (None, "below_threshold")
 
 
 @pytest.mark.parametrize("run_key", ["s2", "s3"])

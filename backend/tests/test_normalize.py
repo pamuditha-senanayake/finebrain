@@ -68,7 +68,7 @@ def test_mime_attachment_is_saved_and_listed():
     message.add_attachment(b"%PDF-1.4 receipt", maintype="application", subtype="pdf", filename="receipt 1.pdf")
     signal = normalize(*capture(message.as_string()))
     attachment = signal.attachments[0]
-    assert attachment.object_uri.endswith("/attachments/gmail_test/receipt_1.pdf") and attachment.mime == "application/pdf"
+    assert attachment.object_uri.endswith("/attachments/conn_gmail_support/gmail_test/receipt_1.pdf") and attachment.mime == "application/pdf"
     assert "Receipt attached" in signal.text_masked
 
 

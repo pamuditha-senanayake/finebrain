@@ -1,6 +1,6 @@
 # hq.py: builds the Finebase HQ pipeline the API serves: seed and people from samples, real infra where it answers,
 # real Claude and Voyage when keys are set, and a background loop that keeps the clock moving and every consumer running.
-# Used by: main.py. Uses: orchestrate.py, adapters.py, llm.py, fakes.py, routes.py, ready_notices.py, nightly.py, distiller.py, temporal_ready.py, temporal_nightly.py. Reads env: HQ_REAL_PARTS, HQ_USE_CLAUDE.
+# Used by: main.py. Uses: conn_inbound.py, orchestrate.py, adapters.py, llm.py, fakes.py, routes.py, ready_notices.py, nightly.py, distiller.py, temporal_ready.py, temporal_nightly.py. Reads env: HQ_REAL_PARTS, HQ_USE_CLAUDE.
 import json
 import os
 import threading
@@ -12,7 +12,7 @@ from pathlib import Path
 from app.api import distiller, grants, nightly, ready_notices, self_knowledge, studio_approvals
 from app.api.studio_seed import extend_seed
 from app.api.routes import create_api_app
-from app.pipeline import fakes, llm, orchestrate, temporal_nightly, temporal_ready
+from app.pipeline import conn_inbound, fakes, llm, orchestrate, temporal_nightly, temporal_ready
 from app.pipeline.adapters import ALL_REAL_PARTS, make_memory_adapters, missing_infra, real_adapters
 from app.pipeline.observe import log_event
 
@@ -113,4 +113,5 @@ def build_hq_app():
         temporal_nightly.start_distiller(lane.runner, lane.seed["tenant_id"], zone, lambda: distiller.distill(lane, lane.extract, "schedule"))  # step 13d
     log_event("API", "hq_started", parts=sorted(parts), claude=choose is not None)
     threading.Thread(target=keep_running, args=(lane,), daemon=True).start()
+    conn_inbound.start(lane)  # live connections' customer messages come in through S1
     return create_api_app(lane, hq, choose_answerer(), chatter)

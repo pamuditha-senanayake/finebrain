@@ -8,7 +8,7 @@ import time
 import uuid
 
 sys.path.insert(0, ".")
-from app.pipeline import fakes, stages_route, store_postgres
+from app.pipeline import stages_route, store_postgres
 from app.pipeline.adapters import seeded
 from app.pipeline.store_graph import MemoryGraph, PostgresGraph
 from tests.golden import NOW, SEED
@@ -35,13 +35,13 @@ def build_graph(real: bool):
 
 def route_traffic(graph, count: int) -> tuple[list[float], list[bool]]:
     """Route every signal like the S3 consumer, timing each one. Returns times and whether each landed right."""
-    generator, new_id = random.Random(2026), fakes.make_id_maker()
+    generator = random.Random(2026)
     timings, correct = [], []
     for number in range(count):
         text = generator.choice(list(TEXTS))
         signal = ANNA.model_copy(update={"signal_id": f"sig_{number}", "text_masked": text})
         started = time.perf_counter()
-        task, _ = stages_route.route(signal, stages_route.read_routing(graph), None, new_id, NOW)
+        task, _ = stages_route.route(signal, stages_route.read_routing(graph), None, NOW)
         timings.append(time.perf_counter() - started)
         correct.append((task.resolver_rule_id if task else None) == TEXTS[text] and (task is None or task.signal_ids == [signal.signal_id]))
     return timings, correct
