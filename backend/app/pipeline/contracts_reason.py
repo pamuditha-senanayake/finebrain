@@ -27,6 +27,8 @@ class ContextQuery(BaseModel):
     entity_refs: list[str] = []  # words that name the case, added to the text search
     entity_ids: list[str] = []  # step 13b: search narrows to these things and general knowledge; empty means no entity filter
     domains: list[str] = []  # step 13b: and to these domains plus general; empty means every domain
+    customer_ref: str | None = None  # the case's customer, as S2's masked token; S5 looks up their orders. Optional so old queries validate
+    conversation_id: str | None = None  # the case's chat; S5 adds the chat so far. Optional so old queries validate
     as_of_valid: datetime | None = None  # None means now
     as_of_recorded: datetime | None = None
     branch: str

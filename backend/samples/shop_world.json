@@ -1,0 +1,18 @@
+{
+  "_about": "The Finebase Labs shop as its own database (finebase_shop), for testing S5's order lookup on real Postgres. Times are around the golden frozen_now, 2026-10-10 10:00 +05:30. Amounts are in minor units (LKR cents).",
+  "customers": [
+    {"id": "cus_anna", "email": "anna@example.lk", "name": "Anna Perera"},
+    {"id": "cus_ben", "email": "ben@example.lk", "name": "Ben Silva"},
+    {"id": "cus_chen", "email": "chen@example.lk", "name": "Chen Wu"},
+    {"id": "cus_dee", "email": "dee@example.lk", "name": "Dee Fernando"}
+  ],
+  "orders": [
+    {"id": "ORD-1001", "customer_id": "cus_anna", "product": "Ergonomic chair", "total_minor": 1850000, "currency": "LKR", "status": "refunded", "paid_at": "2026-07-02T11:20:00+05:30", "payment_ref": "pay_FB_20260702_0101"},
+    {"id": "ORD-1002", "customer_id": "cus_anna", "product": "Wireless mouse", "total_minor": 400000, "currency": "LKR", "status": "paid", "paid_at": "2026-09-30T14:10:00+05:30", "payment_ref": "pay_FB_20260930_0144"},
+    {"id": "ORD-2001", "customer_id": "cus_ben", "product": "Desk lamp", "total_minor": 650000, "currency": "LKR", "status": "paid", "paid_at": "2026-10-05T09:30:00+05:30", "payment_ref": "pay_FB_20261005_0207"},
+    {"id": "ORD-3001", "customer_id": "cus_dee", "product": "Standing desk", "total_minor": 9500000, "currency": "LKR", "status": "paid", "paid_at": "2026-08-20T16:45:00+05:30", "payment_ref": "pay_FB_20260820_0311"}
+  ],
+  "refunds": [
+    {"id": "RF-0001", "order_id": "ORD-1001", "amount_minor": 1850000, "status": "approved", "created_at": "2026-07-10T10:05:00+05:30"}
+  ]
+}

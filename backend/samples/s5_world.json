@@ -1,0 +1,25 @@
+{
+  "_about": "What S5 tests add to the golden seed: the refund policy's history (so 'as of' must pick the right version), a policy that starts in the future, a restricted note only L2 and above may read, and agents with different rights. The shop's customers and orders are in shop_world.json.",
+  "knowledge": [
+    {"item_id": "item_policy_window_v1", "kind": "policy", "text": "Customers may request a refund within 7 days of the purchase date.",
+     "source": {"document_id": "doc_refund_policy_v1", "uri": "s3://brain/finebase_labs/documents/Finebase_Refund_Policy_v1.txt", "span": "88:154"},
+     "valid_from": "2024-01-01T00:00:00+05:30", "valid_to": "2025-01-01T00:00:00+05:30", "recorded_at": "2024-01-01T10:00:00+05:30", "verified_by": "head_of_cs",
+     "version_ref": {"id": "policy_refund", "version": 1, "branch": "main", "commit_id": "cmt_0001"}, "score": 0.9, "sensitivity": "internal"},
+    {"item_id": "item_policy_auto_limit_v2", "kind": "policy", "text": "Refunds up to LKR 25,000 inside the refund window are approved automatically.",
+     "source": {"document_id": "doc_refund_policy_v2", "uri": "s3://brain/finebase_labs/documents/Finebase_Refund_Policy_v2.txt", "span": "158:236"},
+     "valid_from": "2025-01-01T00:00:00+05:30", "valid_to": "2026-01-01T00:00:00+05:30", "recorded_at": "2025-01-01T10:00:00+05:30", "verified_by": "head_of_cs",
+     "version_ref": {"id": "policy_refund", "version": 2, "branch": "main", "commit_id": "cmt_0002"}, "score": 0.9, "sensitivity": "internal"},
+    {"item_id": "item_policy_window_v4", "kind": "policy", "text": "From 1 November 2026, customers may request a refund within 45 days of the purchase date.",
+     "source": {"document_id": "doc_refund_policy_v4", "uri": "s3://brain/finebase_labs/documents/Finebase_Refund_Policy_v4.txt", "span": "0:90"},
+     "valid_from": "2026-11-01T00:00:00+05:30", "valid_to": null, "recorded_at": "2026-10-01T10:00:00+05:30", "verified_by": "head_of_cs",
+     "version_ref": {"id": "policy_refund", "version": 4, "branch": "main", "commit_id": "cmt_0009"}, "score": 0.9, "sensitivity": "internal"},
+    {"item_id": "item_fraud_watch", "kind": "policy", "text": "Fraud watch: refunds above LKR 50,000 to cards the bank flagged this month need the risk team; never approve them automatically.",
+     "source": {"document_id": "doc_risk_notes", "uri": "s3://brain/finebase_labs/documents/Risk_Notes_October.txt", "span": "0:124"},
+     "valid_from": "2026-10-01T00:00:00+05:30", "valid_to": null, "recorded_at": "2026-10-01T10:00:00+05:30", "verified_by": "founder",
+     "version_ref": null, "score": 0.9, "sensitivity": "restricted"}
+  ],
+  "agents": {
+    "agent_greeter": {"type": "agent", "id": "agent_greeter", "capabilities": ["reply.draft"], "tier": "L3"},
+    "agent_risk_reviewer": {"type": "agent", "id": "agent_risk_reviewer", "capabilities": ["kb.read"], "tier": "L2"}
+  }
+}

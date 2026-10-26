@@ -6,7 +6,7 @@ import os
 import httpx
 from pydantic import BaseModel
 
-from app.pipeline.conn_spec import SECRET_NAMES, DatabaseSpec, Manifest, Need, fill
+from app.pipeline.conn_spec import SECRET_NAMES, DatabaseSpec, Manifest, Need, OrderMap, fill
 from app.pipeline.observe import count, log_event
 
 # Config
@@ -26,6 +26,7 @@ class Connection(BaseModel):
     kind: str = "api"  # api, database or other (conn_spec.KINDS)
     later: list[str] = []  # other connections the person mentioned, to start once this one is done
     database: DatabaseSpec | None = None
+    orders_map: OrderMap | None = None  # set on a shop database whose orders S5 may look up
     schema_summary: list[dict] = []  # tables the brain can read, with their columns, from the last database test
     status: str = "waiting"  # waiting for the other party, delivered, tested, live, paused
     manifest: Manifest | None = None

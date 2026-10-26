@@ -37,7 +37,7 @@
 <mxCell id="S3" value="&lt;b&gt;S3 Route&lt;/b&gt;&lt;br&gt;activity, skill version, agent" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="LA">
 <mxGeometry x="540" y="40" width="150" height="70" as="geometry"/>
 </mxCell>
-<mxCell id="S4" value="&lt;b&gt;S4 Orchestrate&lt;/b&gt;&lt;br&gt;Temporal task workflow, run row" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="LA">
+<mxCell id="S4" value="&lt;b&gt;S4 Orchestrate&lt;/b&gt;&lt;br&gt;start or join a run, Temporal task workflow" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="LA">
 <mxGeometry x="740" y="40" width="150" height="70" as="geometry"/>
 </mxCell>
 <mxCell id="S6" value="&lt;b&gt;S6 Reason&lt;/b&gt;&lt;br&gt;Claude plans, drafts, proposes" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="LA">

@@ -10,6 +10,7 @@ ALL_SENSITIVITIES = {"public", "internal", "confidential", "restricted"}
 READABLE_BY_TIER = {"L1": ALL_SENSITIVITIES, "L2": ALL_SENSITIVITIES, "L3": {"public", "internal", "confidential"}}
 ALL_KINDS = ["fact", "policy", "chunk", "skill_step"]
 SENSITIVITY_RULE_ID = "sensitivity_by_tier"
+READ_CAPABILITY, CAPABILITY_RULE_ID = "kb.read", "capability_kb_read"
 CANDIDATES_PER_LIST = 20
 RRF_K = 60  # reciprocal rank fusion constant: rank 1 scores 1/61, rank 2 scores 1/62, ...
 CHARS_PER_TOKEN = 4  # rough budget estimate, enough to keep bundles under max_tokens
@@ -112,8 +113,23 @@ def fit_budget(scored: list[tuple[dict, float]], top_k: int, max_tokens: int) ->
 
 # --- S5 Retrieve
 
+def refused(query: ContextQuery, new_id) -> tuple[ContextBundle, AccessDecision]:
+    """An empty bundle and a deny decision: the principal lacks kb.read."""
+    count("s5.denied.no_capability")
+    log_event("S5", "denied", run_id=query.run_id, principal=query.principal.id, reason="no kb.read")
+    decision = AccessDecision(
+        decision_id=new_id("acc"), decision="deny", rule_id=CAPABILITY_RULE_ID, reason=f"{query.principal.id} lacks {READ_CAPABILITY}", latency_ms=0,
+        principal_id=query.principal.id, on_behalf_of=query.on_behalf_of, action="kb.read", resource="knowledge", run_id=query.run_id,
+    )
+    return ContextBundle(items=[], denied_count=0, denied_reasons=[], access_decision_ids=[decision.decision_id], latency_ms=0, scope=None), decision
+
+
 def retrieve(query: ContextQuery, chunks, embed, rerank, people: dict, new_id, now, commons=()) -> tuple[ContextBundle, AccessDecision]:
     """S5: the bundle the principal may see, and one access decision for the audit log. commons: the linked shared collections."""
+    # Step 0: a principal without the right to read knowledge reads nothing, and the refusal is logged like any decision
+    if READ_CAPABILITY not in query.principal.capabilities:
+        return refused(query, new_id)
+
     # Step 1: candidates true and known at the asked time, from the narrowest scope that finds enough
     try:
         candidates, scope = find_candidates(query, chunks, embed, query.as_of_valid or now, query.as_of_recorded or now, commons)

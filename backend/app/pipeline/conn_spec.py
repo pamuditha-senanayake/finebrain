@@ -60,6 +60,28 @@ class DatabaseSpec(BaseModel):
     notes: str = Field(default="", max_length=1000, description="What the main tables mean, in plain words")
 
 
+class OrderMap(BaseModel):
+    """Where a shop keeps customers, orders and refunds, and what its columns are called. S5's order lookup reads it, so
+    a shop with other names needs a different map, never new code. Every name is checked before it reaches SQL."""
+    customers: str = "shop.customers"
+    customer_id: str = "id"
+    customer_email: str = "email"
+    orders: str = "shop.orders"
+    order_id: str = "id"
+    order_customer: str = "customer_id"
+    product: str = "product"
+    total_minor: str = "total_minor"
+    currency: str = "currency"
+    status: str = "status"
+    paid_at: str = "paid_at"
+    payment_ref: str = "payment_ref"
+    refunds: str = "shop.refunds"
+    refund_order: str = "order_id"
+    refund_amount: str = "amount_minor"
+    refund_status: str = "status"
+    refund_created: str = "created_at"
+
+
 # --- Starting needs, for when no guide drafted them
 
 TEMPLATES = {

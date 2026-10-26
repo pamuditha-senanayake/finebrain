@@ -5,7 +5,7 @@
 import re
 from datetime import datetime
 
-from app.pipeline.observe import log_event
+from app.pipeline.observe import count, log_event
 from app.pipeline.store_chunks_memory import WARM, MemoryTierColumns, searched_tiers
 
 # Config
@@ -46,6 +46,10 @@ class MemoryChunks(MemoryTierColumns):
 
     def known(self, item_ids: list[str]) -> set[str]:
         return {item_id for item_id in item_ids if item_id in self.items}
+
+    def waiting_for_vector(self) -> list[dict]:
+        """Live items stored by their words only, after an embedding outage. Cold items keep no vector on purpose."""
+        return [item for item, vector in self.items.values() if vector is None and item.get("tier") != "cold"]
 
     def of_document(self, document_id: str) -> list[dict]:
         """Every chunk filed from one document, live or retired, ordered by id."""
@@ -88,17 +92,22 @@ class MemoryChunks(MemoryTierColumns):
 
 
 def load_chunks(chunks, graph, embed, tag=lambda item: item) -> None:
-    """Embed the knowledge nodes the index does not hold yet, tagged by `tag`. Safe to run twice, and on a restart it embeds nothing.
-    A refusing embedding service never stops the API from starting: what is already indexed stays searchable."""
+    """Index the knowledge nodes the index does not hold yet, tagged by `tag`, and embed any held by their words only.
+    Safe to run twice. A refusing embedding service never stops the start, and never leaves knowledge out: the new items
+    are stored by their words, so S5 still finds every policy, and they get their vectors on a later start."""
     nodes = graph.latest("knowledge")
     known = chunks.known([node["_ref"]["id"] for node in nodes])
-    items = [tag({key: value for key, value in node.items() if key != "_ref"}) for node in nodes if node["_ref"]["id"] not in known]
-    if not items:
+    new = [tag({key: value for key, value in node.items() if key != "_ref"}) for node in nodes if node["_ref"]["id"] not in known]
+    waiting = chunks.waiting_for_vector()  # stored by words only after an earlier outage
+    if not new and not waiting:
         return
     try:
-        vectors = embed([item["text"] for item in items], "document")
-    except Exception as error:  # a rate limit at startup: the missing items wait for the next start
-        log_event("S5", "seed_not_embedded", items=len(items), error=type(error).__name__)
+        vectors = embed([item["text"] for item in new + waiting], "document")
+    except Exception as error:  # a rate limit or a bad key at startup
+        count("s5.seed_words_only")
+        log_event("S5", "seed_words_only", items=len(new), waiting=len(waiting), error=type(error).__name__)
+        for item in new:
+            chunks.add(item, None)
         return
-    for item, vector in zip(items, vectors):
-        chunks.add(item, vector)
+    for item, vector in zip(new + waiting, vectors):
+        chunks.replace(item, vector)
