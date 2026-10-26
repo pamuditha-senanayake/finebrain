@@ -23,6 +23,7 @@ def view(connection: Connection) -> dict:
         "tables": [table["table"] for table in connection.schema_summary],
         "status": connection.status, "needs": [{"name": n.name, "label": label(n.name), "text": n.text, "writes": n.writes, "required": n.required} for n in connection.needs],
         "baseUrl": connection.manifest.base_url if connection.manifest else None, "secretsSet": connection.secrets_set,
+        "feed": bool(connection.manifest and connection.manifest.inbound),  # messages come in from it, so a Studio sensor can listen to it
         "tests": connection.tests, "testedAt": connection.tested_at, "events": connection.events,
         "lastEventAt": connection.last_event_at, "lastError": connection.last_error,
     }

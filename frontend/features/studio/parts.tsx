@@ -18,6 +18,7 @@ import { FIELD_SPECS, KIND_LABEL, TOOL_LEVEL_LABEL, describeCron, fieldLabel, is
 import { cn } from "@/lib/utils";
 import { KindIcon } from "./cards";
 import { ProposalCard } from "./proposal-card";
+import { SourceSelect } from "./source-select";
 
 type Draft = { name: string; description: string; topics: string; status: ItemStatus; dri: string; fields: ItemFields };
 
@@ -85,8 +86,10 @@ export function ItemForm({ kind, item, detail, onDone, onCancel, onShowDiagram }
           </Select>
         </FormRow>
         {specs.map((s) => (
-          <FormRow key={s.key} label={s.label} hint={s.key === "cron" ? describeCron(String(d.fields.cron ?? "")) : s.hint ?? (s.unit ? `In ${s.unit}` : undefined)} wide={s.type === "longtext" || s.key === "steps" || s.type === "refs"}>
-            {s.key === "level" ? <LevelSelect value={String(d.fields.level ?? "prebuilt")} onChange={(v) => setField("level", v)} /> : <FieldInput spec={s} value={d.fields[s.key]} onChange={(v) => setField(s.key, v)} options={s.ref ? options(s.ref) : []} />}
+          <FormRow key={s.key} label={s.label} hint={s.key === "cron" ? describeCron(String(d.fields.cron ?? "")) : kind === "sensor" && s.key === "source" ? "The connection whose messages wake this workflow" : s.hint ?? (s.unit ? `In ${s.unit}` : undefined)} wide={s.type === "longtext" || s.key === "steps" || s.type === "refs"}>
+            {s.key === "level" ? <LevelSelect value={String(d.fields.level ?? "prebuilt")} onChange={(v) => setField("level", v)} />
+              : kind === "sensor" && s.key === "source" ? <SourceSelect value={String(d.fields.source ?? "")} onChange={(v) => setField("source", v)} />
+              : <FieldInput spec={s} value={d.fields[s.key]} onChange={(v) => setField(s.key, v)} options={s.ref ? options(s.ref) : []} />}
           </FormRow>
         ))}
         {params.map((k) => (

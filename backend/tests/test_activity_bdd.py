@@ -154,3 +154,9 @@ def test_a_run_waiting_for_approval_tells_the_visitor_and_a_failed_notice_never_
     monkeypatch.setattr(conn_call, "http", None)  # the chat is unreachable now
     visitor(lane, "Hello again?", conversation="c-landing-2")
     assert list(runs(lane).values())[-1] == ["awaiting_approval"]  # recorded all the same
+
+
+def test_the_connections_list_says_which_ones_a_sensor_can_listen_to():
+    client, lane = build()
+    listed = client.get(f"/api/t/{lane.seed['tenant_id']}/connections", headers={"x-persona": "h-pamuditha"}).json()
+    assert [(c["id"], c["feed"]) for c in listed] == [(LANDING, True)]  # Studio's Source dropdown lists these
