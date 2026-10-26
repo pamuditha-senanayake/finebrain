@@ -94,7 +94,7 @@ def test_k1_matches_the_golden_master(shop):
     assert k1 == {
         "connector_id": CONNECTION_ID, "grant_id": f"grant_{CONNECTION_ID}", "source_type": "chat", "external_id": "m-1",
         "received_at": NOW.isoformat().replace("+00:00", "Z"), "signature_verified": True,
-        "raw_object_uri": f"s3://brain/{SEED['tenant_id']}/raw/{NOW:%Y/%m/%d}/m-1.json",
+        "raw_object_uri": f"s3://brain/{SEED['tenant_id']}/raw/{NOW:%Y/%m/%d}/{CONNECTION_ID}/m-1.json",
         "raw_sha256": hashlib.sha256(body).hexdigest(), "content_type": "application/json",
         "size_bytes": len(body), "headers_subset": {"session": "c-1"},
     }

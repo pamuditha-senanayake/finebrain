@@ -14,10 +14,11 @@ from tests.golden import NOW, SEED
 # Config
 CHAT = "conn_web_chat"
 SESSION = "chat_sess_anna"
+CONVERSATION = f"{CHAT}:{SESSION}"  # K2's conversation_id: the session scoped by its connector
 FIRST = {"id": "chat_msg_anna_1", "text": "I want a refund for my last order"}
 SECOND = {"id": "chat_msg_anna_2", "text": "yes, that one"}
 FROZEN_FIRST = {  # reviewed by hand once, then frozen
-    "raw_object_uri": "s3://brain/finebase_labs/raw/2026/10/10/chat_msg_anna_1.json",
+    "raw_object_uri": "s3://brain/finebase_labs/raw/2026/10/10/conn_web_chat/chat_msg_anna_1.json",
     "raw_sha256": "db71bf623ae3a954cf2f729525ab28dbd33e400028c6d05ac810e2ec07f41620", "size_bytes": 145, "headers_subset": {"session": SESSION},
 }
 K1_FIELDS = ("connector_id", "grant_id", "source_type", "external_id", "raw_object_uri", "raw_sha256", "size_bytes", "content_type")

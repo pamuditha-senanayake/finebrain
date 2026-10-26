@@ -16,7 +16,7 @@ from app.pipeline.kafka_admin import delete_prefixed_topics
 from tests.golden import NOW, SEED
 from tests.test_decide import waiting_lane
 from tests.test_s1_real import read_topic
-from tests.test_s1_refund_chat import FIRST, SECOND, SESSION, send
+from tests.test_s1_refund_chat import CONVERSATION, FIRST, SECOND, send
 
 # Config
 S4_PARTS = frozenset({"s3", "postgres", "valkey", "kafka"})  # raw store, records and graph, claims, bus
@@ -63,7 +63,7 @@ def test_visit_1_starts_a_run_and_visit_2_joins_it_on_real_infra(real):
     assert send(client, FIRST).status_code == 202
     lane.bus.drain()
     [started] = [message["payload"] for message in read_topic(f"s4{tag}.runs.started", 1)]
-    assert (started["agent_id"], started["recipe"]["skill_ref"]["version"], started["handoff"]["conversation_id"]) == ("agent_refund_worker", 3, SESSION)
+    assert (started["agent_id"], started["recipe"]["skill_ref"]["version"], started["handoff"]["conversation_id"]) == ("agent_refund_worker", 3, CONVERSATION)
 
     # Visit 2: no rule matches "yes, that one"; S3 finds the open run in Postgres and S4 joins it
     assert send(client, SECOND).status_code == 202

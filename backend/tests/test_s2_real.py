@@ -11,7 +11,7 @@ from app.pipeline.adapters import missing_infra, real_adapters
 from app.pipeline.kafka_admin import delete_prefixed_topics
 from tests.golden import NOW, SEED
 from tests.test_s1_real import read_topic
-from tests.test_s1_refund_chat import FIRST, SECOND, SESSION, send
+from tests.test_s1_refund_chat import CONVERSATION, FIRST, SECOND, send
 
 # Config
 S2_PARTS = frozenset({"s3", "postgres", "valkey", "kafka"})  # object store, vault, dedup keys, bus
@@ -46,7 +46,7 @@ def test_anna_messages_become_signals_on_the_real_topic(real_lane):
     lane.bus.drain()
     signals = [message["payload"] for message in read_topic(f"s2{tag}.signals.normalized", 2)]
     assert [signal["dedup_key"].split(":")[-1] for signal in signals] == [FIRST["id"], SECOND["id"]]
-    assert {signal["conversation_id"] for signal in signals} == {SESSION}
+    assert {signal["conversation_id"] for signal in signals} == {CONVERSATION}
     assert not [secret for secret in ("Anna", "anna@example.lk") if secret in str(signals)]
 
 

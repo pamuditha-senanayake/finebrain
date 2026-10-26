@@ -56,6 +56,6 @@ def test_real_claude_plans_a_refund_without_the_word_refund():
     load_env_file(ENV_PATH)
     if not os.environ.get("ANTHROPIC_API_KEY"):
         pytest.skip("no ANTHROPIC_API_KEY in backend/.env")
-    task, reason = stages_route.route(ANNA.model_copy(update={"text_masked": NO_KEYWORD}), ROUTING, llm.make_chooser(), fakes.make_id_maker(), NOW)
+    task, reason = stages_route.route(ANNA.model_copy(update={"text_masked": NO_KEYWORD}), ROUTING, llm.make_chooser(), NOW)
     assert (reason, task.resolver_rule_id) == ("planned", "rr_refund_chat")
     assert stages_route.PLANNED_FLAG in task.flags

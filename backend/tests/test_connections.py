@@ -104,7 +104,7 @@ def test_answer_test_live_then_messages_come_in_with_a_thread(desk):
     assert conn_inbound.poll_once(lane, conn_call.load(lane, connection_id)) == 1
     lane.bus.drain()
     signals = list(lane.signals.values())
-    assert [s.conversation_id for s in signals] == ["c-1"]
+    assert [s.conversation_id for s in signals] == [f"{connection_id}:c-1"]
     assert signals[0].actor.ref == "cust-amara" and signals[0].channel == "chat"
 
     # Step 5: the cursor moved, so a second poll takes nothing

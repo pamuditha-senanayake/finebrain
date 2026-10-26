@@ -167,7 +167,7 @@
             "external_id": "gmail_18c2f0a1b9",
             "received_at": "2026-10-10T09:12:03+05:30",
             "signature_verified": true,
-            "raw_object_uri": "s3://brain/finebase_labs/raw/2026/10/10/gmail_18c2f0a1b9.eml",
+            "raw_object_uri": "s3://brain/finebase_labs/raw/2026/10/10/conn_gmail_support/gmail_18c2f0a1b9.eml",
             "raw_sha256": "50434a73df5c96c6e4f72d114e5fb0a66cfcf843b85d925f9a71041788b71b6c",
             "content_type": "message/rfc822",
             "size_bytes": 380,
@@ -194,7 +194,7 @@
             "attachments": [],
             "pii_tokens": ["pii_tok_NmlPrrName000000000001", "pii_tok_NmlPrrMail000000000001", "pii_tok_NmlPrrPhon000000000001"],
             "sensitivity": "confidential",
-            "dedup_key": "finebase_labs:email:gmail_18c2f0a1b9"
+            "dedup_key": "finebase_labs:email:conn_gmail_support:gmail_18c2f0a1b9"
           }
         },
         {
@@ -379,7 +379,7 @@
             "external_id": "gmail_18c2f3d77e",
             "received_at": "2026-10-10T09:40:02+05:30",
             "signature_verified": true,
-            "raw_object_uri": "s3://brain/finebase_labs/raw/2026/10/10/gmail_18c2f3d77e.eml",
+            "raw_object_uri": "s3://brain/finebase_labs/raw/2026/10/10/conn_gmail_support/gmail_18c2f3d77e.eml",
             "raw_sha256": "94e994bf07bbc94a5c4a9d5913e337bce704e7d70eb5897e8210f047c3304731",
             "content_type": "message/rfc822",
             "size_bytes": 426,
@@ -406,7 +406,7 @@
             "attachments": [],
             "pii_tokens": ["pii_tok_DlnFrnName000000000001", "pii_tok_DlnFrnMail000000000001", "pii_tok_DlnFrnPhon000000000001", "pii_tok_DlnFrnNicc000000000001"],
             "sensitivity": "restricted",
-            "dedup_key": "finebase_labs:email:gmail_18c2f3d77e"
+            "dedup_key": "finebase_labs:email:conn_gmail_support:gmail_18c2f3d77e"
           }
         },
         {

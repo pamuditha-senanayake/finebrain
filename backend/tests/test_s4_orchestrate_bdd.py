@@ -13,7 +13,7 @@ from app.pipeline.contracts_signal import TaskRequest
 from app.pipeline.contracts_start import RunStarted
 from app.pipeline.store_graph import CLOSED
 from tests.golden import NOW, SEED
-from tests.test_s1_refund_chat import FIRST, SESSION, send
+from tests.test_s1_refund_chat import CONVERSATION, FIRST, send
 
 # Config
 REFUND_SKILL = {"id": "skill_refund_handling", "version": 3, "branch": "main", "commit_id": "cmt_0007"}
@@ -82,7 +82,7 @@ def test_the_chat_agent_hands_off_to_the_refund_agent_with_the_customer_and_chat
     [task] = tasks(lane)
     handoff = start(lane, task).handoff
     assert (handoff.from_agent, handoff.to_agent) == ("agent_chat", "agent_refund_worker")
-    assert (handoff.customer_ref, handoff.conversation_id) == (ANNA, SESSION)
+    assert (handoff.customer_ref, handoff.conversation_id) == (ANNA, CONVERSATION)
     assert handoff.transcript_signal_ids == ["sig_0001", "sig_0002"]  # the whole chat so far, greeting included
 
 
@@ -97,7 +97,7 @@ def test_run_started_matches_the_golden_master_and_continues_the_chain(lane):
         "recipe": {"skill_ref": REFUND_SKILL, "name": "Refund handling", "allowed_tools": ["issue_refund", "reply_customer", "escalate"],
                    "steps": lane.graph.at_version("skill", "skill_refund_handling", 3)["steps"]},
         "handoff": {"handoff_id": "run_0001:handoff", "from_agent": "agent_chat", "to_agent": "agent_refund_worker",
-                    "customer_ref": ANNA, "conversation_id": SESSION, "transcript_signal_ids": ["sig_0001"]},
+                    "customer_ref": ANNA, "conversation_id": CONVERSATION, "transcript_signal_ids": ["sig_0001"]},
     }]
     task_envelope, started_envelope = tasks(lane)[0], lane.bus.topics["runs.started"][0]
     assert started_envelope.correlation_id == task_envelope.correlation_id and started_envelope.causation_id == task_envelope.event_id

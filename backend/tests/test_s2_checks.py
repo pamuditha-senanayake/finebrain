@@ -9,7 +9,7 @@ import time
 from app.pipeline import capture_api, observe, pii
 from app.pipeline.contracts_signal import Signal
 from tests.golden import SEED
-from tests.test_s1_refund_chat import CHAT, FIRST, SECOND, SESSION, send
+from tests.test_s1_refund_chat import CHAT, CONVERSATION, FIRST, SECOND, send
 from tests.test_s2_refund_chat import ANNA, ANNA_TOKEN, client, lane, signals, visit  # noqa: F401 (fixtures)
 
 # Config
@@ -18,11 +18,11 @@ FROZEN_SHARED = {  # what both visits share, reviewed by hand once, then frozen
     "kind": "customer_message", "channel": "chat", "actor": {"type": "customer", "ref": ANNA_TOKEN},
     "subject": {"entity_type": "customer", "entity_ref": ANNA_TOKEN}, "language": "en", "entities": [], "attachments": [],
     "pii_tokens": ["pii_tok_5e7c09ccb6145ee4ef78a0", ANNA_TOKEN], "sensitivity": "confidential", "flags": [],
-    "entity_ids": [ANNA_ENTITY], "conversation_id": SESSION, "domain": "customer_care",
+    "entity_ids": [ANNA_ENTITY], "conversation_id": CONVERSATION, "domain": "customer_care",
 }
 FROZEN = [
-    {**FROZEN_SHARED, "text_masked": "I want a refund for my last order", "dedup_key": "finebase_labs:chat:chat_msg_anna_1"},
-    {**FROZEN_SHARED, "text_masked": "yes, that one", "dedup_key": "finebase_labs:chat:chat_msg_anna_2"},
+    {**FROZEN_SHARED, "text_masked": "I want a refund for my last order", "dedup_key": "finebase_labs:chat:conn_web_chat:chat_msg_anna_1"},
+    {**FROZEN_SHARED, "text_masked": "yes, that one", "dedup_key": "finebase_labs:chat:conn_web_chat:chat_msg_anna_2"},
 ]
 VOLATILE = ("signal_id", "raw_event_id")  # ids come from a counter, so they are checked by the rules instead
 
@@ -70,7 +70,7 @@ def test_rules_hold_for_random_conversations(client, lane):
     produced = signals(lane)
     assert len(produced) == len(set(sent_ids))  # one signal per distinct message: none lost, none doubled
     assert len({signal["dedup_key"] for signal in produced}) == len(produced)
-    assert all(Signal.model_validate(signal).conversation_id == SESSION for signal in produced)
+    assert all(Signal.model_validate(signal).conversation_id == CONVERSATION for signal in produced)
     assert not [signal for signal in produced if "@example.lk" in str(signal) or "077 123 4567" in str(signal)]
 
 

@@ -8,6 +8,7 @@ from app.pipeline.contracts_start import ConversationMessage, OpenRun, RunContin
 from app.pipeline.observe import count, log_event, log_seam
 from app.pipeline.retry import call_with_retry
 from app.pipeline.stages_normalize import claim
+from app.pipeline.stages_route import task_id_for
 
 # Config
 MESSAGES_KIND = "conversation_message"  # keyed by conversation id; one version per message
@@ -139,7 +140,7 @@ def inbox(lane, run_id: str) -> list[RunContinued]:
 
 # --- Follow-ups no rule matches
 
-def continuation_task(lane, signal: Signal, new_id) -> TaskRequest | None:
+def continuation_task(lane, signal: Signal) -> TaskRequest | None:
     """"yes, that one" matches no routing rule, but its chat has an open run: S3 hands it on as a K3 for that run's
     skill and agent, flagged, instead of sending it to Escalations. None when the chat has no open run."""
     if signal.conversation_id is None:
@@ -148,4 +149,4 @@ def continuation_task(lane, signal: Signal, new_id) -> TaskRequest | None:
     if target is None:
         return None
     count("s3.continued_open_run")
-    return target.task.model_copy(update={"task_id": new_id("task"), "signal_ids": [signal.signal_id], "flags": [*signal.flags, CONTINUES_FLAG]})
+    return target.task.model_copy(update={"task_id": task_id_for(signal), "signal_ids": [signal.signal_id], "flags": [*signal.flags, CONTINUES_FLAG]})

@@ -86,13 +86,18 @@ def plan_with_model(signal: Signal, rules: list[dict], choose) -> tuple[dict | N
     return picked, score_rule(picked, signal), "planned"
 
 
-def make_task(signal: Signal, rule: dict, score: float, routing: dict, new_id, now: datetime, flags: list[str]) -> TaskRequest:
+def task_id_for(signal: Signal) -> str:
+    """One signal, one task id: a K2 redelivered after a crash gives the same task, which S4 starts only once."""
+    return f"task_{signal.signal_id.removeprefix('sig_')}"
+
+
+def make_task(signal: Signal, rule: dict, score: float, routing: dict, now: datetime, flags: list[str]) -> TaskRequest:
     """Build K3, pinning the skill's released version so a release mid run cannot change it."""
     skill = routing["skills"].get(rule["skill_id"])
     if skill is None or rule["agent_id"] not in routing["agents"]:
         raise RouteConfigError(f"rule {rule['rule_id']} points at a missing skill or agent")
     return TaskRequest(
-        task_id=new_id("task"), signal_ids=[signal.signal_id], activity_id=rule["activity_id"],
+        task_id=task_id_for(signal), signal_ids=[signal.signal_id], activity_id=rule["activity_id"],
         skill_ref=VersionRef(**skill["_ref"]), agent_id=rule["agent_id"], on_behalf_of=None,
         resolver_rule_id=rule["rule_id"], match_score=round(score, 2), base_criticality=rule["base_criticality"],
         due_at=now + timedelta(hours=rule["due_hours"]), priority=rule["priority"], flags=flags,
@@ -101,7 +106,7 @@ def make_task(signal: Signal, rule: dict, score: float, routing: dict, new_id, n
 
 # --- S3 Route
 
-def route(signal: Signal, routing: dict, choose, new_id, now: datetime) -> tuple[TaskRequest | None, str]:
+def route(signal: Signal, routing: dict, choose, now: datetime) -> tuple[TaskRequest | None, str]:
     """S3: (task, "routed" or "planned"), or (None, reason) with reason lane_b, below_threshold or tie_unresolved."""
     # Seam in: the K2 that arrived, ids and labels only
     log_event("S3", "seam_in", signal_id=signal.signal_id, kind=signal.kind, channel=signal.channel, conversation_id=signal.conversation_id)
@@ -118,7 +123,7 @@ def route(signal: Signal, routing: dict, choose, new_id, now: datetime) -> tuple
 
     # Step 2: build K3 with the pinned skill; a model pick carries a flag so later stages can weigh it
     flags = signal.flags + ([PLANNED_FLAG] if reason == "planned" else [])
-    task = make_task(signal, rule, score, routing, new_id, now, flags)
+    task = make_task(signal, rule, score, routing, now, flags)
     log_event("S3", "seam_out", task_id=task.task_id, signal_ids=task.signal_ids, resolver_rule_id=task.resolver_rule_id,
               skill_ref=task.skill_ref.model_dump(), agent_id=task.agent_id, match_score=task.match_score, flags=task.flags)
     return task, reason

@@ -2,6 +2,7 @@
 # Used by: orchestrate.py, capture_api.py (SAFE_HEADERS), tests. Uses: contracts_signal.py, observe.py (seam log).
 import hashlib
 from datetime import datetime
+from urllib.parse import quote
 
 from app.pipeline.contracts_signal import RawSignalEnvelope
 from app.pipeline.observe import log_seam
@@ -26,7 +27,8 @@ def capture(raw: dict, tenant_id: str, object_store: dict[str, bytes], now: date
     # Step 2: store under a path that stays the same on every redelivery
     body = raw["raw_body"].encode()
     extension = FILE_EXTENSIONS.get(raw["content_type"], ".bin")
-    uri = f"s3://brain/{tenant_id}/raw/{now:%Y/%m/%d}/{raw['external_id']}{extension}"
+    # two connectors may both number their messages from 1, and a source's id is never trusted to shape a path
+    uri = f"s3://brain/{tenant_id}/raw/{now:%Y/%m/%d}/{raw['connector_id']}/{quote(raw['external_id'], safe='')}{extension}"
     object_store[uri] = body
 
     # Step 3: describe it, keeping only headers without personal data

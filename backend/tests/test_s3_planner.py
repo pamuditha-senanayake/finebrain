@@ -2,7 +2,7 @@
 # Claude is a fake here, so every answer is known. Uses: stages_route.py, store_graph.py, adapters.py, tests/test_s2_checks.py.
 import random
 
-from app.pipeline import fakes, stages_route
+from app.pipeline import stages_route
 from app.pipeline.adapters import seeded
 from app.pipeline.contracts_signal import Entity, Signal
 from app.pipeline.store_graph import MemoryGraph
@@ -18,7 +18,7 @@ NO_KEYWORD = "Can I get my money back for the last order?"  # a refund, without 
 # --- Helpers
 
 def plan(signal: Signal, choose):
-    return stages_route.route(signal, ROUTING, choose, fakes.make_id_maker(), NOW)
+    return stages_route.route(signal, ROUTING, choose, NOW)
 
 
 def spy(answer):

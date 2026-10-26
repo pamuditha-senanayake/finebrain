@@ -15,7 +15,7 @@ from app.pipeline import stages_orchestrate_chat as chat
 from app.pipeline.contracts_signal import TaskRequest
 from app.pipeline.contracts_start import RunStarted
 from tests.golden import NOW, SEED
-from tests.test_s1_refund_chat import CHAT, FIRST, SECOND, SESSION
+from tests.test_s1_refund_chat import CHAT, CONVERSATION, FIRST, SECOND, SESSION
 from tests.test_s4_orchestrate_bdd import lane as s4_lane
 from tests.test_s4_orchestrate_bdd import published, start, tasks
 
@@ -150,10 +150,10 @@ def test_two_workers_starting_one_chat_at_once_make_one_run(lane):
 def test_a_worker_that_lost_the_claim_and_sees_no_run_retries_later(lane, monkeypatch):
     monkeypatch.setattr(chat, "WAIT_DELAY", 0)
     post(lane, FIRST)
-    lane.seen_keys.add(f"{SEED['tenant_id']}:s4:start:{SESSION}:agent_refund_worker:0")  # another worker holds the claim
+    lane.seen_keys.add(f"{SEED['tenant_id']}:s4:start:{CONVERSATION}:agent_refund_worker:0")  # another worker holds the claim
     with pytest.raises(chat.ConversationBusy):
         start(lane, latest_task(lane))
-    lane.seen_keys.discard(f"{SEED['tenant_id']}:s4:start:{SESSION}:agent_refund_worker:0")  # it crashed and let go
+    lane.seen_keys.discard(f"{SEED['tenant_id']}:s4:start:{CONVERSATION}:agent_refund_worker:0")  # it crashed and let go
     assert start(lane, latest_task(lane)).run_id  # the bus delivers the task again, and it starts
 
 
@@ -190,7 +190,7 @@ def test_rules_hold_for_any_conversation(lane, seed):
             closed.add(published(lane, "runs.started")[-1]["run_id"])
             close_run(lane, published(lane, "runs.started")[-1]["run_id"], picker.choice(["resolved", "escalated"]))
     runs, joins = [RunStarted.model_validate(p) for p in published(lane, "runs.started")], published(lane, "runs.continued")
-    order = [s["signal_id"] for s in lane.records.history(chat.MESSAGES_KIND, SESSION)]
+    order = [s["signal_id"] for s in lane.records.history(chat.MESSAGES_KIND, CONVERSATION)]
     # Every task is handled exactly once, by a new run or by joining one, and joins only point at runs that exist
     assert sorted([run.task_id for run in runs] + [join["task_id"] for join in joins]) == sorted({t.payload["task_id"] for t in tasks(lane)})
     assert {join["run_id"] for join in joins} <= {run.run_id for run in runs}
