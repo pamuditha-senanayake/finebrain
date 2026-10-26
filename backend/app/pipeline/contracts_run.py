@@ -11,7 +11,7 @@ from app.pipeline.contracts_signal import Criticality, Env, VersionRef
 # Config: enum values
 Route = Literal["execute", "approval_required", "escalate", "block"]
 # awaiting_approval is added on top of the doc's list, matching section 11.3
-RunOutcome = Literal["resolved", "escalated", "failed", "blocked", "abandoned", "awaiting_approval"]
+RunOutcome = Literal["resolved", "escalated", "failed", "blocked", "abandoned", "awaiting_approval", "awaiting_customer"]  # awaiting_customer: the agent asked and waits for the answer
 
 
 # --- K7 GovernanceVerdict (S7 to S8)
@@ -139,6 +139,7 @@ class RunRecord(BaseModel):
     cost: Cost
     latency_ms: int
     trace_object_uri: str
+    decided_by: str | None = None  # "auto by policy", or the approvers; None when nothing was let through. Optional so old records validate
 
 
 # --- K11 UiEvent (S10 to the console)

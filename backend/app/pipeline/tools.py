@@ -26,6 +26,7 @@ class RefundArgs(ToolCall):
 
 class ReplyArgs(ToolCall):
     message_plain: str = Field(max_length=2000, description="The reply to send to the customer")
+    awaits_customer: bool = Field(default=False, description="True when the reply asks the customer something and the case waits for their answer")
 
 
 class EscalateArgs(ToolCall):

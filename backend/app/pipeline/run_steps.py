@@ -2,10 +2,11 @@
 # Used by: orchestrate.py, temporal_flow.py, run_approvals.py (the S8 part). Uses: stages_orchestrate.py (S4 start), stages_*.py, retrieve_scope.py, contracts_*.py.
 from pydantic import BaseModel
 
-from app.pipeline import retrieve_case, retrieve_scope, stages_act, stages_govern, stages_orchestrate, stages_reason, stages_record, stages_retrieve
+from app.pipeline import govern_payments, retrieve_case, retrieve_scope, stages_orchestrate_chat, stages_govern, stages_orchestrate, stages_reason, stages_retrieve
+from app.pipeline.observe import count, log_event
 from app.pipeline.retry import call_with_retry
 from app.pipeline.contracts_reason import ContextBundle, ContextQuery, ProposedAction
-from app.pipeline.contracts_run import Decision, GovernanceVerdict, RunStep
+from app.pipeline.contracts_run import GovernanceVerdict, RunStep
 from app.pipeline.contracts_signal import Envelope, Principal, TaskRequest
 from app.pipeline.stages_decide import ApprovalState
 from app.pipeline.stages_orchestrate import signal_of  # kept here too: run_approvals, stages_learn and summary_sources read it from run_steps
@@ -15,6 +16,14 @@ ACTION_STEP_ID = "step_04"
 QUERY_TEXT = "refund window and automatic approval limit"
 OUTCOME_FOR_ROUTE = {"block": "blocked", "escalate": "escalated"}
 RETRIEVE_ATTEMPTS = 2  # reference doc section 8 (K4): one retry, then escalate context_unavailable
+TURNS_KIND = "run_turn"  # records kind keyed by run id: one version per S6 turn, so a later turn knows what was said
+
+
+class Turn(BaseModel):
+    """What the agent did on one message of the run: the next turn reads it (did we already ask the customer?)."""
+    signal_id: str
+    action_type: str
+    arguments: dict
 
 
 class RunState(BaseModel):
@@ -53,7 +62,8 @@ def close_unavailable(lane, envelope: Envelope, task: TaskRequest, run_id: str) 
 def govern_once(lane, task, action, bundle, principal, cause: Envelope, request_text: str):
     """S7 with the lane's policies, access checker and grader. Publishes the access decision."""
     policies = {node["_ref"]["id"]: node for node in lane.graph.latest("policy")}
-    _, decision, verdict = stages_govern.govern(task, action, bundle, principal, policies, lane.seed["payments"], lane.seed["cluster_id"], lane.now, lane.new_id, lane.check_access, lane.grade, request_text)
+    payments = govern_payments.payments_for(lane, signal_of(lane, task.signal_ids[0]), action.arguments.get("payment_ref"))
+    _, decision, verdict = stages_govern.govern(task, action, bundle, principal, policies, payments, lane.seed["cluster_id"], lane.now, lane.new_id, lane.check_access, lane.grade, request_text)
     lane.bus.publish("access.decisions", "access.decided", decision, "governance", cause)
     return decision, verdict
 
@@ -68,13 +78,62 @@ def propose_and_govern(lane, task: TaskRequest, bundle, principal: Principal, ru
     signal = signal_of(lane, task.signal_ids[0])
     request_text = (signal.text_masked or "") if signal else ""
     skill = lane.graph.at_version("skill", task.skill_ref.id, task.skill_ref.version) or {}  # the version pinned at route time
+    previous = previous_turns(lane, run_id)
     for _ in range(2):
-        action = stages_reason.propose(task, bundle, request_text, skill, lane.model, run_id, ACTION_STEP_ID, lane.seed["cluster_id"], feedback, f"{lane.now:%d %B %Y}")
+        action = stages_reason.propose(task, bundle, request_text, skill, lane.model, run_id, step_for_turn(previous), lane.seed["cluster_id"], feedback, f"{lane.now:%d %B %Y}", previous)
         decision, verdict = govern_once(lane, task, action, bundle, principal, cause, request_text)
         feedback = failed_gates(verdict)
         if not feedback or action.action_type == "escalate":
             break
+    remember_turn(lane, run_id, task.signal_ids[0], action)
     return action, decision, verdict
+
+
+# --- Turns: S6 on each message of a run
+
+def step_for_turn(previous: list[dict]) -> str:
+    """The action's step id: step_04 on the first turn, step_04.2 on the second, so S9 never mistakes one turn's action for another's."""
+    return ACTION_STEP_ID if not previous else f"{ACTION_STEP_ID}.{len(previous) + 1}"
+
+
+def previous_turns(lane, run_id: str) -> list[dict]:
+    """The agent's earlier turns in this run, oldest first. An outage reads as none, so S6 asks again rather than refunding."""
+    try:
+        return [Turn.model_validate(version).model_dump() for version in lane.records.history(TURNS_KIND, run_id)]
+    except Exception:
+        return []
+
+
+def remember_turn(lane, run_id: str, signal_id: str, action: ProposedAction) -> None:
+    """Best effort: a records outage must not stop the run. The next turn then sees no earlier question, so it asks again."""
+    try:
+        lane.records.save(TURNS_KIND, run_id, Turn(signal_id=signal_id, action_type=action.action_type, arguments=action.arguments))
+    except Exception as error:
+        count("s6.turn_not_saved")
+        log_event("S6", "turn_not_saved", run_id=run_id, error=type(error).__name__)
+
+
+def reason_turn(lane, task: TaskRequest, run_id: str, cause: Envelope):
+    """S5 then S6 for one message of a run: the bundle, and the agent's proposal, remembered for the next turn."""
+    # Step 1: S5, fresh for this message: knowledge, the customer's orders, the chat so far
+    signal = signal_of(lane, task.signal_ids[0])
+    bundle = retrieve_with_retry(lane, query_for(lane, task, signal, stages_orchestrate.principal_of(lane, task.agent_id), run_id), cause)
+
+    # Step 2: S6 on the pinned skill, knowing what it said in earlier turns
+    skill = lane.graph.at_version("skill", task.skill_ref.id, task.skill_ref.version) or {}
+    previous = previous_turns(lane, run_id)
+    action = stages_reason.propose(task, bundle, (signal.text_masked or "") if signal else "", skill, lane.model, run_id, step_for_turn(previous),
+                                   lane.seed["cluster_id"], None, f"{lane.now:%d %B %Y}", previous)
+    remember_turn(lane, run_id, task.signal_ids[0], action)
+    return bundle, action
+
+
+def continue_turn(lane, joined: dict, cause: Envelope):
+    """A later chat message joined an open run: the run's own task (skill, agent) goes on with that message."""
+    signal = signal_of(lane, joined["signal_id"])
+    open_run = stages_orchestrate_chat.open_run(lane, signal.conversation_id, joined["agent_id"])
+    task = open_run.task.model_copy(update={"signal_ids": [joined["signal_id"]]})
+    return reason_turn(lane, task, joined["run_id"], cause)
 
 
 def query_for(lane, task: TaskRequest, signal, principal: Principal, run_id: str) -> ContextQuery:
@@ -112,31 +171,3 @@ def start_run(lane, envelope: Envelope) -> RunState | None:
         make_step(lane, "step_03", "access_check", decision.decision, decision.rule_id, [decision.decision_id]),
     ]
     return RunState(task=task, action=action, verdict=verdict, steps=steps, cause=envelope, bundle=bundle)
-
-
-def finish_run(lane, run: RunState, outcome: str) -> None:
-    """S10: write the trace, then publish the run record and the live UI event."""
-    trace = {**run.model_dump(mode="json", exclude={"cause", "bundle"}), "outcome": outcome, "bundle_items": [item.item_id for item in run.bundle.items] if run.bundle else []}
-    written = stages_record.write_trace(lane.object_store, stages_record.trace_uri(lane.seed, run.action.run_id), trace)
-    record, event = stages_record.record(run.task, run.action, run.steps, outcome, run.approval_id, lane.seed, lane.now, lane.now, trace_written=written)
-    lane.bus.publish("runs.completed", "run.completed", record, "recorder", run.cause)
-    lane.bus.publish("ui.events", "ui.event", event, "recorder", run.cause)
-
-
-def tooling(lane) -> dict:
-    """What S9 needs from the lane: rate limiter, finished results, one runner per tool, and how to wait."""
-    return {**lane.tooling, "runners": {"payment_gateway": lane.gateway, "email": lane.tooling["send_email"]}}
-
-
-def act_and_finish(lane, run: RunState, decision: Decision | None) -> None:
-    """S9 then S10, once governance or a human has cleared the action. A failure closes the run as failed,
-    which the console shows live, so a human is told (reference doc section 8, K9)."""
-    result = stages_act.act(run.action, run.verdict, decision, lane.seed["tenant_id"], tooling(lane), lane.new_id, lane.now)
-    run.cause = lane.bus.publish("actions.executed", "action.executed", result, "worker", run.cause)
-    run.steps.append(make_step(lane, ACTION_STEP_ID, "tool", result.status, run.verdict.route, [result.action_id]))
-    finish_run(lane, run, "resolved" if result.status == "succeeded" else "failed")
-
-
-def close_without_acting(lane, run: RunState) -> None:
-    """Blocked or escalated by governance: record it, act on nothing."""
-    finish_run(lane, run, OUTCOME_FOR_ROUTE[run.verdict.route])

@@ -2,7 +2,7 @@
 # Shared by the in-process runner and Temporal. Used by: orchestrate.py, temporal_flow.py. Uses: run_steps.py, stages_decide.py.
 from datetime import timedelta
 
-from app.pipeline import run_steps, stages_act, stages_decide, stages_orchestrate
+from app.pipeline import run_finish, run_steps, stages_act, stages_decide, stages_orchestrate
 from app.pipeline.contracts_run import Decision, UiEvent
 from app.pipeline.contracts_signal import Envelope
 from app.pipeline.observe import count, log_event
@@ -26,7 +26,7 @@ def open_approval(lane, run: RunState) -> RunState:
     run.approval_id, run.approval = state.request.approval_id, state
     lane.approvals[run.approval_id] = {"cause": run.cause, "task_id": run.task.task_id}
     run.steps.append(run_steps.make_step(lane, ACTION_STEP_ID, "human", run.verdict.route, ", ".join(run.verdict.criticality_reasons), [run.approval_id]))
-    run_steps.finish_run(lane, run, "awaiting_approval")
+    run_finish.finish_run(lane, run, "awaiting_approval")
     return run
 
 
@@ -66,33 +66,33 @@ def act_if_still_valid(lane, run: RunState, decision: Decision) -> RunState | No
         approved_level = run.verdict.criticality
         principal = stages_orchestrate.principal_of(lane, run.task.agent_id)
         if principal is None:  # removed in Workflow Studio while the run waited
-            run_steps.finish_run(lane, run, "escalated")
+            run_finish.finish_run(lane, run, "escalated")
             return None
         signal = run_steps.signal_of(lane, run.task.signal_ids[0])
         _, run.verdict = run_steps.govern_once(lane, run.task, run.action, run.bundle, principal, run.cause, signal.text_masked if signal else "")
         if run.verdict.route in ("block", "escalate"):
-            return run_steps.close_without_acting(lane, run)
+            return run_finish.close_without_acting(lane, run)
         if run.verdict.route == "approval_required" and run.verdict.criticality > approved_level:
             return open_approval(lane, run)
         run.verdict = run.verdict.model_copy(update={"route": "approval_required"})  # still covered by the approval given
-    run_steps.act_and_finish(lane, run, decision)
+    run_finish.act_and_finish(lane, run, decision)
     return None
 
 
 def request_changes(lane, run: RunState, decision: Decision) -> RunState | None:
     """Back to S6 once with the approver's comment, then route the new proposal as usual."""
     if run.approval.changes_requested:
-        run_steps.finish_run(lane, run, "escalated")  # a second round of changes needs a person, not another proposal
+        run_finish.finish_run(lane, run, "escalated")  # a second round of changes needs a person, not another proposal
         return None
     principal = stages_orchestrate.principal_of(lane, run.task.agent_id)
     if principal is None:  # removed in Workflow Studio while the run waited
-        run_steps.finish_run(lane, run, "escalated")
+        run_finish.finish_run(lane, run, "escalated")
         return None
     run.action, _, run.verdict = run_steps.propose_and_govern(lane, run.task, run.bundle, principal, run.action.run_id, run.cause, f"The approver asked for changes: {decision.comment}")
     if run.verdict.route == "execute":
-        return run_steps.act_and_finish(lane, run, None)
+        return run_finish.act_and_finish(lane, run, None)
     if run.verdict.route != "approval_required":
-        return run_steps.close_without_acting(lane, run)
+        return run_finish.close_without_acting(lane, run)
     reopened = open_approval(lane, run)
     reopened.approval.changes_requested = True
     return reopened
@@ -116,7 +116,7 @@ def handle_decision(lane, run: RunState, envelope: Envelope) -> RunState | None:
         return run
     if decision.decision == "request_changes":
         return request_changes(lane, run, decision)
-    run_steps.finish_run(lane, run, CLOSING_OUTCOME.get(decision.decision, "escalated"))
+    run_finish.finish_run(lane, run, CLOSING_OUTCOME.get(decision.decision, "escalated"))
     return None
 
 
@@ -126,7 +126,7 @@ def expire(lane, run: RunState) -> RunState | None:
     if stages_decide.hand_to_delegate(run.approval, lane.seed["people"], lane.now):
         tell_console(lane, run, "expired, now with the delegate")
         return run
-    run_steps.finish_run(lane, run, "escalated")
+    run_finish.finish_run(lane, run, "escalated")
     return None
 
 

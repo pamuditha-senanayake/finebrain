@@ -11,7 +11,7 @@ from app.pipeline.stages_decide import format_money
 # Config
 CAPABILITY_FOR_ACTION = {"issue_refund": "refund.propose", "reply_customer": "reply.draft", "escalate": "escalate"}
 POLICY_FOR_ACTION = {"issue_refund": "policy_refund"}
-FAILURE_REASONS = {"refund.window": "outside_refund_window", "refund.auto_limit": "above_auto_threshold"}
+FAILURE_REASONS = {"refund.window": "outside_refund_window", "refund.auto_limit": "above_auto_threshold", "refund.not_refunded_before": "refunded_before"}
 APPROVERS_BY_CRITICALITY = {  # reference doc section 2
     1: {"tier": "L2", "count": 1, "roles": ["supervisor_agent"]},
     2: {"tier": "L2", "count": 1, "roles": ["steward"]},
@@ -38,10 +38,13 @@ def check_access(action: ProposedAction, task: TaskRequest, principal: Principal
 
 
 def check_policy(action: ProposedAction, policy: dict, payment: dict, now: datetime) -> list[PolicyResult]:
-    """The refund policy's two rules: inside the window, and under the automatic limit."""
+    """The refund policy's rules: inside the window, under the automatic limit, and (when the shop says) never refunded before."""
     days = (now - datetime.fromisoformat(payment["paid_at"])).days
     limit, ref = Money(**policy["auto_limit"]), VersionRef(**policy["_ref"])
-    return [
+    before = [] if "refunded_minor" not in payment else [  # a payment read from the shop knows its refunds; the samples do not
+        PolicyResult(policy_ref=ref, passed=payment["refunded_minor"] == 0, rule_id="refund.not_refunded_before",
+                     explanation=f"{format_money(Money(amount_minor=payment['refunded_minor'], currency=action.money.currency))} refunded before")]
+    return before + [
         PolicyResult(policy_ref=ref, passed=days <= policy["window_days"], rule_id="refund.window", explanation=f"{days} days since purchase, window is {policy['window_days']}"),
         PolicyResult(policy_ref=ref, passed=action.money.amount_minor <= limit.amount_minor, rule_id="refund.auto_limit", explanation=f"{format_money(action.money)} against a limit of {format_money(limit)}"),
     ]
@@ -53,8 +56,9 @@ def check_gates(action: ProposedAction, bundle: ContextBundle, payment: dict | N
     cited = bool(action.citations) and len(cited_items) == len(set(action.citations))
     gates = [GateResult(gate_id="citations_present", passed=cited, detail=f"{len(action.citations)} citations")]
     if action.touches.money:  # an unknown payment ref fails this gate, so the case escalates
-        amount_ok = payment is not None and action.money is not None and action.money.amount_minor == payment["amount_minor"]
-        gates.append(GateResult(gate_id="amount_matches_payment", passed=amount_ok, detail=f"paid {payment['amount_minor'] if payment else 'unknown'}"))
+        left = payment["amount_minor"] - payment.get("refunded_minor", 0) if payment else None  # what is still there to return
+        amount_ok = left is not None and action.money is not None and action.money.amount_minor == left
+        gates.append(GateResult(gate_id="amount_matches_payment", passed=amount_ok, detail=f"paid {payment['amount_minor'] if payment else 'unknown'}, left {left}"))
     gates.append(GateResult(gate_id="confidence", passed=action.confidence >= MIN_CONFIDENCE, detail=f"{action.confidence} against {MIN_CONFIDENCE}"))
     grounded, detail = grade(action.rationale_summary, [item.text for item in cited_items], context)
     gates.append(GateResult(gate_id="grounded", passed=grounded, detail=detail))

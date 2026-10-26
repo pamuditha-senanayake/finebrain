@@ -9,11 +9,13 @@ class MemoryRecords:
     def __init__(self, tenant_id: str):
         self.tenant_id = tenant_id
         self.versions: dict[tuple[str, str], list[dict]] = {}
+        self.ids_by_kind: dict[str, set[str]] = {}  # so listing one kind never walks every record, like Postgres's index
 
     def save(self, kind: str, record_id: str, body: BaseModel) -> int:
         """Store a new version and return its number."""
         history = self.versions.setdefault((kind, record_id), [])
         history.append(body.model_dump(mode="json"))
+        self.ids_by_kind.setdefault(kind, set()).add(record_id)
         return len(history)
 
     def load(self, kind: str, record_id: str) -> dict | None:
@@ -27,7 +29,7 @@ class MemoryRecords:
 
     def list_kind(self, kind: str) -> list[dict]:
         """The latest version of every record of one kind, ordered by id like Postgres."""
-        return [history[-1] for (entry_kind, _), history in sorted(self.versions.items()) if entry_kind == kind]
+        return [self.versions[(kind, record_id)][-1] for record_id in sorted(self.ids_by_kind.get(kind, ())) if (kind, record_id) in self.versions]
 
     def purge(self, kind: str, record_id: str) -> list[dict]:
         """Erase every version of one record and return what it held, so the caller can save a scrubbed copy."""

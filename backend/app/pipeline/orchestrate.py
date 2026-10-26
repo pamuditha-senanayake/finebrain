@@ -3,7 +3,7 @@
 # Each task runs in-process, or as a Temporal workflow when the adapters include a Temporal runner.
 from datetime import datetime
 
-from app.pipeline import entity_match, item_tags, run_approvals, run_steps, stages_extract, stages_file, stages_librarian, stages_intake, stages_normalize, stages_orchestrate_chat, stages_route, stages_version
+from app.pipeline import entity_match, item_tags, run_approvals, run_finish, run_resume, run_steps, stages_extract, stages_file, stages_librarian, stages_intake, stages_normalize, stages_orchestrate_chat, stages_route, stages_version
 from app.pipeline.adapters import make_memory_adapters
 from app.pipeline.audit import subscribe_audit
 from app.pipeline.contracts_run import Decision
@@ -111,13 +111,24 @@ def on_task(lane: Lane, envelope: Envelope) -> None:
     """S4: hand the task to Temporal, or run it here: act now, wait for a human, or close it."""
     if lane.runner is not None:
         return lane.runner.start_task(envelope)
-    run = run_steps.start_run(lane, envelope)
-    if run is None:  # closed early: context unavailable, already escalated
+    run = run_steps.start_run(lane, envelope) or resume_if_joined(lane, envelope)
+    if run is None:  # closed early (context unavailable, already escalated), or nothing to resume
         return None
+    route(lane, run)
+
+
+def resume_if_joined(lane: Lane, envelope: Envelope):
+    """S4 joined this message to a run waiting for the customer: take that run's next turn."""
+    joined = lane.records.load("run_joined", envelope.payload["task_id"])
+    return run_resume.resume_run(lane, joined, envelope) if joined else None
+
+
+def route(lane: Lane, run) -> None:
+    """After S7: act now (S9, S10), wait for a human (S8), or close without acting."""
     if run.verdict.route == "execute":
-        return run_steps.act_and_finish(lane, run, None)
+        return run_finish.act_and_finish(lane, run, None)
     if run.verdict.route != "approval_required":
-        return run_steps.close_without_acting(lane, run)
+        return run_finish.close_without_acting(lane, run)
     paused = run_approvals.open_approval(lane, run)
     lane.pending[paused.approval_id] = paused
 
@@ -142,8 +153,10 @@ def keep(lane: Lane, run) -> None:
 
 
 def sweep_expired(lane: Lane, now) -> None:
-    """In-process timers (Temporal uses durable ones): move the clock, expire overdue approvals, end cooling periods."""
+    """In-process timers (Temporal uses durable ones): move the clock, expire overdue approvals, end cooling periods,
+    and abandon runs whose wait for the customer ended."""
     lane.now = lane.bus.now = now
+    run_resume.expire_waits(lane, now)
     for approval_id, run in list(lane.pending.items()):
         state = run.approval
         if state.cooling_until is not None and state.cooling_until <= now:

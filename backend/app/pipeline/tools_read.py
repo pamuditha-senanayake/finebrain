@@ -66,6 +66,25 @@ def find_customer_orders(lane, connection: Connection, customer: str) -> list[di
     return sorted(orders, key=lambda o: o["paid_at"], reverse=True)  # the wrapping SELECT does not keep the order
 
 
+def find_payment(lane, connection: Connection, payment_ref: str, customer: str) -> dict | None:
+    """One payment as S7 checks it now: paid when, how much, refunded how much. Only when it is this customer's; else None."""
+    m = connection.orders_map
+    sql = (f"SELECT o.{checked(m.order_id)} AS order_id, o.{checked(m.total_minor)} AS total_minor, o.{checked(m.paid_at)} AS paid_at, o.{checked(m.status)} AS status "
+           f"FROM {checked(m.orders)} o JOIN {checked(m.customers)} c ON c.{checked(m.customer_id)} = o.{checked(m.order_customer)} "
+           f"WHERE o.{checked(m.payment_ref)} = %s AND (lower(c.{checked(m.customer_email)}) = lower(%s) OR c.{checked(m.customer_id)} = %s)")
+    try:
+        rows = conn_db.read(lane, connection, sql, (payment_ref, customer, customer))
+        refunds = conn_db.read(lane, connection, refunds_sql(m), ([rows[0]["order_id"]],)) if rows else []
+    except conn_db.NotAllowed:
+        raise
+    except Exception as error:
+        raise ReadUnavailable(type(error).__name__) from None
+    if not rows:
+        return None
+    order = {**rows[0], "refunds": refunds}
+    return {"order_id": order["order_id"], "paid_at": order["paid_at"].isoformat(), "amount_minor": order["total_minor"], "refunded_minor": refunded_minor(order), "status": order["status"]}
+
+
 def refunded_minor(order: dict, as_of: datetime | None = None) -> int:
     """Money already returned on an order, counting only refunds made by `as_of`."""
     return sum(r["amount_minor"] for r in order["refunds"] if r["status"] != DENIED_REFUND and (as_of is None or r["created_at"] <= as_of))
