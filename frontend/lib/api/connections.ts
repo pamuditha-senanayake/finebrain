@@ -28,6 +28,7 @@ export const Connection = z.object({
   events: z.number(),
   lastEventAt: z.string().nullable(),
   lastError: z.string().nullable(),
+  feed: z.boolean().default(false),  // messages come in from it, so a Workflow Studio sensor can listen to it
 });
 export type Connection = z.infer<typeof Connection>;
 export type TestLine = z.infer<typeof TestLine>;

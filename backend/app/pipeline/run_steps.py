@@ -142,7 +142,14 @@ def query_for(lane, task: TaskRequest, signal, principal: Principal, run_id: str
     scope = {"entity_ids": retrieve_scope.linked(lane.entities, signal.entity_ids), "domains": [signal.domain] if signal.domain else []} if signal else {}
     customer = signal.actor.ref if signal and signal.actor.type == "customer" else None
     return ContextQuery(run_id=run_id, principal=principal, on_behalf_of=task.on_behalf_of, query_text=QUERY_TEXT, entity_refs=refs, branch="main",
-                        node_types=["policy", "fact"], customer_ref=customer, conversation_id=signal.conversation_id if signal else None, **scope)
+                        node_types=["policy", "fact"], customer_ref=customer, conversation_id=signal.conversation_id if signal else None,
+                        policy_ids=activity_policies(lane, task.activity_id), **scope)
+
+
+def activity_policies(lane, activity_id: str) -> list[str]:
+    """The policies the run's activity names in the graph, read by its key. None named: the search alone finds the rules."""
+    versions = lane.graph.history("workflow", f"wf_{activity_id}")
+    return list((versions[-1].get("policies") or [])) if versions and not versions[-1].get("_closed") else []
 
 
 def start_run(lane, envelope: Envelope) -> RunState | None:

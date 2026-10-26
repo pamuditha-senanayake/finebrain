@@ -18,7 +18,7 @@ FROZEN_SHARED = {  # what both visits share, reviewed by hand once, then frozen
     "kind": "customer_message", "channel": "chat", "actor": {"type": "customer", "ref": ANNA_TOKEN},
     "subject": {"entity_type": "customer", "entity_ref": ANNA_TOKEN}, "language": "en", "entities": [], "attachments": [],
     "pii_tokens": ["pii_tok_5e7c09ccb6145ee4ef78a0", ANNA_TOKEN], "sensitivity": "confidential", "flags": [],
-    "entity_ids": [ANNA_ENTITY], "conversation_id": CONVERSATION, "domain": "customer_care",
+    "entity_ids": [ANNA_ENTITY], "conversation_id": CONVERSATION, "domain": "customer_care", "connector_id": "conn_web_chat",
 }
 FROZEN = [
     {**FROZEN_SHARED, "text_masked": "I want a refund for my last order", "dedup_key": "finebase_labs:chat:conn_web_chat:chat_msg_anna_1"},

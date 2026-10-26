@@ -65,8 +65,8 @@ def drafts_for(lane, kind: str, target_id: str | None, after: dict | None) -> li
     body = {key: value for key, value in (node or {}).items() if key not in ("_ref", STUDIO)}
     studio = {key: value for key, value in after.items() if key != "version"}
     drafts = [Draft(op="update" if node else "add", node_type=kind, node_id=after["id"], fields={**project(kind, after, body), STUDIO: studio}, base_version=base)]
-    if kind == "policy" and node:
-        drafts += wording_drafts(lane, after, node)
+    if kind == "policy" and (node or after["fields"].get("statement")):
+        drafts += wording_drafts(lane, after, node)  # a new policy's wording too, so S5 and S6 read it from the start
     return drafts + rule_drafts(lane, kind, after["id"], after)
 
 
@@ -85,10 +85,10 @@ def project(kind: str, after: dict, body: dict) -> dict:
     return body
 
 
-def wording_drafts(lane, after: dict, node: dict) -> list[Draft]:
+def wording_drafts(lane, after: dict, node: dict | None) -> list[Draft]:
     """A policy edit closes its old wording in knowledge and writes the new statement, tagged with the new version."""
-    key, version, now = after["id"], node["_ref"]["version"] + 1, lane.now.isoformat()
-    old = [k for k in lane.graph.latest("knowledge") if (k.get("version_ref") or {}).get("id") == key and not k.get("valid_to")]
+    key, version, now = after["id"], (node["_ref"]["version"] if node else 0) + 1, lane.now.isoformat()
+    old = [k for k in lane.graph.latest("knowledge") if (k.get("version_ref") or {}).get("id") == key and not k.get("valid_to")] if node else []
     drafts = [Draft(op="update", node_type="knowledge", node_id=k["_ref"]["id"], fields={**{x: y for x, y in k.items() if x != "_ref"}, "valid_to": now}, base_version=k["_ref"]["version"])
               for k in old if k["_ref"]["id"] != f"{key}_statement"]
     statement_id = f"{key}_statement"
@@ -111,6 +111,8 @@ def rule_drafts(lane, kind: str, target_id: str, after: dict | None) -> list[Dra
         skills[target_id] = after or {**skills.get(target_id, {"fields": {}}), "status": "retired"}
     drafts = []
     for rule in lane.graph.latest("resolver_rule"):
+        if rule.get("connectors"):
+            continue  # a connection's rule belongs to its activity, which studio_activity.py keeps
         skill, flow = skills.get(rule["skill_id"]), flows.get(f"wf_{rule['activity_id']}")
         if (kind == "skill" and rule["skill_id"] != target_id) or (kind == "workflow" and f"wf_{rule['activity_id']}" != target_id):
             continue

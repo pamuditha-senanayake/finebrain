@@ -29,8 +29,9 @@ def signal_of(lane, signal_id: str) -> Signal | None:
 
 
 def principal_of(lane, agent_id: str) -> Principal | None:
-    """The agent as Workflow Studio last saved it in the graph, so an edit to its rights counts on the next run."""
-    found = next((node for node in lane.graph.latest("agent") if node["_ref"]["id"] == agent_id), None)
+    """The agent as Workflow Studio last saved it in the graph, read by its key, so an edit to its rights counts on the next run."""
+    versions = lane.graph.history("agent", agent_id)
+    found = versions[-1] if versions and not versions[-1].get("_closed") else None
     return Principal.model_validate(found) if found else None
 
 

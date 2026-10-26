@@ -1,10 +1,12 @@
-# studio_changes.py: what a confirmed Studio change leaves behind. The drafts S14 commits (the target, plus the workflow
-# when a member joins or leaves), a revision for the item's history, and notices for the people who must know.
-# Used by: studio_apply.py, studio_approvals.py, studio_views.py. Uses: studio_draft.py, studio_model.py, stages_version.py.
+# studio_changes.py: what a confirmed Studio change leaves behind. The drafts S14 commits (the target, the workflow
+# when a member joins or leaves, and the activity's owner, skill, policies and routing rules), a revision for the item's
+# history, and notices for the people who must know.
+# Used by: studio_apply.py, studio_approvals.py, studio_views.py. Uses: studio_draft.py, studio_model.py, studio_activity.py, stages_version.py.
 from datetime import datetime
 
 from pydantic import BaseModel
 
+from app.api import studio_activity
 from app.api.studio_draft import materialize, snapshot
 from app.api.studio_model import drafts_for
 from app.pipeline import stages_version
@@ -75,11 +77,16 @@ def drafts_of(lane, st, person_id: str, change: dict) -> tuple[list[Draft], dict
     stamp = {"updatedAt": lane.now.isoformat(), "updatedBy": person_id}
     after = {**after, **stamp} if after else None
     drafts = drafts_for(lane, change["kind"], before["id"] if before else None, after)
+    flow_after = after if change["kind"] == "workflow" else flow
     if flow and change["kind"] not in ("workflow", "tool"):
         target_id, members = (after or before)["id"], flow["members"]
         moved = members + [target_id] if change["intent"] == "create" else [m for m in members if m != target_id] if change["intent"] == "delete" else members
+        flow_after = {**flow, "members": moved, **stamp}
         if moved != members:
-            drafts += drafts_for(lane, "workflow", flow["id"], {**flow, "members": moved, **stamp})
+            drafts += drafts_for(lane, "workflow", flow["id"], flow_after)
+    if flow and change["kind"] != "tool":
+        items_after = {**st.items, **({after["id"]: after} if after and change["kind"] != "workflow" else {})}
+        drafts = studio_activity.drafts(lane, drafts, flow["id"], flow_after, items_after)
     seen, unique = set(), []
     for draft in drafts:
         if (draft.node_type, draft.node_id) not in seen:

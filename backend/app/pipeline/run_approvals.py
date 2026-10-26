@@ -26,6 +26,7 @@ def open_approval(lane, run: RunState) -> RunState:
     run.approval_id, run.approval = state.request.approval_id, state
     lane.approvals[run.approval_id] = {"cause": run.cause, "task_id": run.task.task_id}
     run.steps.append(run_steps.make_step(lane, ACTION_STEP_ID, "human", run.verdict.route, ", ".join(run.verdict.criticality_reasons), [run.approval_id]))
+    run_finish.tell_customer(lane, run, "waiting_message", run_finish.WAITING_TEXT, "waiting")  # so the customer knows a person is looking
     run_finish.finish_run(lane, run, "awaiting_approval")
     return run
 

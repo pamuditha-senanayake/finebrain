@@ -1,11 +1,13 @@
 # run_finish.py: the end of a run turn, S9 then S10, shared by the in-process runner, Temporal and S8's approvals. S9 acts
 # once; S10 records the outcome and who let the action through. A reply that asks the customer something keeps the run open:
-# it is kept where any worker can resume it, until the wait ends. Used by: orchestrate.py, run_approvals.py, run_resume.py,
+# it is kept where any worker can resume it, until the wait ends. In a chat, a run that goes to a person says so once, so
+# the customer never waits in silence. Used by: orchestrate.py, run_approvals.py, run_resume.py,
 # temporal_flow.py. Uses: run_steps.py (RunState, steps, turns), stages_act.py, stages_record.py, govern_payments.py, tools_write.py, tools_chat.py.
 from datetime import timedelta
 
 from app.pipeline import govern_payments, stages_act, stages_record, tools_chat, tools_write
 from app.pipeline.contracts_run import Decision
+from app.pipeline.observe import count, log_event
 from app.pipeline.run_steps import OUTCOME_FOR_ROUTE, RunState, make_step, previous_turns
 from app.pipeline.tools import TOOLS
 
@@ -13,6 +15,8 @@ from app.pipeline.tools import TOOLS
 WAITING_KIND = "run_waiting"  # records kind keyed by run id: the run, while it waits for the customer
 CUSTOMER_WAIT_SECONDS = 48 * 3600  # no answer by then: the run is abandoned and the console says so; a tenant may set customer_wait_seconds
 STUDIO = "studio"  # where a graph node keeps its Studio fields (app/api/studio_model.py)
+HANDOFF_TEXT = "Thanks for your message. A person from our team will reply here soon."  # a tenant may set handoff_message
+WAITING_TEXT = "Thanks. A person is checking this now and will reply here soon."  # a tenant may set waiting_message
 
 
 def finish_run(lane, run: RunState, outcome: str, decided_by: str | None = None) -> None:
@@ -46,6 +50,8 @@ def act_and_finish(lane, run: RunState, decision: Decision | None) -> None:
     run.steps.append(make_step(lane, run.action.step_id, "tool", result.status, run.verdict.route, [result.action_id]))
     if result.status == "succeeded" and run.action.action_type == "issue_refund":
         govern_payments.note_refund(lane, run.action.arguments["payment_ref"], run.action.money.amount_minor, run.action.run_id)
+    if result.status == "succeeded" and run.action.action_type == "escalate":
+        tell_customer(lane, run, "handoff_message", HANDOFF_TEXT, "handoff")
     outcome = outcome_after(run, result.status)
     finish_run(lane, run, outcome, decided_by_of(run, decision))
     if outcome == "awaiting_customer":
@@ -80,5 +86,22 @@ def customer_wait(lane) -> timedelta:
 
 
 def close_without_acting(lane, run: RunState) -> None:
-    """Blocked or escalated by governance: record it, act on nothing."""
+    """Blocked or escalated by governance: tell the customer a person will answer, record it, act on nothing else."""
+    tell_customer(lane, run, "handoff_message", HANDOFF_TEXT, "handoff")
     finish_run(lane, run, OUTCOME_FOR_ROUTE[run.verdict.route])
+
+
+def tell_customer(lane, run: RunState, setting: str, default: str, suffix: str) -> None:
+    """One short notice into the customer's chat, under its own idempotency key. Best effort: a failed notice is counted
+    and logged, and never stops the run from being recorded. Email and uploads have no chat to tell."""
+    where = tools_chat.destination(lane, run)
+    if where is None:
+        return
+    key = f"{lane.seed['tenant_id']}:{run.action.run_id}:{run.action.step_id}.{suffix}"
+    try:
+        answer = tools_chat.send(lane, *where, {"message_plain": lane.seed.get(setting, default)}, key)
+    except Exception as error:  # the chat or Valkey being down must not lose the run's record
+        answer = {"status": "failed", "error": {"code": type(error).__name__}}
+    if answer["status"] != "succeeded":
+        count("s9.notice_not_sent")
+        log_event("S9", "notice_not_sent", run_id=run.action.run_id, error=(answer.get("error") or {}).get("code"))

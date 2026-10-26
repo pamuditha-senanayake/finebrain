@@ -3,7 +3,7 @@
 # approved change requests. The assistant (studio/chat, step 9e) only drafts, through the same review. Used by: routes.py. Uses: studio_*.py, versions_views.py.
 from fastapi import FastAPI, Header, HTTPException, Request
 
-from app.api import studio_approvals, studio_views, versions_views
+from app.api import studio_approvals, studio_options, studio_views, versions_views
 from app.api.studio_apply import apply_op, suggest_op
 from app.api.studio_chat import chat
 from app.api.studio_draft import StudioError
@@ -21,6 +21,7 @@ def resource(lane, resource: str, query: dict):
     if parts[:2] == ["studio", "workflows"] and len(parts) == 4 and parts[3] == "health":
         return studio_views.health_view(lane, parts[2]) or not_found()
     simple = {"studio/tools": studio_views.tools_view, "studio/pending": studio_views.pending_view, "notifications": studio_views.notifications_view,
+              "studio/options": studio_options.options,
               "branches": versions_views.branches_view}
     if resource in simple:
         return simple[resource](lane)

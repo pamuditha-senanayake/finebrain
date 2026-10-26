@@ -31,7 +31,8 @@ def apply_op(lane, person_id: str, body: dict) -> dict:
         raise StudioError("Someone changed this a moment ago. Open it again and redo the change.", 409) from None
     target = after or before
     where = f" in {flow['name']}" if flow and change["kind"] != "workflow" else ""
-    return {"status": "applied", "targetId": target["id"], "revisionId": revision_id, "changeRequestId": None, "message": f"Applied. {target['name']} is now live{where}."}
+    state = "is now live" if target.get("status") == "active" and (flow or target).get("status") == "active" else "is saved as a draft"
+    return {"status": "applied", "targetId": target["id"], "revisionId": revision_id, "changeRequestId": None, "message": f"Applied. {target['name']} {state}{where}."}
 
 
 def suggest_op(lane, person_id: str, body: dict) -> dict:

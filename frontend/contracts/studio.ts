@@ -282,3 +282,15 @@ export const BrainMap = z.object({
   ),
 });
 export type BrainMap = z.infer<typeof BrainMap>;
+
+/** The real choices behind Studio's pick lists, served from what the pipeline reads (GET studio/options). */
+export const StudioOption = z.object({ id: z.string(), label: z.string() });
+export const StudioOptions = z.object({
+  endpoints: z.array(StudioOption),
+  capabilities: z.array(StudioOption),
+  models: z.array(StudioOption),
+  currencies: z.array(z.string()),
+  events: z.record(z.string(), z.array(z.string())),
+});
+export type StudioOption = z.infer<typeof StudioOption>;
+export type StudioOptions = z.infer<typeof StudioOptions>;

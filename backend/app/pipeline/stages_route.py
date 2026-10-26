@@ -1,5 +1,7 @@
 # stages_route.py: S3 Route. Matches a K2 signal to a resolver rule, pins the skill version, and builds K3.
-# Rules, skills and agents come from the graph. Rules decide first; Claude settles close calls and, when no rule is
+# A rule says how to spot a request and names its activity; the activity (a workflow in Studio) names its owner agent
+# and its one skill, so a new way of asking needs only a new rule. All of it comes from the graph. A connection with its
+# own activity wins every message on it; elsewhere rules score first, Claude settles close calls and, when no rule is
 # clear, plans from the rules whose gates pass. Claude can only pick a listed rule, and its picks are flagged.
 # Used by: orchestrate.py, tests. Uses: contracts_signal.py, observe.py, a graph (store_graph.py), a chooser (llm.py).
 from datetime import datetime, timedelta
@@ -27,10 +29,11 @@ class RouteConfigError(Exception):
 # --- Reading and scoring
 
 def read_routing(graph) -> dict:
-    """Latest rules, skills and agents from the graph, in one place."""
+    """Latest rules, activities, skills and agents from the graph, in one place."""
     try:
         return {
             "rules": graph.latest("resolver_rule"),
+            "activities": {node["_ref"]["id"]: node for node in graph.latest("workflow")},
             "skills": {node["_ref"]["id"]: node for node in graph.latest("skill")},
             "agents": {node["_ref"]["id"]: node for node in graph.latest("agent")},
         }
@@ -39,17 +42,29 @@ def read_routing(graph) -> dict:
 
 
 def rule_applies(rule: dict, signal: Signal) -> bool:
-    """Kind, channel and required entities are gates: miss one and the rule does not apply."""
+    """Kind, channel, connection (when the rule names some) and required entities are gates: miss one and the rule does not apply."""
     entity_types = {entity.type for entity in signal.entities}
+    if rule.get("connectors") and signal.connector_id not in rule["connectors"]:
+        return False
     return signal.kind in rule["kinds"] and signal.channel in rule["channels"] and set(rule["required_entities"]) <= entity_types
 
 
 def score_rule(rule: dict, signal: Signal) -> float:
-    """Share of the rule's keywords in the masked text, or 0 when a gate fails."""
+    """Share of the rule's keywords in the masked text, or 0 when a gate fails. A rule with no keywords matches on its gates alone."""
     if not rule_applies(rule, signal):
         return 0.0
+    if not rule["keywords"]:
+        return 1.0
     text = (signal.text_masked or "").lower()
     return sum(1 for word in rule["keywords"] if word in text) / len(rule["keywords"])
+
+
+def recipe_of(rule: dict, routing: dict) -> tuple[str, str]:
+    """(skill id, agent id) for a rule: from its activity when the activity names them, else the rule's own (a graph seeded before activities)."""
+    activity = routing.get("activities", {}).get(f"wf_{rule['activity_id']}") or {}
+    if activity.get("owner") and activity.get("skill_id"):
+        return activity["skill_id"], activity["owner"]
+    return rule["skill_id"], rule["agent_id"]
 
 
 # --- Choosing
@@ -67,6 +82,10 @@ def settle_tie(signal: Signal, contenders: list[dict], choose) -> dict | None:
 
 def pick_rule(signal: Signal, rules: list[dict], choose) -> tuple[dict | None, float, str]:
     """The winning rule, its score, and why: routed, planned, below_threshold or tie_unresolved."""
+    own = [rule for rule in rules if rule.get("connectors") and rule_applies(rule, signal)]
+    if own:  # the connection has its own activity: every message on it goes there
+        winner = own[0] if len(own) == 1 else settle_tie(signal, own, choose)
+        return winner, 1.0, "routed" if winner else "tie_unresolved"
     scored = sorted(((score_rule(rule, signal), rule) for rule in rules), key=lambda pair: pair[0], reverse=True)
     best_score = scored[0][0] if scored else 0.0
     if best_score < MATCH_THRESHOLD:
@@ -86,6 +105,13 @@ def plan_with_model(signal: Signal, rules: list[dict], choose) -> tuple[dict | N
     return picked, score_rule(picked, signal), "planned"
 
 
+def active(rule: dict, routing: dict) -> bool:
+    """A rule whose activity is a draft or paused in Studio routes nothing, whatever the rule says."""
+    activity = routing.get("activities", {}).get(f"wf_{rule['activity_id']}")
+    status = ((activity or {}).get("studio") or {}).get("status")
+    return status in (None, "active")
+
+
 def task_id_for(signal: Signal) -> str:
     """One signal, one task id: a K2 redelivered after a crash gives the same task, which S4 starts only once."""
     return f"task_{signal.signal_id.removeprefix('sig_')}"
@@ -93,12 +119,13 @@ def task_id_for(signal: Signal) -> str:
 
 def make_task(signal: Signal, rule: dict, score: float, routing: dict, now: datetime, flags: list[str]) -> TaskRequest:
     """Build K3, pinning the skill's released version so a release mid run cannot change it."""
-    skill = routing["skills"].get(rule["skill_id"])
-    if skill is None or rule["agent_id"] not in routing["agents"]:
+    skill_id, agent_id = recipe_of(rule, routing)
+    skill = routing["skills"].get(skill_id)
+    if skill is None or agent_id not in routing["agents"]:
         raise RouteConfigError(f"rule {rule['rule_id']} points at a missing skill or agent")
     return TaskRequest(
         task_id=task_id_for(signal), signal_ids=[signal.signal_id], activity_id=rule["activity_id"],
-        skill_ref=VersionRef(**skill["_ref"]), agent_id=rule["agent_id"], on_behalf_of=None,
+        skill_ref=VersionRef(**skill["_ref"]), agent_id=agent_id, on_behalf_of=None,
         resolver_rule_id=rule["rule_id"], match_score=round(score, 2), base_criticality=rule["base_criticality"],
         due_at=now + timedelta(hours=rule["due_hours"]), priority=rule["priority"], flags=flags,
     )
@@ -114,7 +141,7 @@ def route(signal: Signal, routing: dict, choose, now: datetime) -> tuple[TaskReq
         return None, "lane_b"
 
     # Step 1: rules first, then the model when no rule is clear
-    live = [rule for rule in routing["rules"] if not rule.get("paused")]  # Studio pauses a rule with its workflow or skill
+    live = [rule for rule in routing["rules"] if not rule.get("paused") and active(rule, routing)]  # Studio pauses a rule with its workflow or skill
     rule, score, reason = pick_rule(signal, live, choose)
     count(f"s3.{reason}")
     log_event("S3", reason, signal_id=signal.signal_id, best_score=round(score, 2), rule_id=rule["rule_id"] if rule else None)

@@ -10,6 +10,8 @@ from app.pipeline.tools import TOOLS
 RESULT_TTL_SECONDS = 7 * 24 * 3600  # reference doc section 7: idempotency keys live up to 7 days
 RATE_WINDOW_SECONDS = 60
 HANDED_TO_HUMAN = {"status": "succeeded", "external_ref": None, "summary": "handed to a human"}
+RUNNERS = {"shop_database": "Refund in the shop's own database", "chat": "Reply in the customer's chat",
+           "none": "No outside call: hand to a person"}  # every endpoint S9 serves (run_finish.tooling), with what it does
 
 
 class RateLimited(Exception):

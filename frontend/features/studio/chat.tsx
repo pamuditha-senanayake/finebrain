@@ -36,6 +36,9 @@ function openDraft(thread: ChatMessage[]) {
   return null;
 }
 
+/** Workflow ids: "wf_" on Finebase HQ's backend, "wf-" in the demo mock. */
+const isWorkflowId = (id: string) => id.startsWith("wf_") || id.startsWith("wf-");
+
 export function StudioChat({
   workflowId,
   detail,
@@ -116,7 +119,7 @@ export function StudioChat({
     patch(workflowId, messageId, (m) => (m.role === "assistant" ? { ...m, applied: r } : m));
     push(workflowId, { id: msgId(), role: "notice", tone: r.status === "applied" ? "ok" : "info", text: r.message, href: r.changeRequestId ? `/l2/versioning/${r.changeRequestId}` : undefined });
     // A new workflow from a confirmed story: open it and ask what to build first, so the story carries on there.
-    if (r.status === "applied" && r.targetId.startsWith("wf-") && r.targetId !== workflowId) {
+    if (r.status === "applied" && isWorkflowId(r.targetId) && r.targetId !== workflowId) {
       const next = r.targetId;
       const ask = "What should we build first?";
       onSwitch(next);
@@ -128,7 +131,7 @@ export function StudioChat({
     }
     if (r.status === "applied" && r.targetId) {
       const it = detail?.items.find((i) => i.id === r.targetId);
-      onFocus(it ? { kind: it.kind, id: it.id } : r.targetId.startsWith("wf-") ? { kind: "workflow", id: r.targetId } : focus);
+      onFocus(it ? { kind: it.kind, id: it.id } : isWorkflowId(r.targetId) ? { kind: "workflow", id: r.targetId } : focus);
     }
   };
 
