@@ -11,7 +11,7 @@ class Lane:
     """Everything one pipeline holds. Data only; orchestrate.py, run_steps.py and run_approvals.py act on it."""
     seed: dict
     model: Model
-    gateway: Gateway
+    gateway: Gateway | None  # a stand-in refund gateway for stage tests; None in production, where refunds go to the shop (tools_write.py)
     now: datetime
     new_id: object
     bus: object

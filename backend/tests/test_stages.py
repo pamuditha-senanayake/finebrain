@@ -168,7 +168,7 @@ def test_s8_opens_one_approval_for_s3():
 # --- S9 and S10
 
 def s9_tooling(gateway) -> dict:
-    return {"limiter": MemoryRateLimiter(), "results": MemoryResults(), "sleep": lambda seconds: None, "runners": {"payment_gateway": gateway, "email": fakes.make_fake_sender()[0]}}
+    return {"limiter": MemoryRateLimiter(), "results": MemoryResults(), "sleep": lambda seconds: None, "runners": {"shop_database": gateway, "chat": fakes.make_fake_sender()[0]}}
 
 
 def test_s9_pays_once_on_retry():

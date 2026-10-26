@@ -1,7 +1,8 @@
-# conn_db.py: the brain's only door into a connected database, built so an agent can never change or delete data.
-# The test proves the user is read only (no write rights on any table, no superuser, no role or database creation) and
-# reads the schema; every query is one SELECT, inside a read-only transaction, with a time limit and a row cap.
-# Used by: conn_test.py, agent tools. Uses: conn_call.py (secret), psycopg.
+# conn_db.py: the brain's only doors into a connected database. The read door is built so an agent can never change or
+# delete data: the test proves the user is read only and reads the schema; every query is one SELECT, inside a read-only
+# transaction, with a time limit and a row cap. The refund door signs in as a second user, which the test proves may only
+# add a refund and set an order's status, nothing more. Used by: conn_test.py, tools_read.py, tools_write.py.
+# Uses: conn_call.py (secret), psycopg.
 import re
 
 import psycopg
@@ -11,6 +12,7 @@ from app.pipeline.conn_call import Connection, get_secret
 # Config
 CONNECT_TIMEOUT_SECONDS = 5
 STATEMENT_TIMEOUT_MS = 5000
+LOCK_TIMEOUT_MS = 3000  # a refund waits this long for another worker's lock on the same order, then retries
 ROW_LIMIT = 200
 READ_ONLY_START = re.compile(r"^\s*(select|with)\b", re.IGNORECASE)
 WRITE_WORDS = re.compile(r"\b(insert|update|delete|merge|truncate|drop|alter|create|grant|revoke|copy|call|do|vacuum|lock|set|reset)\b", re.IGNORECASE)
@@ -18,12 +20,27 @@ WRITE_RIGHTS = "INSERT,UPDATE,DELETE,TRUNCATE"
 TABLES_SQL = """SELECT c.table_schema, c.table_name, string_agg(c.column_name || ' ' || c.data_type, ', ' ORDER BY c.ordinal_position)
 FROM information_schema.columns c WHERE c.table_schema = ANY(%s) GROUP BY 1, 2 ORDER BY 1, 2"""
 WRITABLE_SQL = """SELECT schemaname || '.' || tablename FROM pg_tables WHERE schemaname = ANY(%s)
-AND (has_table_privilege(quote_ident(schemaname) || '.' || quote_ident(tablename), %s))"""
+AND (has_table_privilege(quote_ident(schemaname) || '.' || quote_ident(tablename), %s)
+  OR has_any_column_privilege(quote_ident(schemaname) || '.' || quote_ident(tablename), 'INSERT,UPDATE'))"""
+COLUMN_RIGHTS_SQL = """SELECT c.table_schema || '.' || c.table_name, c.column_name, r.name FROM information_schema.columns c
+CROSS JOIN unnest(ARRAY['INSERT', 'UPDATE']) AS r(name) WHERE c.table_schema = ANY(%s)
+AND has_column_privilege(quote_ident(c.table_schema) || '.' || quote_ident(c.table_name), c.column_name, r.name)"""
+REMOVE_RIGHTS_SQL = """SELECT schemaname || '.' || tablename FROM pg_tables WHERE schemaname = ANY(%s)
+AND has_table_privilege(quote_ident(schemaname) || '.' || quote_ident(tablename), 'DELETE,TRUNCATE')"""
 ROLE_SQL = "SELECT rolsuper, rolcreaterole, rolcreatedb, rolbypassrls FROM pg_roles WHERE rolname = current_user"
 
 
 class NotAllowed(Exception):
     """A query the guard refuses before it reaches the database."""
+
+
+def open_refunds(lane, connection: Connection) -> psycopg.Connection:
+    """The refund user's connection: one transaction per refund, with time limits so a stuck lock never hangs S9."""
+    url = get_secret(lane, connection.connection_id, "refund_database_url")
+    if not url:
+        raise NotAllowed("No refund user yet")
+    options = f"-c statement_timeout={STATEMENT_TIMEOUT_MS} -c lock_timeout={LOCK_TIMEOUT_MS}"
+    return psycopg.connect(url, connect_timeout=CONNECT_TIMEOUT_SECONDS, autocommit=False, options=options)
 
 
 def open_read_only(lane, connection: Connection) -> psycopg.Connection:
@@ -38,12 +55,29 @@ def open_read_only(lane, connection: Connection) -> psycopg.Connection:
 
 # --- What the test checks
 
-def write_risks(db: psycopg.Connection, schemas: list[str]) -> list[str]:
-    """Every way this user could change data. Empty means read only."""
+def role_risks(db: psycopg.Connection) -> list[str]:
+    """Powers over the whole server that no brain user may have."""
     superuser, create_role, create_db, bypass_rls = db.execute(ROLE_SQL).fetchone()
-    risks = [name for name, has in (("superuser", superuser), ("can create roles", create_role), ("can create databases", create_db), ("ignores row security", bypass_rls)) if has]
+    return [name for name, has in (("superuser", superuser), ("can create roles", create_role), ("can create databases", create_db), ("ignores row security", bypass_rls)) if has]
+
+
+def write_risks(db: psycopg.Connection, schemas: list[str]) -> list[str]:
+    """Every way this user could change data, a single column included. Empty means read only."""
+    risks = role_risks(db)
     writable = [row[0] for row in db.execute(WRITABLE_SQL, (schemas, WRITE_RIGHTS)).fetchall()]
     return risks + ([f"can change {len(writable)} tables, e.g. {writable[0]}"] if writable else [])
+
+
+def refund_risks(db: psycopg.Connection, schemas: list[str], m) -> list[str]:
+    """Every right the refund user has beyond adding a refund and setting an order's status, or lacks for them. Empty is exactly right."""
+    risks = role_risks(db)
+    allowed = lambda table, column, right: (right == "INSERT" and table == m.refunds) or (right == "UPDATE" and (table, column) == (m.orders, m.status))
+    rights = db.execute(COLUMN_RIGHTS_SQL, (schemas,)).fetchall()
+    extra = sorted({f"{right.lower()} {table}.{column}" for table, column, right in rights if not allowed(table, column, right)})
+    removes = [row[0] for row in db.execute(REMOVE_RIGHTS_SQL, (schemas,)).fetchall()]
+    has = {(table, column, right) for table, column, right in rights}
+    missing = [] if (m.orders, m.status, "UPDATE") in has and any(t == m.refunds and r == "INSERT" for t, _, r in has) else ["cannot add a refund and set the order's status"]
+    return risks + missing + ([f"can also {extra[0]}" + (f" and {len(extra) - 1} more" if len(extra) > 1 else "")] if extra else []) + ([f"can delete from {removes[0]}"] if removes else [])
 
 
 def read_schema(db: psycopg.Connection, spec) -> list[dict]:

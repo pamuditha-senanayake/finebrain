@@ -1,18 +1,27 @@
 {
-  "_about": "The Finebase Labs shop as its own database (finebase_shop), for testing S5's order lookup on real Postgres. Times are around the golden frozen_now, 2026-10-10 10:00 +05:30. Amounts are in minor units (LKR cents).",
+  "_about": "The Finebase Labs shop as its own database (finebase_shop), for testing S5's order lookup on real Postgres. Times are around the golden frozen_now, 2026-10-10 10:00 +05:30. Amounts are in minor units (LKR cents). Amara Fernando and her orders mirror the Finebase Labs portal (its customer id, order ids, USD prices), so her portal chat and this database are the same shop.",
   "customers": [
     {"id": "cus_anna", "email": "anna@example.lk", "name": "Anna Perera"},
     {"id": "cus_ben", "email": "ben@example.lk", "name": "Ben Silva"},
     {"id": "cus_chen", "email": "chen@example.lk", "name": "Chen Wu"},
-    {"id": "cus_dee", "email": "dee@example.lk", "name": "Dee Fernando"}
+    {"id": "cus_dee", "email": "dee@example.lk", "name": "Dee Fernando"},
+    {"id": "11111111-1111-4111-8111-111111111111", "email": "amara.fernando@northwind.io", "name": "Amara Fernando"}
   ],
   "orders": [
     {"id": "ORD-1001", "customer_id": "cus_anna", "product": "Ergonomic chair", "total_minor": 1850000, "currency": "LKR", "status": "refunded", "paid_at": "2026-07-02T11:20:00+05:30", "payment_ref": "pay_FB_20260702_0101"},
     {"id": "ORD-1002", "customer_id": "cus_anna", "product": "Wireless mouse", "total_minor": 400000, "currency": "LKR", "status": "paid", "paid_at": "2026-09-30T14:10:00+05:30", "payment_ref": "pay_FB_20260930_0144"},
     {"id": "ORD-2001", "customer_id": "cus_ben", "product": "Desk lamp", "total_minor": 650000, "currency": "LKR", "status": "paid", "paid_at": "2026-10-05T09:30:00+05:30", "payment_ref": "pay_FB_20261005_0207"},
-    {"id": "ORD-3001", "customer_id": "cus_dee", "product": "Standing desk", "total_minor": 9500000, "currency": "LKR", "status": "paid", "paid_at": "2026-08-20T16:45:00+05:30", "payment_ref": "pay_FB_20260820_0311"}
+    {"id": "ORD-3001", "customer_id": "cus_dee", "product": "Standing desk", "total_minor": 9500000, "currency": "LKR", "status": "paid", "paid_at": "2026-08-20T16:45:00+05:30", "payment_ref": "pay_FB_20260820_0311"},
+    {"id": "ORD-10482", "customer_id": "11111111-1111-4111-8111-111111111111", "product": "Agent Gateway", "total_minor": 12900, "currency": "USD", "status": "paid", "paid_at": "2026-10-15T07:16:41+00:00", "payment_ref": "pay_FB_20261015_0482"},
+    {"id": "ORD-10455", "customer_id": "11111111-1111-4111-8111-111111111111", "product": "Vault Storage", "total_minor": 1900, "currency": "USD", "status": "paid", "paid_at": "2026-10-07T07:16:41+00:00", "payment_ref": "pay_FB_20261007_0455"},
+    {"id": "ORD-10391", "customer_id": "11111111-1111-4111-8111-111111111111", "product": "Onboarding Sprint", "total_minor": 240000, "currency": "USD", "status": "paid", "paid_at": "2026-09-23T07:16:41+00:00", "payment_ref": "pay_FB_20260923_0391"},
+    {"id": "ORD-10277", "customer_id": "11111111-1111-4111-8111-111111111111", "product": "Insight Analytics", "total_minor": 8900, "currency": "USD", "status": "paid", "paid_at": "2026-09-08T07:16:41+00:00", "payment_ref": "pay_FB_20260908_0277"},
+    {"id": "ORD-10102", "customer_id": "11111111-1111-4111-8111-111111111111", "product": "Finebase Core", "total_minor": 4900, "currency": "USD", "status": "paid", "paid_at": "2026-08-06T07:16:41+00:00", "payment_ref": "pay_FB_20260806_0102"},
+    {"id": "ORD-09876", "customer_id": "11111111-1111-4111-8111-111111111111", "product": "Priority Support", "total_minor": 29900, "currency": "USD", "status": "refunded", "paid_at": "2026-06-11T07:16:41+00:00", "payment_ref": "pay_FB_20260611_9876"},
+    {"id": "ORD-09511", "customer_id": "11111111-1111-4111-8111-111111111111", "product": "SSO & SCIM", "total_minor": 3900, "currency": "USD", "status": "paid", "paid_at": "2026-03-23T07:16:41+00:00", "payment_ref": "pay_FB_20260323_9511"}
   ],
   "refunds": [
-    {"id": "RF-0001", "order_id": "ORD-1001", "amount_minor": 1850000, "status": "approved", "created_at": "2026-07-10T10:05:00+05:30"}
+    {"id": "RF-0001", "order_id": "ORD-1001", "amount_minor": 1850000, "status": "approved", "created_at": "2026-07-10T10:05:00+05:30"},
+    {"id": "RF-204", "order_id": "ORD-09876", "amount_minor": 29900, "status": "approved", "created_at": "2026-06-23T07:16:41+00:00"}
   ]
 }

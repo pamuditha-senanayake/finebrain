@@ -46,7 +46,8 @@ def check_policy(action: ProposedAction, policy: dict, payment: dict, now: datet
                      explanation=f"{format_money(Money(amount_minor=payment['refunded_minor'], currency=action.money.currency))} refunded before")]
     return before + [
         PolicyResult(policy_ref=ref, passed=days <= policy["window_days"], rule_id="refund.window", explanation=f"{days} days since purchase, window is {policy['window_days']}"),
-        PolicyResult(policy_ref=ref, passed=action.money.amount_minor <= limit.amount_minor, rule_id="refund.auto_limit", explanation=f"{format_money(action.money)} against a limit of {format_money(limit)}"),
+        PolicyResult(policy_ref=ref, passed=action.money.currency == limit.currency and action.money.amount_minor <= limit.amount_minor, rule_id="refund.auto_limit",
+                     explanation=f"{format_money(action.money)} against a limit of {format_money(limit)}"),  # another currency has no automatic limit: a person decides
     ]
 
 

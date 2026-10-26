@@ -23,6 +23,7 @@ from app.pipeline.temporal_flow import temporal_is_up
 from app.pipeline.temporal_runner import TemporalRunner
 
 # Config
+CLAIM_SECONDS = 15  # S9's claim on a reply: longer than one call, short enough that a crash frees it soon
 ALL_REAL_PARTS = frozenset({"s3", "postgres", "valkey", "kafka", "temporal", "opa"})  # "voyage" is opt-in: it costs money
 UP_CHECKS = {
     "s3": store_s3.s3_is_up,
@@ -53,8 +54,8 @@ def make_memory_adapters(seed: dict, now, new_id) -> dict:
         "rerank": fake_rerank,
         "chunks": MemoryChunks(),
         "check_access": access.make_memory_checker(seed["people"]),
-        "tooling": {"limiter": MemoryRateLimiter(), "results": MemoryResults(), "sleep": time.sleep,
-                    "send_email": make_fake_sender()[0]},  # real Gmail sending comes with connector OAuth
+        "tooling": {"limiter": MemoryRateLimiter(), "results": MemoryResults(), "sleep": time.sleep, "claims": set(), "tried": MemoryResults(),
+                    "send_email": make_fake_sender()[0]},  # stage tests' stand-in for a channel with no way back; HQ sets None
         "audit": MemoryAudit(),
         "broadcaster": Broadcaster(),
         "entities": MemoryEntities(),
@@ -112,7 +113,9 @@ def real_adapters(parts: frozenset[str] = ALL_REAL_PARTS, topic_prefix: str = ""
             keys = store_valkey.connect()
             adapters["seen_keys"] = store_valkey.ValkeyKeySet(keys, f"{tenant}:s2_dedup")
             handled = store_valkey.ValkeyKeySet(keys, f"{tenant}:handled")
-            adapters["tooling"].update(limiter=ValkeyRateLimiter(keys), results=ValkeyResults(keys, f"{tenant}:results"))
+            adapters["tooling"].update(limiter=ValkeyRateLimiter(keys), results=ValkeyResults(keys, f"{tenant}:results"),
+                                       claims=store_valkey.ValkeyKeySet(keys, f"{tenant}:s9_claims", CLAIM_SECONDS),  # a crashed worker's claim expires
+                                       tried=ValkeyResults(keys, f"{tenant}:s9_tried"))  # when a reply was first tried
         bus_class = KafkaBus if "kafka" in parts else MemoryBus
         options = {"topic_prefix": topic_prefix} if "kafka" in parts else {}
         adapters["bus"] = bus_class(bus_base(seed), now, new_id, handled=handled, **options)

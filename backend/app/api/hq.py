@@ -12,7 +12,7 @@ from pathlib import Path
 from app.api import distiller, grants, nightly, ready_notices, self_knowledge, studio_approvals
 from app.api.studio_seed import extend_seed
 from app.api.routes import create_api_app
-from app.pipeline import conn_inbound, fakes, llm, orchestrate, temporal_nightly, temporal_ready
+from app.pipeline import conn_call, conn_inbound, fakes, llm, orchestrate, temporal_nightly, temporal_ready
 from app.pipeline.adapters import ALL_REAL_PARTS, make_memory_adapters, missing_infra, real_adapters
 from app.pipeline.observe import log_event
 
@@ -103,8 +103,10 @@ def build_hq_app():
     parts = choose_parts()
     model, choose, grade, classify = choose_models()
     make_adapters = real_adapters(parts) if parts else make_memory_adapters
-    lane = orchestrate.build_lane(seed, model, fakes.make_fake_gateway()[0], datetime.now(timezone.utc), make_adapters, choose, grade, new_id=unique_id,
+    lane = orchestrate.build_lane(seed, model, None, datetime.now(timezone.utc),  # no stand-in gateway: refunds go to the shop's database
+                                   make_adapters, choose, grade, new_id=unique_id,
                                    classify=classify, extract=choose_extractor(), resolve=choose_resolver())
+    lane.tooling["send_email"] = None  # no stand-in sender: replies go into the customer's chat (tools_chat.py), or to a person
     chatter = choose_chatter()
     if lane.runner is not None:  # S15's hourly tick (step 16) and S13's 02:00 review (step 15) on Temporal; without it, Check now and Run now
         temporal_ready.start(lane.runner, lane.seed["tenant_id"], lambda: ready_notices.run_check(lane, "schedule"))
@@ -113,5 +115,6 @@ def build_hq_app():
         temporal_nightly.start_distiller(lane.runner, lane.seed["tenant_id"], zone, lambda: distiller.distill(lane, lane.extract, "schedule"))  # step 13d
     log_event("API", "hq_started", parts=sorted(parts), claude=choose is not None)
     threading.Thread(target=keep_running, args=(lane,), daemon=True).start()
+    conn_call.note_roles(lane)  # connections saved before roles existed get theirs, so runs find the shop database by key
     conn_inbound.start(lane)  # live connections' customer messages come in through S1
     return create_api_app(lane, hq, choose_answerer(), chatter)

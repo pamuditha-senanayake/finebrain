@@ -1,6 +1,7 @@
 # conn_test.py: tests a delivered connection without changing anything on the other side. Reads the feed (if there is
 # one) and checks its field names, then calls every read action it can fill. Write actions are listed, never called.
-# A database is tested through conn_db.py: sign in, prove the user is read only, read the schema.
+# A database is tested through conn_db.py: sign in, prove the user is read only, read the schema; when the shop gave a
+# refund user too, prove it may only add a refund and set an order's status. Nothing is written by the test.
 # Used by: api/connect_routes.py. Uses: conn_call.py, conn_db.py, conn_spec.py.
 import re
 
@@ -8,7 +9,7 @@ import psycopg
 
 from app.pipeline import conn_db
 from app.pipeline.conn_call import CallFailed, Connection, call
-from app.pipeline.conn_spec import ENGINES, label, missing_parts, pick
+from app.pipeline.conn_spec import ENGINES, OrderMap, label, missing_parts, pick
 
 # Config
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
@@ -93,7 +94,21 @@ def database_test(lane, connection: Connection) -> tuple[list[dict], list[dict]]
         result("Sign in", True, "Signed in"),
         result("Read only", not risks, "This user cannot change anything" if not risks else f"This user {'; '.join(risks)}. Give the brain a read-only user."),
         result("Tables", bool(tables), f"{len(tables)} tables readable" if tables else f"No tables visible in {', '.join(spec.schemas)}"),
+        *refund_test(lane, connection),
     ], tables
+
+
+def refund_test(lane, connection: Connection) -> list[dict]:
+    """The refund user, when there is one: it signs in and has exactly the rights a refund needs. It never writes here."""
+    if "refund_database_url" not in connection.secrets_set:
+        return []
+    try:
+        with conn_db.open_refunds(lane, connection) as db:
+            risks = conn_db.refund_risks(db, connection.database.schemas, connection.orders_map or OrderMap())
+            db.rollback()
+    except psycopg.Error as error:
+        return [result("Refund user", False, f"Could not sign in: {type(error).__name__}")]
+    return [result("Refund user", not risks, "May only add a refund and set the order's status" if not risks else f"This user {'; '.join(risks)}. Give only the refund rights.")]
 
 
 # --- The test

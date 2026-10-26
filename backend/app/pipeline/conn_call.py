@@ -1,5 +1,6 @@
 # conn_call.py: keeps connections and calls their actions. The manifest and status live in records (kind "connection");
 # secrets live in the encrypted vault under "secret:<connection>:<name>", so a record, a log or the console never holds one.
+# The live shop database is also named in a role record ("connection_role", "orders"), so a run finds it by key.
 # Used by: conn_test.py, conn_inbound.py, api/connect_routes.py, chat tools. Uses: conn_spec.py, observe.py.
 import os
 
@@ -11,6 +12,7 @@ from app.pipeline.observe import count, log_event
 
 # Config
 CALL_TIMEOUT_SECONDS = float(os.environ.get("CONNECTION_TIMEOUT_SECONDS", "10"))
+ROLE_KIND, ORDERS = "connection_role", "orders"
 http = httpx.Client(follow_redirects=False)  # one pool for every connection; tests swap it for a fake transport
 
 
@@ -40,6 +42,11 @@ class Connection(BaseModel):
     last_error: str | None = None
 
 
+class Role(BaseModel):
+    """Which connection plays a role for the tenant; None when none does."""
+    connection_id: str | None
+
+
 class CallFailed(Exception):
     """The other side answered with an error or did not answer."""
     def __init__(self, action: str, status: int | None, detail: str):
@@ -56,7 +63,37 @@ def load(lane, connection_id: str) -> Connection | None:
 
 def save(lane, connection: Connection) -> Connection:
     lane.records.save("connection", connection.connection_id, connection)
+    if connection.kind == "database":
+        note_role(lane, connection)
     return connection
+
+
+def plays_orders(connection: Connection) -> bool:
+    return connection.kind == "database" and connection.status == "live" and connection.orders_map is not None
+
+
+def note_role(lane, connection: Connection) -> None:
+    """Point the orders role at a live shop database, or clear it when the one it named stops being one."""
+    current = (lane.records.load(ROLE_KIND, ORDERS) or {}).get("connection_id")
+    if plays_orders(connection) and current != connection.connection_id:
+        lane.records.save(ROLE_KIND, ORDERS, Role(connection_id=connection.connection_id))
+    elif not plays_orders(connection) and current == connection.connection_id:
+        other = next((c for c in all_connections(lane) if plays_orders(c) and c.connection_id != connection.connection_id), None)  # on a save, never a run
+        lane.records.save(ROLE_KIND, ORDERS, Role(connection_id=other.connection_id if other else None))
+
+
+def orders_database(lane) -> Connection | None:
+    """The live shop database, read by key through its role. None when the tenant has none."""
+    role = lane.records.load(ROLE_KIND, ORDERS)
+    connection = load(lane, role["connection_id"]) if role and role["connection_id"] else None
+    return connection if connection and plays_orders(connection) else None
+
+
+def note_roles(lane) -> None:
+    """Once at start: name the roles of connections saved before roles existed. Not on any run's path."""
+    for connection in all_connections(lane):
+        if connection.kind == "database":
+            note_role(lane, connection)
 
 
 def all_connections(lane) -> list[Connection]:
@@ -64,7 +101,8 @@ def all_connections(lane) -> list[Connection]:
 
 
 def remove(lane, connection: Connection) -> None:
-    """Erase the connection and every secret it kept."""
+    """Erase the connection and every secret it kept, and any role it played."""
+    note_role(lane, connection.model_copy(update={"status": "removed"}))
     for name in connection.secrets_set:
         lane.vault.pop(secret_key(connection.connection_id, name), None)
     lane.records.purge("connection", connection.connection_id)

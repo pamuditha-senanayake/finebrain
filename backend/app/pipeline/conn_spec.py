@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 # Config
-SECRET_NAMES = ("api_key", "webhook_secret", "database_url")  # kept in the encrypted vault, never in the manifest
+SECRET_NAMES = ("api_key", "webhook_secret", "database_url", "refund_database_url")  # kept in the encrypted vault, never in the manifest
 KINDS = ("api", "database", "other")  # a website or app with an API, a database, or not decided yet
 ENGINES = ("postgres",)  # databases the brain reads directly today; others connect through an API
 
@@ -61,7 +61,7 @@ class DatabaseSpec(BaseModel):
 
 
 class OrderMap(BaseModel):
-    """Where a shop keeps customers, orders and refunds, and what its columns are called. S5's order lookup reads it, so
+    """Where a shop keeps customers, orders and refunds, and what its columns are called. S5 reads and S9 refunds by it, so
     a shop with other names needs a different map, never new code. Every name is checked before it reaches SQL."""
     customers: str = "shop.customers"
     customer_id: str = "id"
@@ -76,6 +76,7 @@ class OrderMap(BaseModel):
     paid_at: str = "paid_at"
     payment_ref: str = "payment_ref"
     refunds: str = "shop.refunds"
+    refund_id: str = "id"
     refund_order: str = "order_id"
     refund_amount: str = "amount_minor"
     refund_status: str = "status"

@@ -1,6 +1,6 @@
 # s5_world.py: the world S5 tests run in. The golden seed plus samples/s5_world.json (policy history, a future policy,
 # a restricted note, agents with other rights), the real shop database from scripts/shop_db.py connected live through the
-# read-only door, and helpers that send a message through the real S1 to S3 and ask S5 exactly as S4's run does.
+# read-only door and the refund door, and helpers that send a message through the real S1 to S3 and ask S5 exactly as S4's run does.
 # Uses: orchestrate.py, run_steps.py (query_for), retrieve_case.py, conn_call.py, scripts/shop_db.py, tests/test_s1_refund_chat.py.
 import json
 from pathlib import Path
@@ -35,13 +35,15 @@ needs_postgres = pytest.mark.skipif(not store_postgres.database_is_up(), reason=
 
 # --- Building the lane
 
-def connect_shop(lane, url: str | None = None, status: str = "live", orders_map: OrderMap | None = None) -> Connection:
-    """The shop's database as a live connection, signed in as the read-only user the shop handed over."""
+def connect_shop(lane, url: str | None = None, status: str = "live", orders_map: OrderMap | None = None, refunds: bool = True) -> Connection:
+    """The shop's database as a live connection, signed in as the read-only user the shop handed over, and (unless refunds is
+    False) the refund user, so S9 refunds in the real shop database."""
     connection = Connection(connection_id=SHOP, name="Finebase shop database", purpose="orders", kind="database", status=status,
                             database=DatabaseSpec(engine="postgres", schemas=["shop"]), orders_map=orders_map or OrderMap(), created_by="h-pamuditha")
-    conn_call.save(lane, connection)
-    conn_call.set_secret(lane, connection, "database_url", url or shop_db.reader_url())
-    return connection
+    connection = conn_call.set_secret(lane, connection, "database_url", url or shop_db.reader_url())
+    if refunds:
+        connection = conn_call.set_secret(lane, connection, "refund_database_url", shop_db.refunder_url())
+    return conn_call.save(lane, connection)
 
 
 def make_lane(make_adapters=None, seed: dict | None = None, shop: bool = True):

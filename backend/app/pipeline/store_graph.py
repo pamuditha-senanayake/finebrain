@@ -117,5 +117,5 @@ def load_seed(graph, seed: dict) -> None:
     graph.put("policy", policy["policy_ref"]["id"], policy["policy_ref"]["version"], policy["policy_ref"]["commit_id"], policy)
     for item in seed["knowledge"]:
         graph.put("knowledge", item["item_id"], 1, SEED_COMMIT, item)
-    for node_type, node_id, body in seed.get("studio_nodes", []):  # Workflow Studio's workflows, tools and sensors (studio_seed.py)
-        graph.put(node_type, node_id, 1, SEED_COMMIT, body)
+    for node_type, node_id, body, *version in seed.get("studio_nodes", []):  # Workflow Studio's workflows, tools and sensors (studio_seed.py)
+        graph.put(node_type, node_id, version[0] if version else 1, SEED_COMMIT, body)  # a tool's new version supersedes the old node
