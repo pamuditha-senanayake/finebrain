@@ -4,7 +4,7 @@ import hashlib
 import re
 
 # Config
-EMAIL_PATTERN = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
+EMAIL_PATTERN = re.compile(r"(?<![\w.+-])[\w.+-]+@[\w-]+\.[\w.]+")  # start only where a run starts: else a long run without @ is retried from every char
 PHONE_PATTERN = re.compile(r"\+94[\d ]{9,12}\d|\b0\d{2}[ -]?\d{3}[ -]?\d{4}\b")  # +94 77 123 4567 or 077 123 4567
 NIC_PATTERN = re.compile(r"\b(?:\d{12}|\d{9}[VvXx])\b")  # new 12 digit, or old 9 digits plus V or X
 CARD_CANDIDATE = re.compile(r"\b(?:\d[ -]?){12,18}\d\b")

@@ -43,7 +43,9 @@ def extend_seed(seed: dict, hq: dict) -> dict:
     for rule in seed["resolver_rules"]:
         wf_id, skill = f"wf_{rule['activity_id']}", skills[rule["skill_id"]]
         governing = [key for key, label in labels["policies"].items() if rule["skill_id"] in label.get("skills", []) and key == policy["policy_ref"]["id"]]
-        sensors = [conn for conn in hq.get("sensors", {}) if seed["connectors"][conn]["source_type"] in rule["channels"]]
+        siblings = [other for other in seed["resolver_rules"] if other["activity_id"] == rule["activity_id"]]  # one workflow per activity
+        channels = {channel for other in siblings for channel in other["channels"]}
+        sensors = [conn for conn in hq.get("sensors", {}) if seed["connectors"][conn]["source_type"] in channels]
         sensor_ids = [f"{wf_id}.sensor.{conn}" for conn in sensors]
         for conn, sensor_id in zip(sensors, sensor_ids):
             about = hq["sensors"][conn]
@@ -51,7 +53,7 @@ def extend_seed(seed: dict, hq: dict) -> dict:
                       "retentionDays": 90, "personalData": about["personal_data"], "health": "ok"}
             nodes.append(("sensor", sensor_id, {STUDIO: meta(sensor_id, "sensor", wf_id, about["name"], dri, fields)}))
         skill[STUDIO] = meta(rule["skill_id"], "skill", wf_id, skill["name"], dri, {
-            "trigger": rule["description"], "steps": [step_line(text, skill["allowed_tools"]) for text in skill["steps"]], "agents": [rule["agent_id"]],
+            "trigger": " · ".join(other["description"] for other in siblings), "steps": [step_line(text, skill["allowed_tools"]) for text in skill["steps"]], "agents": [rule["agent_id"]],
             "tools": [f"tool:{t}" for t in skill["allowed_tools"]], "policies": governing, "templates": [], "inputs": sensor_ids,
             "outputs": [t for t in skill["allowed_tools"] if t != "escalate"], "evalCases": 0})
         about = labels["agents"].get(rule["agent_id"], {})
