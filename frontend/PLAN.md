@@ -45,7 +45,8 @@ Route groups keep each tier's layout and navigation separate while sharing one s
 | | `/l2/skills`, `/l2/skills/[id]` | Skills studio and Agent Academy |
 | | `/l2/resolver` | Resolver table and trigger evals |
 | | `/l2/templates` | Information templates |
-| | `/l2/sensors` | Sensors, connections and the sensor planting overlay |
+| | `/l2/connections` | Connect desk: draft, test and switch live a connection to another system |
+| | `/l2/sensors` | Sensors, connections and the sensor planting overlay (to merge with `/l2/connections`: one page per idea) |
 | | `/l2/loops`, `/l2/loops/[id]` | Loop canvases and experiments |
 | | `/l2/readiness` | Readiness scheduler |
 | | `/l2/security` | Security and access, invocation decision log |

@@ -44,6 +44,8 @@ Once we use these words, most of the open questions answer themselves.
 
 ## What we skip for now
 
+**Update, 26 October 2026:** the Planner and the hand-off are now built. S3 picks the recipe (rules first, Claude when no rule is clear) and S4 hands the chat from the Chat agent to the Refund agent; a later message joins the open run. Long term notes are still last. The paragraph below is kept as the original plan.
+
 The BDD names a Planner agent and a handoff between two agents. Both are good ideas for later. But with only one recipe, the Planner has nothing to choose from. So we start with one Refund agent that also does the chatting. The Planner and the handoff arrive with the second scenario. Long term memory notes come last, after the refund itself works.
 
 ## The plan in six milestones

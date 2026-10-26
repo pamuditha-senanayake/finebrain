@@ -90,9 +90,9 @@ The lanes share one event backbone, so one lane's output is another lane's input
 | Stage | Job | Process | Reads | Writes | Model | Target p95 |
 |---|---|---|---|---|---|---|
 | S1 Capture | Receive, verify, store raw once | `capture` FastAPI :8001 + poll workers | Grants, connector secrets | `raw/` objects, `signals.raw` | | 800 ms with S2 |
-| S2 Normalize | Canonical Signal, mask personal data, dedup | `normalizer` consumer | `signals.raw`, raw objects | `signals.normalized`, PII vault | | (above) |
-| S3 Route | Match to activity, skill version, agent | `resolver` consumer | Resolver table on main, `graph.released`, `evidence.gaps` | `tasks.created`, `tasks.unrouted` | Haiku for tie breaks | 150 ms |
-| S4 Orchestrate | Durable task lifecycle, timers, retries | Temporal `task_workflow` | `tasks.created` | Temporal history, `runs` | | |
+| S2 Normalize | Canonical Signal, mask personal data, dedup (ids scoped by connector) | `normalizer` consumer | `signals.raw`, raw objects | `signals.normalized`, PII vault | | (above) |
+| S3 Route | Match to activity, skill version, agent | `resolver` consumer | Resolver table on main, `graph.released`, `evidence.gaps` | `tasks.created`, `tasks.unrouted` | Haiku for tie breaks and the Planner fallback | 150 ms |
+| S4 Orchestrate | Start a run (recipe, chat hand-off) or join a later chat message to the open run; timers, retries | Temporal `task_workflow` | `tasks.created`, graph (skill, agent) | `runs.started`, `runs.continued`, run inbox, Temporal history | | |
 | S5 Retrieve | Access filtered, bitemporal, hybrid retrieval | `internal` :8002 | Graph, facts, chunks | `access.decisions` | Voyage rerank | 400 ms |
 | S6 Reason | Plan, draft, propose actions | Temporal `agent_step` | ContextBundle, skill steps | `runs.steps` | Sonnet 5.5 | 6 s per step |
 | S7 Govern | Access, policy rules, quality gates, criticality | `internal` :8002 | ProposedAction, policies on main | `access.decisions`, verdict | Haiku graders | 200 ms (access 10 ms) |
@@ -114,8 +114,9 @@ Every Kafka message is wrapped in the shared envelope: `event_id` (UUIDv7), `eve
 | Contract | From → to | Transport | Key fields | In backend today |
 |---|---|---|---|---|
 | K1 RawSignalEnvelope | S1 → S2 | Kafka `signals.raw` | connector_id, grant_id, source_type, external_id, raw_object_uri, raw_sha256 | Yes |
-| K2 Signal | S2 → S3, S11 | Kafka `signals.normalized` | kind, channel, actor (masked), subject, text_masked, pii_tokens, sensitivity, dedup_key | Yes |
-| K3 TaskRequest | S3 → S4 | Kafka `tasks.created` | task_id, activity_id, skill_ref (pinned), agent_id, on_behalf_of, match_score, base_criticality | Yes |
+| K2 Signal | S2 → S3, S11 | Kafka `signals.normalized` | kind, channel, actor (masked), subject, text_masked, pii_tokens, sensitivity, dedup_key (`tenant:source:connector:external_id`; uploads keep `tenant:upload:document_id`), conversation_id (`connector:session`) | Yes |
+| K3 TaskRequest | S3 → S4 | Kafka `tasks.created` | task_id (from the signal id: one signal, one task), activity_id, skill_ref (pinned), agent_id, on_behalf_of, match_score, base_criticality, flags (`planned_by_model`, `continues_open_run`) | Yes |
+| RunStarted, RunContinued | S4 → S5 to S10 | Kafka `runs.started`, `runs.continued` | run_id, task_id, recipe (pinned skill, tools, steps), plan, hand-off (customer, conversation, chat so far) · run_id of the open run, the chat so far | Yes |
 | K4 ContextQuery → ContextBundle | S6 ↔ S5 (also Ask and MCP) | Sync HTTP, 2 s | principal, on_behalf_of, as_of_valid, as_of_recorded, branch → items[], denied_count, access_decision_ids | Yes |
 | K5 ProposedAction | S6 → S7 | Temporal activity + `runs.steps` | action_type, tool_id, arguments, money, touches, citations, confidence | Yes |
 | K6 AccessCheck | S5, S7 → OPA | Sync HTTP, 10 ms | principal, action, resource → decision, rule_id, reason | Yes |
@@ -166,6 +167,7 @@ Shared types: `VersionRef`, `Money` (minor units, never floats: LKR 85,000 is `8
 | `signals.normalized` | tenant:subject_ref | S2 → S3, S11 |
 | `tasks.created` | tenant:task_id | S3, S15 → S4 |
 | `tasks.unrouted` | tenant | S3 → Escalations, S13 |
+| `runs.started`, `runs.continued` | tenant:run_id | S4 → S5 to S10, S10 |
 | `runs.steps` | tenant:run_id | S6, S7, S9 → S10, SSE |
 | `runs.completed` | tenant:run_id | S10 → S13, metrics, template board |
 | `access.decisions` | tenant:principal | S5, S7 → decision log, Sentinel |
@@ -179,7 +181,7 @@ Shared types: `VersionRef`, `Money` (minor units, never floats: LKR 85,000 is `8
 | `audit.events` | tenant | All → audit writer |
 | `ui.events` | tenant | S10 → SSE gateway |
 
-Each consumer group has its own `{topic}.dlq`. Every consumer is idempotent on `event_id`.
+Each consumer group has its own `{topic}.dlq`. Every consumer is idempotent on `event_id`. The keys above are the target partitioning; today `bus_kafka.py` keys every message by `tenant:correlation_id`, so one message's chain keeps its order, and S4 claims a conversation in Valkey because two visits of one chat can land on different partitions.
 
 ### 7.1 Memory and trends
 
@@ -263,10 +265,10 @@ Keys: `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY` and the Google OAuth and Pub/Sub key
 | Golden data and check | `backend/samples/golden_refund_run.json`, checked by `uv run python -m scripts.check_golden` |
 | UI contracts for Connect, Studio, Ask | Only in the frontend (zod) |
 | Samples | `backend/samples/pipeline_samples.json` |
-| Lane A stages S1 to S10 | Thin first versions in `backend/app/pipeline/stages_*.py`, wired by `orchestrate.py` onto memory or real adapters (`adapters.py`) |
+| Lane A stages S1 to S10 | `backend/app/pipeline/stages_*.py`, wired by `orchestrate.py` onto memory or real adapters (`adapters.py`). S1 to S4 meet the "ready for real use" bar in `CLAUDE.md` (real infra, races, failures, volume scripts `scripts/s1_volume.py` to `s4_volume.py`); S5 to S10 are next |
 | Kafka | `bus_kafka.py` on Redpanda (`backend/infra/compose.yaml`), tested next to the memory bus |
-| Postgres | `store_postgres.py` on port 5433: `pii_vault` and append-only `records` only |
-| Valkey | `store_valkey.py` on port 6379: "seen before" key sets with a 7-day expiry |
+| Postgres | `store_postgres.py` on port 5433: encrypted `pii_vault`, append-only `records`, the graph (`graph_nodes`), chunks with pgvector, audit, entities, counts |
+| Valkey | `store_valkey.py` on port 6379: "seen before" key sets with a 7-day expiry, used for S2 dedup and S4 claims (one start per task, one run per chat), plus rate limits and tool results |
 | S3 | `store_s3.py` on SeaweedFS, port 9000 (MinIO no longer publishes images): raw signal bodies |
 | Temporal | `temporal_flow.py`: each task is a `TaskWorkflow`; S8 waits for the approval signal. Dev server on 7233, UI on 8233 |
 | End-to-end | `tests/test_e2e.py` runs on memory and on all real infra together |
@@ -297,7 +299,8 @@ Keys: `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY` and the Google OAuth and Pub/Sub key
 | Step 15 (done): Lane C, learning | Built and tested on real infra (Docker, a real Temporal schedule), with real Claude Opus and Sonnet on Finebase HQ. Weekly counts (`pipeline/store_counts.py`, `stages_learn.py`): every finished run adds one to its week (Monday, tenant time): Requests per skill and Escalations per agent, by channel; a run marked wrong counts as Marked wrong for its agent in the week it was marked. Each case is kept (`signal_count_cases`), so a redelivery never counts twice and a trend links its runs; earlier runs are back-filled on start. HQ has 11 sample weeks ending 5 October (`samples/hq_counts.json`) that never hide a real count; two runs from before signals were saved count under "unknown channel". Spike check (`stages_spike.py`): unusual at 3 times the usual (the median of the 12 weeks before) and at least 5, checked as each count lands; one trend per series and week, its owner (the agent's DRI) told once, audited; the card keeps up with the week; Mark as known (L1 or L2) quiets it. GET trends serves TrendCard. Mark as wrong (`api/run_marks.py`): anyone, once, with a note; the note stays on the run and its row, the DRI is told, audited. Skillify (`api/skillify.py`): Draft a fix on a run marked wrong (L1 or L2): Claude Sonnet reads the run and notes as data and drafts one skill or policy change; the Studio review checks it (a refused draft goes back once); it opens as a change request drafted by Skillify so the workflow's DRI can approve it, and nothing changes until they do. Nightly review (`api/nightly.py`, `nightly_groups.py`, `pipeline/temporal_nightly.py`): 02:00 Colombo on a Temporal schedule, or Run overnight review now: the last 24 hours' runs and failures by type; wrong runs grouped by Claude Opus, one fix per group (a C0 or C1 fix applied at once and audited, the rest a change request); the spike check; what waits on approval; the morning digest (GET digest, the Summary tab) and a notice to the L1 leaders. It runs on its own thread, never on the shared Temporal loop. The done check on HQ: ten sample refund emails through the real pipeline (`demos/send_to_hq.py s2 10`) made a real unusual week: Requests, Refund handling by email, 10 against a usual 3 (3.3x); the 9th run raised it and the founder was told. Opus grouped two wrong runs into one reason and Sonnet drafted a fix; two Skillify change requests (both C3, both on the refund skill's steps) wait for approval, and approving one may make the other need redoing. Found on the way: S1 capture answers slowly (over 10 seconds) while the pipeline is busy with Claude; Postgres gives times back ending in Z, which Python 3.10 cannot read (fixed in the review). Not built: the calm rework of the Summary tab (it still shows five numbers and four tables), Draft a fix on the demo tenants, conversations and takeover on HQ, evals and replay. Checked by `tests/test_counts.py`, `test_spike.py`, `test_marks.py`, `test_skillify.py`, `test_nightly.py` |
 | Ask: cold start and memory (done) | The brain knows itself before a company teaches it anything: `backend/samples/brain_self_knowledge.md` is split by section into public knowledge items (`app/api/self_knowledge.py`), and "Who I am" goes with every question. Each Ask turn is appended to an `ask_turn` record per conversation (`app/api/ask_memory.py`); the latest 12 turns go to Claude, so a person can refer back. Only the person who started a conversation may read or continue it (403). `GET ask/turns?conversation=` shows it again after a reload; the console keeps one conversation per tenant and person, with a New button. Said in chat is not a company fact; only documents are. Voice: the page records each question and ElevenLabs Scribe transcribes it (works in every browser; built-in recognition only where recording is missing), and replies play through an audio context unlocked on the tap. The brain is respectful, concise and direct, and addresses each person their way (`address` in `hq_tenant.json`, else first name) |
 | Trends tab | Live on Finebase HQ since step 15 (weekly counts and the spike check in S13); demo-fbl and Scale Demo stay on mock data |
-| Still to come | OPA. In Postgres: graph, facts, chunks, outbox, encrypted vault columns |
+| Connections (done) | The Connect desk (`app/api/connect_routes.py`, `connect_guide.py`, `connect_brief.py`) drafts a connection with a guide, hands a brief to the other side's coding agent, takes back its answer, tests it and switches it live. `conn_inbound.py` polls a live portal (or takes its signed push) into S1; `conn_call.py` calls its named actions (reply, refund_file, close), secrets in the vault; `conn_db.py` is the read-only database door (one SELECT, read-only transaction, time limit, row cap) |
+| Still to come | S6 reads the run inbox, so a joined follow-up reaches the agent. S9 calls the portal's named actions (reply, refund_file, close) and Stripe test. An order lookup tool on `conn_db.py`. Activity at the center of the graph, the memory inspector and a time slider (`Docs/CB_Graph_and_Memory_Plan.md`). Removing a document from the Ask chat (today: the Documents screen). One page for Connections and Sensors |
 | Start all infra | `backend/scripts/dev_up.sh` |
 
 Suggested order, following the acceptance test in `CB_Core_Pipeline_Design.md` section 11: finish the missing contracts, then the refund path in Lane A (S1 → S10) with Docker Compose infra, then S14 and Studio writes, then Lanes B, C and D, then MCP.
@@ -306,12 +309,12 @@ Suggested order, following the acceptance test in `CB_Core_Pipeline_Design.md` s
 
 | # | Question | Affects |
 |---|---|---|
-| 1 | Stripe, PayHere or both? | S1, S9, keys |
+| 1 | Stripe, PayHere or both? Stripe test mode for the first refund (`CB_First_Function_Plan.md`); PayHere still open | S1, S9, keys |
 | 2 | Which CMS runs the website? | Web content loop |
 | 3 | Google Workspace or Microsoft 365 for the support inbox? | Email connector |
 | 4 | Hosting region under the Sri Lankan Personal Data Protection Act? | AWS region, retention |
 | 5 | Real audit and raw signal retention? | Storage map |
-| 6 | Real refund window and auto threshold? (30 days and LKR 50,000 are samples) | Policy seed, tests |
+| 6 | Real refund window and auto threshold? (the seed has 30 days and LKR 50,000; the refund BDD uses 30 days and 100 dollars) | Policy seed, tests |
 | 7 | Temporal Cloud or self hosted? | Ops |
 | 8 | Who hosts the MCP server and which OAuth provider signs Claude in? | MCP entry point |
 | 9 | Where do custom tool sandboxes run? | Tool registry, S9 |

@@ -1,5 +1,7 @@
 # Company Brain: plan for steps 10 to 16
 
+> **Historical.** Steps 10 to 16 are done and this branch is merged. The current state is the status table in `CB_System_Reference.md` (section 11). Read this file only for why each step was built the way it was.
+
 Version 1, 19 October 2026. This file hands the next steps to a new session. Read it first, then build one step at a time. Each step has its own scope, files and done check, so you can ask for "step 11" on its own.
 
 ## 1. Where the work stands
