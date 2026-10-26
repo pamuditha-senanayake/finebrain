@@ -140,8 +140,9 @@ def headers_for(lane, connection: Connection) -> dict:
     return {manifest.auth_header: value, "Content-Type": "application/json", "Accept": "application/json"}
 
 
-def call(lane, connection: Connection, action: str, values: dict | None = None, query: dict | None = None) -> dict:
-    """Call one named action (or "inbound" for the poll) and return its JSON. Errors raise CallFailed, never a raw exception."""
+def call(lane, connection: Connection, action: str, values: dict | None = None, query: dict | None = None, default_body: dict | None = None) -> dict:
+    """Call one named action (or "inbound" for the poll) and return its JSON. default_body is sent when the action names no
+    body of its own. Errors raise CallFailed, never a raw exception."""
     manifest = connection.manifest
     feed = manifest.inbound
     endpoint = {"inbound": feed.poll if feed else None, "ack": feed.ack if feed else None}.get(action) or manifest.actions.get(action)
@@ -149,7 +150,7 @@ def call(lane, connection: Connection, action: str, values: dict | None = None, 
         raise CallFailed(action, None, "not declared in the manifest")
     values = values or {}
     url = manifest.base_url.rstrip("/") + fill(endpoint.path, values)
-    body = fill(endpoint.body, values) if endpoint.body is not None else None
+    body = fill(endpoint.body, values) if endpoint.body is not None else default_body
     try:
         answer = http.request(endpoint.method, url, headers=headers_for(lane, connection), json=body, params=query, timeout=CALL_TIMEOUT_SECONDS)
     except httpx.HTTPError as error:

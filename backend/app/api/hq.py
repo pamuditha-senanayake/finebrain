@@ -76,6 +76,13 @@ def choose_resolver():
     return llm.make_tool_caller(model=llm.CAREFUL_MODEL) if USE_CLAUDE and os.environ.get("ANTHROPIC_API_KEY") else None
 
 
+def set_now(lane) -> datetime:
+    """Real time, on the lane and its bus. Returns it."""
+    now = datetime.now(timezone.utc)
+    lane.bus.now = now
+    return now
+
+
 def unique_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
@@ -107,6 +114,8 @@ def build_hq_app():
                                    make_adapters, choose, grade, new_id=unique_id,
                                    classify=classify, extract=choose_extractor(), resolve=choose_resolver())
     lane.tooling["send_email"] = None  # no stand-in sender: replies go into the customer's chat (tools_chat.py), or to a person
+    if hasattr(lane.bus, "tick"):  # a long Kafka drain keeps the clock true, so waits, refunds and records carry the real time
+        lane.bus.tick = lambda: setattr(lane, "now", set_now(lane))
     chatter = choose_chatter()
     if lane.runner is not None:  # S15's hourly tick (step 16) and S13's 02:00 review (step 15) on Temporal; without it, Check now and Run now
         temporal_ready.start(lane.runner, lane.seed["tenant_id"], lambda: ready_notices.run_check(lane, "schedule"))

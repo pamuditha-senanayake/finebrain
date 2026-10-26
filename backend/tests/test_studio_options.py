@@ -26,7 +26,7 @@ def test_the_capabilities_are_what_s5_and_s7_check_and_an_unchecked_one_is_marke
     found = {c["id"]: c["label"] for c in options(client, lane)["capabilities"]}
     assert {"kb.read", "reply.draft", "refund.propose", "escalate"} <= set(found) and found["billing.peek"].endswith("(no check uses it)")
     st = Studio.of(lane)
-    assert any("billing.peek" in f["text"] and f["severity"] == "warn" for f in health(st, st.flows[WF])["findings"])
+    assert any("billing.peek" in f["text"] and f["severity"] == "break" for f in health(st, st.flows[WF])["findings"])  # it allows nothing
 
 
 def test_each_connection_lists_the_events_it_sends():

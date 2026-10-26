@@ -15,7 +15,7 @@ from app.pipeline.conn_spec import pick
 from app.pipeline.observe import count, log_event, touch
 
 # Config
-LOOP_SECONDS = 1.0
+LOOP_SECONDS = 0.2  # how often the loop looks for a connection that is due; each keeps its own interval
 last_polled: dict[str, float] = {}  # connection id to monotonic time; in memory, so a restart polls at once
 
 

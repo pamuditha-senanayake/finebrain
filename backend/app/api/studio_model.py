@@ -92,7 +92,8 @@ def wording_drafts(lane, after: dict, node: dict | None) -> list[Draft]:
     drafts = [Draft(op="update", node_type="knowledge", node_id=k["_ref"]["id"], fields={**{x: y for x, y in k.items() if x != "_ref"}, "valid_to": now}, base_version=k["_ref"]["version"])
               for k in old if k["_ref"]["id"] != f"{key}_statement"]
     statement_id = f"{key}_statement"
-    current = node_of(lane, "knowledge", statement_id)
+    versions = lane.graph.history("knowledge", statement_id)  # a closed wording too, so the new one continues its versions
+    current = versions[-1] if versions else None
     item = {"item_id": statement_id, "kind": "policy", "text": after["fields"].get("statement", ""), "valid_from": now, "valid_to": None, "recorded_at": now,
             "source": {"document_id": f"doc_{key}", "uri": f"studio://{key}", "span": "0:0"}, "verified_by": after["updatedBy"], "score": 0.9,
             "version_ref": {"id": key, "version": version, "branch": "main", "commit_id": "studio"}, "sensitivity": "internal"}

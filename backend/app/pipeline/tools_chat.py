@@ -26,7 +26,11 @@ def failed(code: str, retryable: bool) -> dict:
 
 def destination(lane, run) -> tuple[Connection, str] | None:
     """The live connection and its own conversation id for this run's latest message, when that chat can be answered."""
-    signal = signal_of(lane, run.task.signal_ids[-1])
+    return destination_for(lane, signal_of(lane, run.task.signal_ids[-1]))
+
+
+def destination_for(lane, signal) -> tuple[Connection, str] | None:
+    """The same for one message: where a reply to it goes, or None (email, uploads, a chat with no way back)."""
     if signal is None or not signal.conversation_id:
         return None
     connection_id, _, conversation = signal.conversation_id.partition(":")
@@ -39,9 +43,11 @@ def destination(lane, run) -> tuple[Connection, str] | None:
 # --- Talking to the chat
 
 def post(lane, connection: Connection, conversation: str, text: str) -> dict:
-    """Send the reply and return the chat's own id for it."""
+    """Send the reply and return the chat's own id for it. A site whose reply action names no body gets the text under the
+    name its own feed gives a message's text (finebaselabs.com: "body"), so its answer need not spell out a template."""
     values = {"conversation_id": conversation, "text": text, "agent_name": lane.seed.get("assistant_name", ASSISTANT_NAME), "buttons": []}
-    answer = call(lane, connection, REPLY, values)
+    feed = connection.manifest.inbound
+    answer = call(lane, connection, REPLY, values, default_body={(feed.fields.get("text", "text") if feed else "text"): text})
     ref = pick(answer, "id") or pick(answer, "message.id")
     return {"status": "succeeded", "external_ref": str(ref) if ref else None, "summary": SENT}
 
@@ -62,7 +68,8 @@ def already_posted(lane, connection: Connection, conversation: str, text: str, f
     feed = connection.manifest.inbound
     if READ not in connection.manifest.actions or feed is None:
         return None
-    messages = call(lane, connection, READ, {"conversation_id": conversation}).get(feed.items_field) or []
+    read = call(lane, connection, READ, {"conversation_id": conversation})
+    messages = read.get(feed.items_field) or read.get("messages") or []  # a site may list a conversation's messages under its own name
     sender, body = feed.fields.get("sender", "sender"), feed.fields.get("text", "body")
     created = feed.fields.get("created_at", "created_at")
     found = next((m for m in messages if pick(m, sender) != feed.only_sender and pick(m, body) == text and sent_since(m, created, first_try)), None)

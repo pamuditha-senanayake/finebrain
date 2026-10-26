@@ -71,6 +71,9 @@ def item_findings(st: Studio, it: dict, scope: list[dict]) -> tuple[list[dict], 
             if candidate := next((x for x in scope if x["kind"] == "agent" and x["status"] == "active"), None):
                 fixes.append(fix(f"Assign {candidate['name']} to {it['name']}", adding(it, "agents", candidate["id"])))
         tools = f.get("tools", [])
+        if not tools and it["status"] == "active":
+            say("break", f"{it['name']} lists no tools, so its agent can never act: S4 refuses to start it. Add reply customer and escalate at least.")
+            fixes.append(fix(f"Give {it['name']} reply customer and escalate", edit_list(it, "tools", ["tool:reply_customer", "tool:escalate"])))
         for step in f.get("steps", []):
             if (m := re.search(r"\[(tool:[^\]]+)\]", step)) and m.group(1) not in tools:
                 shown = TOOL_TAG.sub("", step)
@@ -117,9 +120,9 @@ def more_findings(st: Studio, it: dict, scope: list[dict], say) -> None:
         say("break", f"{it['name']} goes to \"{f.get('endpoint') or 'nothing'}\", which S9 does not serve, so every call fails. Endpoints: {', '.join(RUNNERS)}.")
     if kind == "tool" and f.get("capability") and f["capability"] not in CHECKED:
         say("warn", f"{it['name']} needs \"{f['capability']}\", which no check uses. Pick one of: {', '.join(sorted(CHECKED))}.")
-    for capability in (f.get("capabilities") or []) if kind == "agent" else []:
+    for capability in (f.get("capabilities") or []) if kind == "agent" and active else []:
         if capability not in CHECKED:
-            say("warn", f"{it['name']} holds \"{capability}\", which no check uses, so it allows nothing.")
+            say("break", f"{it['name']} holds \"{capability}\", which no check uses, so it allows nothing. Pick from: {', '.join(sorted(CHECKED))}.")
     if kind == "tool" and f.get("level") == "custom":
         failed = sandbox_test(str(f.get("code", "")))
         say("break" if failed else "info", f"{it['name']} failed its sandbox test run: {failed}" if failed else f"{it['name']} passed its sandbox test run.")

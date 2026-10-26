@@ -4,6 +4,7 @@
 # as data inside tags, never as instructions. Also builds the cards the assistant shows. Used by: studio_chat.py.
 import json
 
+from app.api import studio_options
 from app.api.studio_findings import health
 from app.api.studio_spec import FIELDS, KIND_LABEL, PARAM_LABELS
 
@@ -21,7 +22,8 @@ SYSTEM = (
     "story, so to build a case, add its steps to that skill (create the skill only when there is none). A sensor listens to one "
     "connection: set its source to a connection id from the context's connections, never a name you guessed; if none fits, say the "
     "person must create it in Connections first. A workflow receives messages only once it is active and has a sensor, an owner "
-    "agent and a skill."
+    "agent and a skill. A skill must list the tools its steps use (tool:reply_customer to answer, tool:escalate to hand to a "
+    "person), or its agent can never act. Capabilities, endpoints and models take the ids in the context's options, never their labels."
 )
 
 
@@ -43,6 +45,7 @@ def context_of(lane, st, flow: dict, person_id: str, focus: dict | None, draft: 
         "other_workflows": [{"id": w["id"], "name": w["name"], "status": w["status"]} for w in st.flows.values() if w["id"] != flow["id"]],
         "people": [{"id": pid, "name": p.get("name", pid), "tier": p["tier"]} for pid, p in people.items()],
         "connections": list(st.sources.values()),
+        "options": {key: value for key, value in studio_options.options(lane).items() if key in ("capabilities", "endpoints", "models")},
         "field_names": field_names(), "focus": focus, "story_draft_waiting": draft,
     }
     return f"<context>\n{json.dumps(data, ensure_ascii=False, default=str)}\n</context>"
