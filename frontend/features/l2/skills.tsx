@@ -15,7 +15,7 @@ import { CategoryFilter, WorkflowFilter, countBy, countByMany } from "@/componen
 import { DataTable, type Column } from "@/components/brain/data-table";
 import { AgentChip, useLookup } from "@/components/brain/names";
 import { EmptyState, Kpi, KeyValue, Mono, PageHeader, QueryView, Section, Status, StatusChip } from "@/components/brain/primitives";
-import { useAgents, useNow, useRuns, useSkills, useSkillVersions, useStudioWorkflows } from "@/lib/api/hooks";
+import { useAgents, useNow, useRuns, useSkills, useSkillVersions } from "@/lib/api/hooks";
 import { useCurrentUser } from "@/lib/auth";
 import { duration, pct, relTime, usd } from "@/lib/format";
 import { studioHref, useWorkflowIndex } from "@/lib/workflow-index";
@@ -47,21 +47,11 @@ export function SkillsStudio() {
   const agents = useAgents();
   const router = useRouter();
   const lookup = useLookup();
-  const workflows = useStudioWorkflows();
+  const index = useWorkflowIndex();
   const [category, setCategory] = useState("all");
   const [wf, setWf] = useState("all");
-  // Related workflows come from each workflow's members; a skill's category is its first workflow's lead topic.
-  const info = useMemo(() => {
-    const m = new Map<string, { workflows: string[]; category: string }>();
-    for (const w of workflows.data ?? []) for (const id of w.members) {
-      const [, kind, skillId] = id.split(".");
-      if (kind !== "skill" || !skillId) continue;
-      const cur = m.get(skillId) ?? { workflows: [], category: w.topics[0] ?? "general" };
-      cur.workflows.push(w.name);
-      m.set(skillId, cur);
-    }
-    return m;
-  }, [workflows.data]);
+  // Related workflows come from each workflow's members (the shared index); a skill's category is its first workflow's lead topic.
+  const info = useMemo(() => ({ get: (id: string) => ({ workflows: index.of("skill", id), category: index.category("skill", id) }) }), [index]);
   const categoryOf = (s: Skill) => info.get(s.id)?.category ?? "general";
   const main = useMemo(() => (skills.data ?? []).filter((s) => s.branch === "main" && s.status === "active"), [skills.data]);
   const drafts = useMemo(() => (skills.data ?? []).filter((s) => s.status === "draft"), [skills.data]);

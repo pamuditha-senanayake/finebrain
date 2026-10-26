@@ -1,6 +1,7 @@
 # contracts_start.py: Pydantic models for the S4 seam (K3 TaskRequest in; RunStarted on runs.started, or RunContinued on runs.continued).
 # Used by: stages_orchestrate.py, tests/test_s4_orchestrate_bdd.py. Uses: contracts_signal.py.
 # S5 reads RunStarted to know the run id, the recipe the Planner picked, and the chat the Refund agent was handed.
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -59,3 +60,22 @@ class OpenRun(BaseModel):
 class ConversationMessage(BaseModel):
     """One message on a conversation, in arrival order. The versions of one record are the chat so far."""
     signal_id: str
+    at: datetime | None = None  # when the brain received it; optional so old records validate
+
+
+class ConversationReply(BaseModel):
+    """One message the brain's side sent into a conversation: the agent's reply, a notice, or a person's."""
+    text: str
+    by: Literal["agent", "system", "human"]
+    author: str  # the agent id, "system", or the person
+    run_id: str | None = None
+    at: datetime
+    after: str | None = None  # the customer message it answers, so the chat reads in order whatever the clocks say
+
+
+class ConversationState(BaseModel):
+    """Who has the conversation: its agent, a person who took it over, or nobody once it is closed."""
+    status: Literal["agent", "human", "closed"]
+    by: str
+    at: datetime
+    note: str = ""

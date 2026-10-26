@@ -1,8 +1,8 @@
 # ask.py: Ask the Brain for Finebase HQ. A person's question goes through S5 with that person's own rights, then Claude
-# answers from only the documents they may read, plus the brain's own "who I am", and what was said earlier in the
-# conversation. Each turn is remembered. Without a Claude key it lists the closest documents.
+# answers from only the documents they may read, plus the brain's own "who I am", how the work is organized in the
+# graph (workflows, owners, skills, policies), and what was said earlier in the conversation. Each turn is remembered. Without a Claude key it lists the closest documents.
 # Used by: routes.py, tests/test_api_brain.py. Uses: ask_memory.py, memory_routes.py (answer ids), stages_value.py, self_knowledge.py, retrieve_scope.py, stages_retrieve.py, retry.py.
-from app.api import ask_memory, memory_routes, search, self_knowledge
+from app.api import ask_graph, ask_memory, memory_routes, search, self_knowledge
 from app.api.ui_models_work import AskAnswer, Citation, LookedIn
 from app.pipeline import commons, retrieve_scope, stages_retrieve, stages_value
 from app.pipeline.contracts_reason import ContextItem, ContextQuery
@@ -27,7 +27,7 @@ def citation(item: ContextItem) -> Citation:
     first_line = item.text.strip().splitlines()[0] if item.text.strip() else item.item_id
     shared = item.source.document_id.startswith(commons.PREFIX)  # step 13e: read from the shared commons, linked to its official source
     first_line = f"Commons · {first_line}" if shared else first_line
-    href = item.source.uri if item.item_id == PAGE_VIEW_ID or shared else f"/l2/policies/{item.version_ref.id}" if item.kind == "policy" and item.version_ref else "/l2/library"
+    href = item.source.uri if item.item_id in (PAGE_VIEW_ID, ask_graph.WORK_MAP_ID) or shared else f"/l2/policies/{item.version_ref.id}" if item.kind == "policy" and item.version_ref else "/l2/library"
     return Citation(id=item.item_id, kind=item.kind, label=first_line[:LABEL_CHARS], href=href,
                     valid_from=(item.valid_from or item.recorded_at).isoformat(), valid_to=item.valid_to.isoformat() if item.valid_to else None)
 
@@ -75,6 +75,8 @@ def ask(lane, answerer, persona: str, question: str, scope: str | None, conversa
         text, cited = (NO_CLAUDE_NOTE, list(by_id)) if by_id else (NOTHING_FOUND, [])
     else:
         by_id.setdefault(self_knowledge.OVERVIEW_ID, self_knowledge.overview())
+        if (work := ask_graph.work_map(lane)) is not None:
+            by_id[ask_graph.WORK_MAP_ID] = work
         if (on_screen := page_item(lane, page)) is not None:
             by_id[PAGE_VIEW_ID] = on_screen
         text, cited = answerer(question, [(item.item_id, item.text) for item in by_id.values()], history, address_of(lane.seed["people"][persona]))

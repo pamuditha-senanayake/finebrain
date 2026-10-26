@@ -1,5 +1,6 @@
 # graph_views.py: the 9c read-only screens for agents, skills and resolver rules. Each comes from the graph that
-# S3, S5 and S7 already read, with names from hq_tenant.json and live numbers from the run records.
+# S3, S5 and S7 already read: names, links and owners from each node's Studio view, so what Workflow Studio saves shows
+# here at once (hq_tenant.json labels only fill in for a node saved before Studio), and live numbers from the run records.
 # Used by: routes.py, graph_map.py, tests/test_api_graph.py. Uses: ui_models_graph.py, ui_models.py.
 from datetime import datetime, timedelta
 
@@ -15,6 +16,22 @@ def place_in_document(item: dict) -> tuple[str, int]:
     """Where an item sits in its source, so a policy reads in the document's own order."""
     span = item["source"].get("span") or "0:0"
     return item["source"]["document_id"], int(span.split(":")[0])
+
+
+# --- Names and links, from the graph first
+
+def studio_of(node: dict) -> dict:
+    return node.get("studio") or {}
+
+
+def name_of(node: dict, labels: dict, default: str) -> str:
+    return studio_of(node).get("name") or labels.get(node["_ref"]["id"], {}).get("name") or default
+
+
+def policies_of_skill(skill: dict, hq: dict) -> list[str]:
+    """The policies governing a skill: Studio's link, else the sample labels."""
+    linked = studio_of(skill).get("fields", {}).get("policies")
+    return list(linked) if linked is not None else [key for key, label in hq["graph_labels"]["policies"].items() if skill["_ref"]["id"] in label.get("skills", [])]
 
 
 # --- Run numbers
@@ -38,20 +55,20 @@ def share(runs: list[dict], outcome: str) -> float:
 
 def agent_view(lane, hq: dict, agent: dict) -> g.Agent:
     agent_id = agent["_ref"]["id"]
-    about = hq["graph_labels"]["agents"].get(agent_id, {})
+    about, mine = hq["graph_labels"]["agents"].get(agent_id, {}), studio_of(agent)
     rules = [rule for rule in lane.graph.latest("resolver_rule") if rule["agent_id"] == agent_id]
     skills = {skill["_ref"]["id"]: skill for skill in lane.graph.latest("skill")}
     runs = runs_where(lane, "agent", agent_id)
     recent = [run for run in runs if (at := started(run)) and lane.now - at < timedelta(days=1)]
     today = [run for run in recent if started(run).date() == lane.now.date()]
-    policies = [key for key, label in hq["graph_labels"]["policies"].items() if any(rule["skill_id"] in label.get("skills", []) for rule in rules)]
+    policies = list(dict.fromkeys(key for rule in rules if rule["skill_id"] in skills for key in policies_of_skill(skills[rule["skill_id"]], hq)))
     return g.Agent(
-        id=agent_id, tenant_id=lane.seed["tenant_id"], name=about.get("name", agent_id), kind=about.get("kind", "worker"), tier=agent["tier"],
-        cluster_id=lane.seed["cluster_id"], description=about.get("description", ""), autonomy="supervised",
+        id=agent_id, tenant_id=lane.seed["tenant_id"], name=name_of(agent, hq["graph_labels"]["agents"], agent_id), kind=about.get("kind", "worker"), tier=agent["tier"],
+        cluster_id=lane.seed["cluster_id"], description=mine.get("description") or about.get("description", ""), autonomy=mine.get("fields", {}).get("autonomy") or "supervised",
         skills=[VersionRef(**{key: skills[skill_id]["_ref"][key] for key in ("id", "version", "branch")}) for skill_id in dict.fromkeys(rule["skill_id"] for rule in rules) if skill_id in skills],
         capabilities=agent["capabilities"], access_level=ACCESS_BY_TIER[agent["tier"]], sensors=[], templates=[], policies=policies,
         status="working" if any(lane.now - started(run) < WORKING_WINDOW for run in recent) else "idle", work_kind=None,
-        dri=about.get("dri", ""), queue_depth=sum(run["outcome"] == "awaiting_approval" for run in runs), throughput_per_hour=round(len(recent) / 24, 2),
+        dri=mine.get("dri") or about.get("dri", ""), queue_depth=sum(run["outcome"] == "awaiting_approval" for run in runs), throughput_per_hour=round(len(recent) / 24, 2),
         error_rate=share(runs, "failed"), cost_today_usd=sum(run["cost"]["usd_micro"] for run in today) / 1_000_000, task_success=share(runs, "resolved"),
         training=[],
     )
@@ -80,12 +97,12 @@ def skill_view(lane, hq: dict, skill: dict) -> g.Skill:
         id=ref["id"], tenant_id=lane.seed["tenant_id"], name=skill["name"], version=ref["version"], branch=ref["branch"], status="active",
         cluster_id=lane.seed["cluster_id"], trigger=" · ".join(rule["description"] for rule in rules) or "Not routed yet",
         inputs=sorted({entity for rule in rules for entity in rule["required_entities"]}), steps=steps, tools=skill["allowed_tools"],
-        policies=[key for key, label in hq["graph_labels"]["policies"].items() if ref["id"] in label.get("skills", [])],
+        policies=policies_of_skill(skill, hq),
         required_capabilities=sorted({cap for agent in lane.graph.latest("agent") if any(r["agent_id"] == agent["_ref"]["id"] for r in rules) for cap in agent["capabilities"]}),
         outputs=[tool for tool in skill["allowed_tools"] if tool != "escalate"], template_fields=[],
         eval_suite={"id": f"eval_{ref['id']}", "cases": 0, "passRate": 0.0},
         health={"taskSuccess": success, "consistencyPassK": 0.0, "k": 0, "conformance": success},
-        agent_ids=sorted({rule["agent_id"] for rule in rules}), dri=hq["graph_labels"]["skill_dri"], updated_at=lane.now.isoformat(), origin="authored",
+        agent_ids=sorted({rule["agent_id"] for rule in rules}), dri=studio_of(skill).get("dri") or hq["graph_labels"]["skill_dri"], updated_at=lane.now.isoformat(), origin="authored",
     )
 
 

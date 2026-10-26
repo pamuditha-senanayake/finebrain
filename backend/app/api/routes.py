@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.api import ask as asking
-from app.api import ask_memory, connect_routes, documents, forget_routes, grant_views, grants, learn_routes, lists_query, memory_routes, ready_routes, search, studio_approvals, studio_routes, vault_routes, versions_views, views
+from app.api import ask_memory, connect_routes, conversations, documents, forget_routes, grant_views, grants, learn_routes, lists_query, memory_routes, ready_routes, search, studio_approvals, studio_routes, vault_routes, versions_views, views
 from app.api.graph_map import graph_resource
 from app.api.lists import clusters_view, list_view, live_event, refusal_for, sensors_view, tenant_view
 from app.pipeline import capture_api, orchestrate
@@ -67,6 +67,10 @@ def create_api_app(lane, hq: dict, answerer=None, chatter=None) -> FastAPI:
                 return ask_memory.serve(lane, resource, request.query_params, x_persona)
             except ask_memory.NotYourConversation:
                 raise HTTPException(403, "not_your_conversation") from None
+        if resource == "conversations":
+            return conversations.list_view(lane)
+        if resource.startswith("conversations/"):
+            return conversations.view(lane, resource.split("/", 1)[1]) or not_found_http()
         if resource == "documents":
             return documents.documents_view(lane)
         if resource == "search":
@@ -114,6 +118,11 @@ def create_api_app(lane, hq: dict, answerer=None, chatter=None) -> FastAPI:
     @app.post("/api/t/{tenant}/ops/{op}")
     async def operation(tenant: str, op: str, request: Request, x_persona: str = Header(default="")):
         check(tenant, x_persona)
+        if op in conversations.OPS:  # L3 Conversations: take over, send, hand back, close
+            try:
+                return conversations.run_op(lane, op, await request.json(), x_persona)
+            except conversations.NotPossible as why:
+                raise HTTPException(why.status, why.reason) from None
         if op != "decide":
             raise HTTPException(501, "not_connected_yet")
         body = await request.json()
@@ -148,3 +157,7 @@ def create_api_app(lane, hq: dict, answerer=None, chatter=None) -> FastAPI:
         raise HTTPException(501, "not_connected_yet")
 
     return app
+
+
+def not_found_http():
+    raise HTTPException(404, "not_found")

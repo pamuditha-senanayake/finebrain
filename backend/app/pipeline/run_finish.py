@@ -6,6 +6,8 @@
 from datetime import timedelta
 
 from app.pipeline import govern_payments, stages_act, stages_record, tools_chat, tools_write
+from app.pipeline import conversation_log
+from app.pipeline.stages_orchestrate import signal_of
 from app.pipeline.contracts_run import Decision
 from app.pipeline.observe import count, log_event
 from app.pipeline.run_steps import OUTCOME_FOR_ROUTE, RunState, make_step, previous_turns
@@ -52,6 +54,8 @@ def act_and_finish(lane, run: RunState, decision: Decision | None) -> None:
         govern_payments.note_refund(lane, run.action.arguments["payment_ref"], run.action.money.amount_minor, run.action.run_id)
     if result.status == "succeeded" and run.action.action_type == "escalate":
         tell_customer(lane, run, "handoff_message", HANDOFF_TEXT, "handoff")
+    if result.status == "succeeded" and run.action.action_type == "reply_customer":
+        conversation_log.remember_reply(lane, conversation_of(lane, run), run.action.arguments.get("message_plain", ""), "agent", run.task.agent_id, run.action.run_id, run.task.signal_ids[-1])
     outcome = outcome_after(run, result.status)
     finish_run(lane, run, outcome, decided_by_of(run, decision))
     if outcome == "awaiting_customer":
@@ -91,6 +95,11 @@ def close_without_acting(lane, run: RunState) -> None:
     finish_run(lane, run, OUTCOME_FOR_ROUTE[run.verdict.route])
 
 
+def conversation_of(lane, run) -> str | None:
+    signal = signal_of(lane, run.task.signal_ids[-1])
+    return signal.conversation_id if signal else None
+
+
 def tell_customer(lane, run: RunState, setting: str, default: str, suffix: str) -> None:
     """One short notice into the customer's chat, under its own idempotency key. Best effort: a failed notice is counted
     and logged, and never stops the run from being recorded. Email and uploads have no chat to tell."""
@@ -102,6 +111,8 @@ def tell_customer(lane, run: RunState, setting: str, default: str, suffix: str) 
         answer = tools_chat.send(lane, *where, {"message_plain": lane.seed.get(setting, default)}, key)
     except Exception as error:  # the chat or Valkey being down must not lose the run's record
         answer = {"status": "failed", "error": {"code": type(error).__name__}}
+    if answer["status"] == "succeeded":
+        conversation_log.remember_reply(lane, conversation_of(lane, run), lane.seed.get(setting, default), "system", "system", run.action.run_id, run.task.signal_ids[-1])
     if answer["status"] != "succeeded":
         count("s9.notice_not_sent")
         log_event("S9", "notice_not_sent", run_id=run.action.run_id, error=(answer.get("error") or {}).get("code"))
