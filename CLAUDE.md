@@ -30,6 +30,19 @@ Every screen must look and work like a professional product. Needing an input is
 - **Responsive and contained.** Layouts work from phone to wide desktop, nothing spills out of its card, and there is no horizontal scroll.
 - **Check it in the browser before calling it done.** Click through it as a first-time user and look at every state. If any part would confuse someone who has never seen it, it is not finished.
 
+## A stage is done only when it is ready for real use
+
+A working skeleton is a step, never the finish. A stage is done when all of these hold:
+
+- **Every visit tested.** Walk the whole BDD scenario and test each time the same chat reaches the stage (first ask, a reply, a message after the run closed), as one connected conversation.
+- **Real infra.** The same tests run on Postgres, Valkey, Redpanda and Temporal, not only in memory (`tests/test_sN_real.py`, skipped when Docker is off).
+- **Many workers.** Two workers handling the same thing at once give one result. Claims are atomic (Valkey `SET NX`), and a crash frees what it held.
+- **Failures designed.** Every outage and bad input has a tested outcome: retried, escalated to a person, or refused, never silently lost.
+- **No scans.** Lookups on the hot path read by key, never by listing everything.
+- **One source of truth.** Nothing reads a copy of data that people can edit somewhere else (for example agents: read the graph, not the seed).
+- **Volume.** `scripts/sN_volume.py` runs thousands of realistic inputs, checks the rules still hold, and times the stage against its budget.
+- **Gaps said out loud.** Whatever is still missing is named in the report, never hidden behind "done".
+
 ## Coding style
 
 - Every time you write code, use the skills `/anthropic-skills:zed-coding` and `/anthropic-skills:zed-coding-files`.
