@@ -4,6 +4,7 @@
 # Used by: run_steps.py (start_run, in-process and on Temporal), run_approvals.py, tests. Uses: stages_orchestrate_chat.py,
 # contracts_start.py, stages_record.py, stages_normalize.py (claim), observe.py.
 # Plain code, no model: S3 already chose the recipe, so S4 checks it exists and pins it.
+from app.pipeline import conversation_log
 from app.pipeline import stages_orchestrate_chat as chat
 from app.pipeline import stages_record
 from app.pipeline.contracts_run import RunStep
@@ -129,8 +130,14 @@ def start_or_join(lane, envelope: Envelope, task: TaskRequest) -> RunStarted | N
     if reason:
         return refuse(lane, envelope, task, reason)
 
-    # Step 2: on a chat, a later message joins the open run; of two workers starting one at once, only one wins
+    # Step 2: a person has this chat: the agent stays out, and the person sees the message in L3 Conversations
     conversation = signal.conversation_id
+    if conversation_log.taken_over(lane, conversation):
+        count("s4.human_has_chat")
+        log_event("S4", "human_has_chat", task_id=task.task_id, conversation_id=conversation)
+        return None
+
+    # Step 3: on a chat, a later message joins the open run; of two workers starting one at once, only one wins
     target = chat.open_run(lane, conversation, task.agent_id) if conversation else None
     won = chat.claim_start(lane, conversation, task.agent_id) if conversation and target is None else None
     if conversation and target is None and won is None:

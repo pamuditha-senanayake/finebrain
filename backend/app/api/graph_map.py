@@ -4,7 +4,7 @@
 from pathlib import PurePosixPath
 
 from app.api import ui_models_graph as g
-from app.api.graph_views import agents_view, place_in_document, resolver_view, skills_view
+from app.api.graph_views import agents_view, place_in_document, policies_of_skill, resolver_view, skills_view
 from app.api.overview_views import brain_map, overview
 
 # Config
@@ -50,26 +50,36 @@ def policy_versions(lane, hq: dict, key: str) -> list[g.Policy]:
         return []
     items = [item for item in lane.graph.latest("knowledge") if (item.get("version_ref") or {}).get("id") == key]
     versions = sorted({item["version_ref"]["version"] for item in items} | {node["_ref"]["version"]})
-    label = hq["graph_labels"]["policies"].get(key, {})
-    skills = {s["id"]: s["name"] for s in skills_view(lane, hq)}
-    latest_rule = {"kind": "refund", "params": {"windowDays": node["window_days"], "autoLimitMinor": node["auto_limit"]["amount_minor"],
-                                                "currency": node["auto_limit"]["currency"], "approverTier": node["escalation"]["approvers"]["tier"]}}
+    label, studio = hq["graph_labels"]["policies"].get(key, {}), node.get("studio") or {}
+    skill_nodes = lane.graph.latest("skill")
+    skills = {s["_ref"]["id"]: s.get("name") or s["_ref"]["id"] for s in skill_nodes}
+    governed = [s["_ref"]["id"] for s in skill_nodes if key in policies_of_skill(s, hq)]  # Studio's links, else the labels
+    latest_rule = rule_of(node, studio)
+    criticality = node["escalation"]["criticality"] if "escalation" in node else int((studio.get("fields") or {}).get("criticality") or 3)
     shown = []
     for i, version in enumerate(versions):
         mine = sorted((item for item in items if item["version_ref"]["version"] == version), key=place_in_document)
         closed = next((item["valid_to"] for item in mine if item["valid_to"]), None)
         shown.append(g.Policy(
-            id=f"{key}_v{version}", key=key, tenant_id=lane.seed["tenant_id"], name=label.get("name", key), version=version, branch=node["_ref"]["branch"],
-            cluster_id=lane.seed["cluster_id"], statement=" ".join(item["text"] for item in mine), criticality=node["escalation"]["criticality"],
-            rule=latest_rule if version == node["_ref"]["version"] else {"kind": "refund", "params": {}},
+            id=f"{key}_v{version}", key=key, tenant_id=lane.seed["tenant_id"], name=studio.get("name") or label.get("name", key), version=version, branch=node["_ref"]["branch"],
+            cluster_id=lane.seed["cluster_id"], statement=" ".join(item["text"] for item in mine), criticality=criticality,
+            rule=latest_rule if version == node["_ref"]["version"] else {"kind": latest_rule["kind"], "params": {}},
             valid_from=min((str(item["valid_from"]) for item in mine), default=lane.now.isoformat()), valid_to=str(closed) if closed else None,
             recorded_at=min((str(item["recorded_at"]) for item in mine), default=lane.now.isoformat()),
             superseded_by=f"{key}_v{versions[i + 1]}" if i + 1 < len(versions) else None, evidence=[item["item_id"] for item in mine],
             freshness={"intervalClosed": closed is not None, "driftPointAt": None, "conformance": 1.0, "conflictingEvidence": 0, "outdatedRelianceRate": 0.0},
-            dependents=[{"type": "skill", "id": skill_id, "label": skills.get(skill_id, skill_id)} for skill_id in label.get("skills", [])],
-            dri=label.get("dri", ""),
+            dependents=[{"type": "skill", "id": skill_id, "label": skills.get(skill_id, skill_id)} for skill_id in governed],
+            dri=studio.get("dri") or label.get("dri", ""),
         ))
     return shown
+
+
+def rule_of(node: dict, studio: dict) -> dict:
+    """The refund policy's numbers when it has them; a policy made in Studio has its words and its kind."""
+    if "window_days" in node:
+        return {"kind": "refund", "params": {"windowDays": node["window_days"], "autoLimitMinor": node["auto_limit"]["amount_minor"],
+                                             "currency": node["auto_limit"]["currency"], "approverTier": node["escalation"]["approvers"]["tier"]}}
+    return {"kind": (studio.get("fields") or {}).get("ruleKind") or "rule", "params": {}}
 
 
 def policies_view(lane, hq: dict, key: str | None = None) -> list[dict]:

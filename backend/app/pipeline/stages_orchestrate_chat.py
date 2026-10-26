@@ -31,7 +31,7 @@ def remember_message(lane, signal: Signal) -> None:
     if signal.conversation_id is None:
         return
     try:
-        lane.records.save(MESSAGES_KIND, signal.conversation_id, ConversationMessage(signal_id=signal.signal_id))
+        lane.records.save(MESSAGES_KIND, signal.conversation_id, ConversationMessage(signal_id=signal.signal_id, at=lane.now))
     except Exception as error:  # the run can still go ahead with fewer messages in its hand-off
         count("s4.message_not_saved")
         log_event("S4", "message_not_saved", signal_id=signal.signal_id, error=type(error).__name__)

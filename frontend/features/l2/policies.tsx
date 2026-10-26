@@ -53,8 +53,8 @@ export function PolicyRegistry() {
   const workflowsOf = useMemo(() => {
     const m = new Map<string, string[]>();
     for (const w of map.data?.workflows ?? []) for (const i of w.items) if (i.kind === "policy") {
-      const key = i.id.split(".policy.")[1];
-      if (key) m.set(key, [...(m.get(key) ?? []), w.name]);
+      // Finebase HQ names a policy by its own id (policy_refund); the demo by workflow.policy.key
+      for (const key of new Set([i.id, i.id.split(".policy.")[1]].filter(Boolean))) m.set(key, [...(m.get(key) ?? []), w.name]);
     }
     return m;
   }, [map.data]);

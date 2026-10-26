@@ -69,11 +69,14 @@ def visitor(lane, text: str, conversation: str = "c-landing-1") -> None:
     lane.bus.drain()
 
 
-def stand_in_portal(monkeypatch) -> list[dict]:
-    """The site's hub API in memory: it keeps what the brain posts and shows it back in the conversation."""
+def stand_in_portal(monkeypatch, calls: list | None = None) -> list[dict]:
+    """The site's hub API in memory: it keeps what the brain posts and shows it back in the conversation. calls, when
+    given, collects every request's method and path (a close is a PATCH)."""
     posted: list[dict] = []
 
     def answer(request: httpx.Request) -> httpx.Response:
+        if calls is not None:
+            calls.append((request.method, request.url.path))
         if request.method == "POST":
             posted.append({**json.loads(request.content), "id": f"msg-{len(posted) + 1}", "at": datetime.now(timezone.utc).isoformat()})  # stamped as the real hub does
             return httpx.Response(201, json={"id": posted[-1]["id"]})
