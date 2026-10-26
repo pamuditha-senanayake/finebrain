@@ -54,7 +54,8 @@ def test_skills_show_steps_trigger_and_policy(client):
     refund = next(s for s in skills if s["id"] == "skill_refund_handling")
     assert [step["kind"] for step in refund["steps"]] == ["retrieval", "judgment", "tool", "tool"]
     assert refund["steps"][2]["tool"] == "issue_refund" and refund["policies"] == ["policy_refund"]
-    assert refund["trigger"] == "Customer asks for money back on a payment" and refund["inputs"] == ["payment_ref"]
+    assert sorted(refund["trigger"].split(" · ")) == ["Customer asks for money back on a payment", "Customer in a live chat asks for money back on an order; the agent finds the order"]
+    assert refund["inputs"] == ["payment_ref"]
     assert refund["agentIds"] == ["agent_refund_worker"] and refund["health"]["taskSuccess"] == 1.0
     assert [s["version"] for s in get(client, "skills/skill_refund_handling")[1]] == [3]
     assert get(client, "skills?branch=sandbox") == (200, [])

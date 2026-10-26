@@ -1,6 +1,6 @@
 "use client";
 
-import { History, Keyboard, Mic, Plus, Send, Square, Volume2, VolumeX, X } from "lucide-react";
+import { Keyboard, Mic, Plus, Send, Square, Volume2, VolumeX, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,11 @@ import { useAsk, useConversation } from "@/lib/api/conversation";
 import { findPage } from "@/lib/ask-go";
 import { useCurrentUser } from "@/lib/auth";
 import { canRecord, openMic, recordQuestion, transcribe, type Mic as OpenMic } from "@/lib/voice/mic";
-import { shortOf, speak, unlockAudio } from "@/lib/voice/speaker";
+import { playCue, shortOf, speak, unlockAudio } from "@/lib/voice/speaker";
+import { endTurn, failureNote, isOffline, OFFLINE, startTurn, stepSignal, type Turn as VoiceTurn } from "@/lib/voice/turn";
 import { cn } from "@/lib/utils";
 import { AskChat, type Turn } from "./ask-chat";
+import { AskHistory } from "./ask-history";
 import { AskUpload } from "./ask-upload";
 import { GLIDE, useOrbSize, VoiceOrb, type OrbStage, type VoiceState } from "./voice-orb";
 import { t } from "@/lib/i18n";
@@ -67,7 +69,6 @@ export function AskVoice() {
   const [note, setNote] = useState("");
   const [filed, setFiled] = useState("");
   const onFiled = (message: string, ok: boolean) => (ok ? (setFiled(message), setNote("")) : (setNote(message), setFiled("")));
-  const [earlier, setEarlier] = useState(false);
   const [setup, setSetup] = useState(false);
   const [picker, setPicker] = useState(false);
   const router = useRouter();
@@ -77,10 +78,13 @@ export function AskVoice() {
   const recording = useRef<{ stop: () => void } | null>(null);
   const mic = useRef<OpenMic | null>(null);
   const player = useRef<{ stop: () => void } | null>(null);
+  // The running question; a new one cancels it, so a late answer is never spoken.
+  const turn = useRef<AbortController | null>(null);
 
   // Stop listening and speaking when leaving the page.
   useEffect(
     () => () => {
+      endTurn(turn);
       rec.current?.abort();
       recording.current?.stop();
       mic.current?.stop();
@@ -101,6 +105,7 @@ export function AskVoice() {
   /** Called on the tap: unlocks sound for the reply, then listens. ElevenLabs first, because it works in every browser. */
   function listen() {
     unlockAudio();
+    if (isOffline()) return setNote(OFFLINE);
     if (canRecord()) void listenRecorded();
     else if (recognitionCtor()) listenInBrowser();
     else setTyping(true);
@@ -108,6 +113,7 @@ export function AskVoice() {
 
   /** Records one question until a short silence (or a second tap), then ElevenLabs turns it into words. */
   async function listenRecorded() {
+    const now = startTurn(turn);
     beginListening();
     const opened = await openMic(level);
     if (!opened) {
@@ -127,18 +133,22 @@ export function AskVoice() {
       return;
     }
     setVoice("thinking");
+    playCue();
     try {
-      const words = await transcribe(audio);
+      const words = await transcribe(audio, stepSignal(now));
+      if (!now.isCurrent()) return;
       if (!words) throw new Error("No words recognised.");
       void answer(words);
-    } catch {
-      setNote("I could not make that out, sir. Tap to try again, or type instead.");
+    } catch (e) {
+      if (!now.isCurrent()) return;
+      setNote(failureNote(e, "I could not make that out, sir. Tap to try again, or type instead."));
       setVoice("idle");
     }
   }
 
   /** The browser's own recognition, only for browsers that cannot record. */
   function listenInBrowser() {
+    endTurn(turn);
     const r = new (recognitionCtor()!)();
     r.lang = "en-US";
     r.interimResults = true;
@@ -170,18 +180,22 @@ export function AskVoice() {
     // "Go to the library" goes there at once; no model call.
     const page = findPage(q, user);
     if (page) return void router.push(page.href);
+    const now = startTurn(turn);
     setHeard(q);
     // A new question clears any old "could not hear" note; a failed answer sets its own below.
     setNote("");
     setVoice("thinking");
     try {
       // A short pause keeps "thinking" visible, so the reply does not feel like it skipped a step.
-      const [a] = await Promise.all([ask.mutateAsync({ question: q, page: { path: "/l1/ask", scope: "system" } }), new Promise((r) => setTimeout(r, 700))]);
+      const [a] = await Promise.all([ask.mutateAsync({ question: q, page: { path: "/l1/ask", scope: "system" }, signal: stepSignal(now) }), new Promise((r) => setTimeout(r, 700))]);
+      // A newer question took over while this one waited; its answer is dropped, not shown or spoken.
+      if (!now.isCurrent()) return;
       setTurns((t) => [...t, { q, a }]);
-      if (speakOut) void say(shortOf(a.answer).short);
+      if (speakOut) void say(shortOf(a.answer).short, now);
       else setVoice("idle");
-    } catch {
-      setNote("The brain could not answer. Try again.");
+    } catch (e) {
+      if (!now.isCurrent()) return;
+      setNote(failureNote(e, "The brain could not answer. Try again."));
       setVoice("idle");
     }
   }
@@ -193,16 +207,18 @@ export function AskVoice() {
   }
 
   /** Speaks with the ElevenLabs voice; the orb follows the real loudness. Falls back to the browser's voice. */
-  async function say(words: string) {
+  async function say(words: string, now?: VoiceTurn) {
     stopSpeaking();
     try {
       setVoice("speaking");
-      const playback = await speak(words, level);
+      const playback = await speak(words, level, now && stepSignal(now));
       player.current = playback;
       await playback.done;
       if (player.current === playback) player.current = null;
       setVoice((v) => (v === "speaking" ? "idle" : v));
     } catch {
+      // A cancelled turn stays silent; otherwise the browser's own voice still works without a connection.
+      if (now && !now.isCurrent()) return;
       browserSay(words);
     }
   }
@@ -268,14 +284,14 @@ export function AskVoice() {
   }
 
   const last = turns[turns.length - 1];
-  // Earlier turns: what was saved before this page opened, then this visit's turns except the last.
+  // The whole chat shows, scrolled to the newest: what was saved before this page opened, then this visit's turns.
   const saved: Turn[] = conversation.saved.map((t) => ({ q: t.question, a: { question: t.question, answer: t.answer, citations: [], withheld: 0 } }));
   const before = [...saved, ...turns.slice(0, -1)];
   // Three looks: home (orb, greeting, quick questions, bar), big (only the orb, listening or thinking),
   // and chat (messages fill the page, a small orb at the bottom; tap it to talk again).
-  const stage: OrbStage = voice === "listening" || voice === "thinking" ? "big" : earlier || turns.length > 0 ? "small" : "rest";
+  const stage: OrbStage = voice === "listening" || voice === "thinking" ? "big" : before.length > 0 || turns.length > 0 ? "small" : "rest";
   const orb = useOrbSize(stage);
-  const chat = [...(earlier ? before : []), ...(last ? [last] : [])];
+  const chat = [...before, ...(last ? [last] : [])];
   const slash = typing && text.startsWith("/") ? COMMANDS.filter((c) => c.cmd.startsWith(text.trim().split(" ")[0].toLowerCase())) : [];
 
   // The setup interview takes over the page; the orb stays small above it and speaks each question.
@@ -300,13 +316,9 @@ export function AskVoice() {
       <h1 className="sr-only">Ask the Brain</h1>
 
       <div className="flex items-center gap-2 px-6 pt-5 short:pt-3">
-        {before.length > 0 && (
-          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setEarlier(!earlier)} aria-expanded={earlier}>
-            <History /> Earlier ({before.length})
-          </Button>
-        )}
+        <AskHistory currentId={conversation.id} onOpen={(id) => { endTurn(turn); stopSpeaking(); setVoice("idle"); conversation.open(id); setTurns([]); setHeard(""); }} />
         {(before.length > 0 || turns.length > 0) && (
-          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => { conversation.startOver(); setTurns([]); setHeard(""); setEarlier(false); }}>
+          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => { conversation.startOver(); setTurns([]); setHeard(""); }}>
             <Plus /> New
           </Button>
         )}

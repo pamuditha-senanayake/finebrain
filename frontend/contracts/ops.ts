@@ -132,6 +132,8 @@ export type AskAnswer = z.infer<typeof AskAnswer>;
 
 export const AskTurn = z.object({ question: z.string(), answer: z.string(), at: IsoDate });
 export type AskTurn = z.infer<typeof AskTurn>;
+export const AskConversation = z.object({ id: z.string(), title: z.string(), at: IsoDate, turns: z.number().int() });
+export type AskConversation = z.infer<typeof AskConversation>;
 
 /** What to light up on the page a hit opens: the element (kind:id) and, inside a text, the sentence as a character span. */
 export const Focus = z.object({ kind: z.string(), id: z.string(), field: z.string().nullish(), span: z.tuple([z.number().int(), z.number().int()]).nullish() });

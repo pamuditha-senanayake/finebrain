@@ -128,3 +128,11 @@ class AskTurn(UiModel):
     question: str
     answer: str
     at: str
+
+
+class AskConversation(UiModel):
+    """One past chat in the Ask history: titled by its first question."""
+    id: str
+    title: str
+    at: str
+    turns: int
