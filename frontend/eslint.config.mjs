@@ -8,7 +8,7 @@ const eslintConfig = defineConfig([
   // The Research Console is removable: product code must never import from it.
   {
     files: ["**/*.{ts,tsx}"],
-    ignores: ["features/research/**", "app/(research)/**"],
+    ignores: ["features/research/**", "app/(research)/**", "tests/unit/research-*.test.ts"], // research's own tests are not product code
     rules: {
       "no-restricted-imports": [
         "error",

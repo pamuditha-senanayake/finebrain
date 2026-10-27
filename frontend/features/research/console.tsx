@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useRef, useState } from "react";
 import { Line, LineChart, XAxis, YAxis } from "recharts";
-import type { ResearchPaper, ResearchSnapshot } from "@/contracts/research";
+import { EXPORTABLE_PROVENANCE, type ResearchPaper, type ResearchSnapshot } from "@/contracts/research";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChartContainer } from "@/components/ui/chart";
@@ -87,7 +87,8 @@ export function ResearchConsole() {
         {(snaps) => {
           const all = imported ?? snaps;
           const s = all.find((x) => x.paper === paper) ?? all[0];
-          const exportable = !s.isSample;
+          // A sample value is never exported as a result, even inside an imported snapshot
+          const exportable = !s.isSample && s.metrics.every((m) => EXPORTABLE_PROVENANCE.includes(m.provenance));
           return (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-2">

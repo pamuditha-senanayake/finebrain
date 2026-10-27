@@ -2,11 +2,13 @@
 # as "<connection>:<their conversation id>", so the live connection is read by its key and its "reply" action sends it.
 # Once per key: a short claim keeps a second worker from posting at the same moment (a crash frees it when it expires),
 # and a retry after an unclear failure (no answer, a 5xx) first reads the conversation for this text sent since the first
-# try, so a reply that did land is never posted twice, and an earlier identical reply is never mistaken for it. Used by: run_finish.py (S9's runner for reply_customer). Uses: conn_call.py, conn_spec.py, stages_normalize.py, stages_orchestrate.py.
+# try, so a reply that did land is never posted twice, and an earlier identical reply is never mistaken for it. Used by: run_finish.py (S9's runner for reply_customer). Uses: conn_call.py, conn_spec.py, stages_normalize.py, stages_orchestrate.py,
+# tool_runners.py (in shadow mode a message is recorded, never posted).
 import re
 from datetime import datetime, timedelta, timezone
 
 from app.pipeline.conn_call import CallFailed, Connection, call, load
+from app.pipeline import tool_runners
 from app.pipeline.conn_spec import pick
 from app.pipeline.observe import count, log_event
 from app.pipeline.stages_normalize import claim
@@ -84,7 +86,9 @@ def unclear(error: CallFailed) -> bool:
 # --- The reply tool
 
 def send(lane, connection: Connection, conversation: str, arguments: dict, key: str) -> dict:
-    """S9's call: one reply, once."""
+    """S9's call: one reply, once. The one door into a chat, so a lane in shadow mode (the Research Lab) records it here and posts nothing."""
+    if not tool_runners.is_live(lane.tooling):
+        return tool_runners.shadow_runners(lane.records, lane.tooling["claims"], key.split(":")[1], lane.now)["chat"]("chat_message", arguments, key)
     claims, tried, text = lane.tooling["claims"], lane.tooling["tried"], arguments["message_plain"]
     # Step 1: one worker per key; the other gets the stored answer, or tries again shortly
     if not claim(claims, key):

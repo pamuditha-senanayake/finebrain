@@ -1,9 +1,13 @@
 # tool_runners.py: what S9 needs to run a tool safely: a runner per tool, a rate limiter, and a store of finished
-# results keyed by idempotency key. Memory and Valkey versions. Used by: stages_act.py, adapters.py, tests.
-# Uses: tools.py. Runners are callables (tool_id, arguments, idempotency_key) -> {status, external_ref, summary, error}.
+# results keyed by idempotency key, and shadow runners that record a call instead of making it (the Research Lab).
+# Memory and Valkey versions. Used by: stages_act.py, adapters.py, run_finish.py, tools_chat.py, tests.
+# Uses: tools.py, stages_normalize.py (claim). Runners are callables (tool_id, arguments, idempotency_key) -> {status, external_ref, summary, error}.
 import json
 from datetime import datetime
 
+from pydantic import BaseModel
+
+from app.pipeline.stages_normalize import claim
 from app.pipeline.tools import TOOLS
 
 # Config
@@ -12,6 +16,17 @@ RATE_WINDOW_SECONDS = 60
 HANDED_TO_HUMAN = {"status": "succeeded", "external_ref": None, "summary": "handed to a human"}
 RUNNERS = {"shop_database": "Refund in the shop's own database", "chat": "Reply in the customer's chat",
            "none": "No outside call: hand to a person"}  # every endpoint S9 serves (run_finish.tooling), with what it does
+LIVE = "live"  # lane.tooling["mode"]: live (the default) calls outside systems; any other value records the call instead
+SHADOW_KIND = "shadow_action"  # records kind keyed by idempotency key: a call S9 would have made, with its exact arguments
+
+
+class ShadowAction(BaseModel):
+    endpoint: str
+    tool_id: str
+    arguments: dict
+    idempotency_key: str
+    run_id: str
+    recorded_at: datetime
 
 
 class RateLimited(Exception):
@@ -41,6 +56,26 @@ def run_tool(action_type: str, tool_id: str, arguments: dict, key: str, runners:
         error = response.get("error") or {"code": "unknown_error", "retryable": False}
         raise ToolFailed(error["code"], error["retryable"])
     return response
+
+
+# --- Shadow mode: the Research Lab acts without side effects
+
+def is_live(tooling: dict) -> bool:
+    """Fails closed: a missing mode is live, as today; a mistyped one records instead of acting."""
+    return tooling.get("mode", LIVE) == LIVE
+
+
+def shadow_runners(records, claims, run_id: str, now: datetime) -> dict:
+    """One runner per outside endpoint that records the call it was given and calls nothing. Same key, one record:
+    a retry finds the record, and of two workers at once only the one holding the claim (Valkey SET NX) writes it."""
+    def runner_for(endpoint: str):
+        def record_call(tool_id: str, arguments: dict, idempotency_key: str) -> dict:
+            if records.load(SHADOW_KIND, idempotency_key) is None and claim(claims, f"shadow:{idempotency_key}"):
+                call = ShadowAction(endpoint=endpoint, tool_id=tool_id, arguments=arguments, idempotency_key=idempotency_key, run_id=run_id, recorded_at=now)
+                records.save(SHADOW_KIND, idempotency_key, call)
+            return {"status": "succeeded", "external_ref": f"shadow:{idempotency_key}", "summary": f"shadow: {RUNNERS[endpoint].lower()}, recorded, not called"}
+        return record_call
+    return {endpoint: runner_for(endpoint) for endpoint in RUNNERS if endpoint != "none"}
 
 
 # --- Rate limits: a counter per tenant, tool and minute
