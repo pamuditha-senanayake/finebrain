@@ -1,7 +1,7 @@
 # routes.py: the Research Lab API, its own app that main.py mounts at /research only when RESEARCH_LAB=enabled.
 # Only the founder or a person with the research role may open it. It serves the lab's status, packs (pack_routes.py)
 # preregistrations (prereg_routes.py), and experiments with their results (experiment_routes.py). Used by: app/main.py.
-# Uses: research/store.py, research/pack_store.py, research/pack_routes.py, research/prereg.py, research/prereg_routes.py, store_s3.py, api/routes.py (console origins).
+# Uses: research/store.py, research/pack_store.py, research/pack_routes.py, research/prereg.py, research/prereg_routes.py, research/reference_routes.py, store_s3.py, api/routes.py (console origins).
 import json
 import os
 from pathlib import Path
@@ -15,7 +15,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from app.api.routes import CONSOLE_ORIGINS
 from app.pipeline import store_s3
-from app.research import experiment_routes, experiment_store, lab_tenant, pack_routes, pack_store, packs as pack_reader, prereg, prereg_routes, store
+from app.research import experiment_routes, experiment_store, lab_tenant, pack_routes, pack_store, packs as pack_reader, prereg, prereg_routes, reference_routes, store
 
 # Config
 HQ_TENANT = Path(__file__).resolve().parents[2] / "samples" / "hq_tenant.json"
@@ -98,4 +98,5 @@ def create_research_app(connect=store.connect, people: dict | None = None, make_
         return make_experiments(own), make_preregs(own)
 
     experiment_routes.register(app, check, lambda: make_experiments(connection()), packs, lambda: make_preregs(connection()), load_pack, parts, worker_stores)
+    reference_routes.register(app, check, connection)
     return app

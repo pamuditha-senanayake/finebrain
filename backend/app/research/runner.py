@@ -1,86 +1,53 @@
-# runner.py: runs one freshness experiment end to end. Claim it, check its locked preregistration still holds, then per
-# condition build the lab, and for every seed, trial and question not yet done: ask, grade, store. Every model call adds to
-# the cost; at the cap the run stops cleanly as budget_reached with what it has. Results and gates follow, then teardown.
-# A crash leaves stored cases; starting again resumes after the last one. Used by: research/experiment_routes.py, tests.
-# Uses: research/freshness_lab.py, research/grade_freshness.py, research/results.py, research/prereg.py, research/lab_tenant.py, llm.py.
-import time
+# runner.py: runs one Lab experiment end to end, whatever its pack's kind (research/kinds.py). Claim it, check its locked
+# preregistration still holds, then per condition build its labs, and for every seed, trial and case not yet done: run it,
+# store it. Every model call adds to the cost; at the cap the run stops cleanly as budget_reached with what it has.
+# Results and gates follow, then teardown. A crash leaves stored cases; starting again resumes after the last one.
+# Conditions of a kind that allows it run in parallel threads; the spend is shared under one lock, so the cap still holds.
+# Used by: research/experiment_routes.py, tests. Uses: research/kinds.py, research/results.py, research/prereg.py, research/lab_tenant.py.
+import threading
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
-import anthropic
-
-from app.pipeline import llm
-from app.pipeline.retry import call_with_retry
-from app.research import freshness_lab, grade_freshness, lab_tenant, prereg, results
-from app.research.contracts import CaseResult, Experiment
+from app.research import grade_freshness, kinds, lab_tenant, prereg, results
+from app.research.contracts import Experiment
 from app.research.experiment_store import utc_now
 
 # Config
-PRICES = {"claude-haiku-5-5": (0.10, 0.50), "claude-sonnet-5-5": (2.00, 10.00), "claude-opus-5-5": (4.00, 20.00)}  # USD per million tokens, in and out
-ANSWER_MAX_TOKENS = 300
-EXPECTED_IN, EXPECTED_OUT = 1_800, 60  # one question: eight chunks plus the prompt, and a one or two sentence answer
-LIVING_MAP_PER_DOCUMENT = 0.002  # one Haiku extraction window per short document
-LIVING_MAP_PER_FACT = 0.03  # one Opus conflict proposal per changed fact
-HEARTBEAT_EVERY = 1  # every answer: a model call can hang to its 60 s timeout twice, which must not look like a dead worker
+PRICES, cost, make_answerer = kinds.PRICES, kinds.cost, kinds.make_answerer  # read here by the routes and older callers
+HEARTBEAT_EVERY = 1  # every case: a model call can hang to its 60 s timeout twice, which must not look like a dead worker
 
 
 class BudgetReached(Exception):
     """The next call would pass the confirmed cap."""
 
 
-def cost(model: str, tokens_in: int, tokens_out: int) -> float:
-    price_in, price_out = PRICES[model]
-    return (tokens_in * price_in + tokens_out * price_out) / 1_000_000
+class Stopped(Exception):
+    """Another condition's thread stopped the run (the cap, or an error), so this one stops too."""
+
+
+def kind_of(pack: dict):
+    return kinds.KINDS[pack["manifest"].kind]
 
 
 # --- Before a run
 
 def plan(experiment: Experiment, pack: dict) -> list[tuple[str, int, int, object]]:
-    return [(c, seed, trial, q) for c in experiment.conditions for seed in experiment.seeds for trial in range(1, experiment.trials + 1) for q in pack["main"]]
+    return [(c, seed, trial, item) for c in experiment.conditions for seed in experiment.seeds for trial in range(1, experiment.trials + 1)
+            for _, items in kind_of(pack).groups(pack) for item in items]
 
 
 def estimate(experiment: Experiment, pack: dict) -> dict:
     """What the run will cost before it starts, so a person confirms a cap they understand."""
-    cases = len(plan(experiment, pack))
-    model = experiment.models["answer"]
-    asking = cases * cost(model, EXPECTED_IN, EXPECTED_OUT)
-    living = "C3" in experiment.conditions
-    lane_b = (len(pack["documents"]) * LIVING_MAP_PER_DOCUMENT + len(pack["extra"].get("facts.jsonl", [])) * LIVING_MAP_PER_FACT) if living else 0.0
-    return {"cases": cases, "tokens_in": cases * EXPECTED_IN, "tokens_out": cases * EXPECTED_OUT, "usd": round(asking + lane_b, 4)}
-
-
-def make_answerer(model: str, client=None):
-    """One answer from Claude, with its usage. Haiku answers without thinking; the larger models think at low effort."""
-    client = client or anthropic.Anthropic(timeout=llm.REASON_TIMEOUT_SECONDS, max_retries=0)
-    thinking = {"thinking": {"type": "disabled"}} if "haiku" in model else {}
-
-    def answer(prompt: str) -> tuple[str, dict]:
-        reply = call_with_retry(lambda: client.messages.create(model=model, max_tokens=ANSWER_MAX_TOKENS, output_config={"effort": "low"}, **thinking,
-                                                               messages=[{"role": "user", "content": prompt}]), llm.is_retryable, attempts=llm.ATTEMPTS)
-        return llm.first_text(reply), {"in": reply.usage.input_tokens, "out": reply.usage.output_tokens}
-
-    return answer
-
-
-# --- One case
-
-def run_case(experiment: Experiment, lane, condition: str, seed: int, trial: int, query, gold, facts: dict, answer) -> CaseResult:
-    started = time.monotonic()
-    asked = freshness_lab.ask(lane, query.text, query.as_of, answer)
-    label = grade_freshness.grade(asked["answer"], gold.expected_value, gold.superseded_values, gold.tolerance)
-    fact = facts.get(query.fact_id)
-    sentences = [s for s in ((fact.old_sentence, fact.new_sentence) if fact else ()) if s]
-    outcome = {"kind": query.kind, "question": query.text, "label": label, "grader": grade_freshness.GRADER_VERSION, "answer": asked["answer"], "expected": gold.expected_value, "superseded": gold.superseded_values,
-               "items": asked["items"], "either_hit": any(s in asked["context"] for s in sentences), "as_of": query.as_of}
-    model = experiment.models["answer"]
-    return CaseResult(experiment_id=experiment.id, condition=condition, seed=seed, trial=trial, case_id=query.query_id, outcome=outcome,
-                      passed=label == "fresh", latency_ms=int((time.monotonic() - started) * 1000), tokens_in=asked["usage"]["in"],
-                      tokens_out=asked["usage"]["out"], cost_usd=cost(model, asked["usage"]["in"], asked["usage"]["out"]))
+    kind, cases = kind_of(pack), plan(experiment, pack)
+    usd = sum(kind.case_cost(experiment, item) for _, _, _, item in cases) + kind.extra_usd(experiment, pack)
+    return {"cases": len(cases), "usd": round(usd, 4)}
 
 
 # --- The run
 
 def run(experiment_id: str, experiments, preregs, load_pack, answer=None, parts: frozenset[str] = lab_tenant.LAB_PARTS, worker: str | None = None) -> str:
-    """Runs or resumes the experiment. Returns its final status ("not_claimed" when another worker holds it)."""
+    """Runs or resumes the experiment. `answer` replaces the real models in tests (an answerer for freshness, a dict of models
+    for security). Returns its final status ("not_claimed" when another worker holds it)."""
     worker = worker or f"worker_{uuid.uuid4().hex[:8]}"
     if not experiments.claim(experiment_id, worker, utc_now()):
         return "not_claimed"
@@ -88,7 +55,7 @@ def run(experiment_id: str, experiments, preregs, load_pack, answer=None, parts:
     if "error" in experiment.notes:  # a resumed run starts without the last stop's error
         experiment = experiments.update(experiment_id, notes={k: v for k, v in experiment.notes.items() if k != "error"})
     try:
-        return run_claimed(experiment, experiments, preregs, load_pack(experiment.pack_id), answer or make_answerer(experiment.models["answer"]), parts, worker)
+        return run_claimed(experiment, experiments, preregs, load_pack(experiment.pack_id), answer, parts, worker)
     except Exception as error:  # the run stops, says why, and can be started again from where it was
         experiments.update(experiment_id, status="failed", notes={**experiments.get(experiment_id).notes, "error": f"{type(error).__name__}: {error}"[:500]})
         return "failed"
@@ -101,44 +68,76 @@ def run_claimed(experiment: Experiment, experiments, preregs, pack: dict, answer
         experiments.update(experiment.id, status="failed", notes={**experiment.notes, "error": "preregistration_not_locked_or_changed"})
         return "failed"
 
-    # Step 2: every condition's lab, then every case not yet stored, within the cap
-    spent = {"usd": experiments.cost_of(experiment.id) + experiment.notes.get("lab_usd", 0.0)}
-
-    def meter(model: str, tokens_in: int, tokens_out: int) -> None:  # Lane B's model calls count against the cap too
-        spent["usd"] += cost(model, tokens_in, tokens_out)
-
+    # Step 2: every condition's labs, then every case not yet stored, within the cap
+    kind, spent, lock = kind_of(pack), {"usd": experiments.cost_of(experiment.id) + experiment.notes.get("lab_usd", 0.0)}, threading.Lock()
     try:
-        reports = ask_everything(experiment, experiments, pack, answer, parts, worker, spent, meter)
+        reports = run_conditions(experiment, experiments, pack, kind, answer, parts, worker, spent, lock)
     except BudgetReached:
         experiments.update(experiment.id, status="budget_reached", cost_usd=spent["usd"], notes={**experiments.get(experiment.id).notes, "lab_usd": spent["usd"] - experiments.cost_of(experiment.id)})
         return "budget_reached"
 
     # Step 3: every answer graded by today's rule, then results, gates, verdicts; then the labs go
-    regrade(experiments, experiment.id, {g.query_id: g for g in pack["gold"]})
-    return finish(experiment, experiments, locked, reports, spent["usd"], parts)
+    if kind.kind == "freshness":
+        regrade(experiments, experiment.id, kind.gold_of(pack))
+    return finish(experiment, experiments, locked, reports, spent["usd"], parts, kind)
 
 
-def ask_everything(experiment: Experiment, experiments, pack: dict, answer, parts, worker: str, spent: dict, meter) -> dict:
-    gold, facts = {g.query_id: g for g in pack["gold"]}, {f.fact_id: f for f in pack["extra"].get("facts.jsonl", [])}
-    done = {(c.condition, c.seed, c.trial, c.case_id) for c in experiments.cases_of(experiment.id)}
-    reports = {}
-    for condition in experiment.conditions:
-        def beat() -> None:  # a long ingest or run is not a dead worker
-            experiments.heartbeat(experiment.id, worker, utc_now())
+def run_conditions(experiment: Experiment, experiments, pack: dict, kind, answer, parts, worker: str, spent: dict, lock) -> dict:
+    """Each condition in its own thread (one at a time for a kind that says so). The first error stops them all."""
+    done, stop = {(c.condition, c.seed, c.trial, c.case_id) for c in experiments.cases_of(experiment.id)}, threading.Event()
 
-        lane, reports[condition] = freshness_lab.build(experiment.id, condition, pack, parts, meter, beat)
-        for count, (_, seed, trial, query) in enumerate(item for item in plan(experiment, pack) if item[0] == condition):
-            if (condition, seed, trial, query.query_id) in done:
-                continue
-            if spent["usd"] + cost(experiment.models["answer"], EXPECTED_IN, EXPECTED_OUT) > experiment.budget_usd:
-                raise BudgetReached()
-            case = run_case(experiment, lane, condition, seed, trial, query, gold[query.query_id], facts, answer)
-            if experiments.add_case(case):
-                spent["usd"] += case.cost_usd
-            if count % HEARTBEAT_EVERY == 0:
-                beat()
-        lab_tenant.close_lab(lane)
-    return reports
+    def guarded(condition: str) -> dict:
+        try:
+            return run_condition(experiment, experiments, pack, kind, condition, answer, parts, worker, spent, lock, done, stop)
+        except Exception:
+            stop.set()
+            raise
+
+    with ThreadPoolExecutor(max_workers=kind.threads, thread_name_prefix="lab-condition") as pool:
+        futures = {c: pool.submit(guarded, c) for c in experiment.conditions}
+    errors = [f.exception() for f in futures.values() if f.exception()]
+    real = [e for e in errors if not isinstance(e, (BudgetReached, Stopped))]
+    if real or errors:
+        raise (real or errors)[0]
+    return {c: f.result() for c, f in futures.items()}
+
+
+def run_condition(experiment: Experiment, experiments, pack: dict, kind, condition: str, answer, parts, worker: str, spent: dict, lock, done: set, stop) -> dict:
+    local = {"usd": 0.0}
+
+    def meter(model: str, tokens_in: int, tokens_out: int) -> None:  # the pipeline's own model calls count against the cap too
+        with lock:
+            spent["usd"] += cost(model, tokens_in, tokens_out)
+            local["usd"] += cost(model, tokens_in, tokens_out)
+
+    def beat() -> None:  # a long build or run is not a dead worker
+        experiments.heartbeat(experiment.id, worker, utc_now())
+
+    doubles, gold, reports = kind.doubles(experiment, answer, meter), kind.gold_of(pack), {}
+    for group, items in kind.groups(pack):
+        lane, reports[group] = kind.build(experiment, condition, group, pack, parts, meter, beat, doubles)
+        try:
+            for count, (seed, trial, item) in enumerate((s, t, i) for s in experiment.seeds for t in range(1, experiment.trials + 1) for i in items):
+                if (condition, seed, trial, kind.case_id(item)) in done:
+                    continue
+                with lock:
+                    if stop.is_set():
+                        raise Stopped()
+                    if spent["usd"] + kind.case_cost(experiment, item) > experiment.budget_usd:
+                        stop.set()
+                        raise BudgetReached()
+                before = local["usd"]
+                case = kind.run_case(experiment, lane, condition, seed, trial, item, gold.get(kind.case_id(item)), pack, doubles)
+                case = case.model_copy(update={"cost_usd": local["usd"] - before}) if kind.metered else case
+                if experiments.add_case(case) and not kind.metered:
+                    with lock:
+                        spent["usd"] += case.cost_usd
+                if count % HEARTBEAT_EVERY == 0:
+                    beat()
+            reports[group] = {**reports[group], **kind.finish_lab(lane)}
+        finally:
+            lab_tenant.close_lab(lane)
+    return reports if kind.kind == "security" else reports["all"]
 
 
 def regrade(experiments, experiment_id: str, gold: dict) -> int:
@@ -154,13 +153,13 @@ def regrade(experiments, experiment_id: str, gold: dict) -> int:
     return changed
 
 
-def finish(experiment: Experiment, experiments, locked, reports: dict, spent: float, parts: frozenset[str]) -> str:
+def finish(experiment: Experiment, experiments, locked, reports: dict, spent: float, parts: frozenset[str], kind) -> str:
     cases = experiments.cases_of(experiment.id)
-    values = results.metric_values(experiment.id, cases, experiment.conditions)
-    checked = results.gates(values, experiment.conditions)
+    values = results.metric_values(experiment.id, cases, experiment.conditions, kind.kind)
+    checked = results.gates(values, experiment.conditions, kind.kind, reports, cases)
     judged = results.comparisons(locked.hypotheses, cases, experiment.id, checked["passed"])
     experiments.save_results(experiment.id, values, judged)
-    torn = {c: lab_tenant.teardown(freshness_lab.lab_id_for(experiment.id, c))["complete"] for c in experiment.conditions} if parts else {}
+    torn = {lab: lab_tenant.teardown(lab)["complete"] for lab in kind.lab_ids(experiment.id, experiment.conditions)} if parts else {}
     status = "finished" if checked["passed"] else "invalid_run"
     experiments.update(experiment.id, status=status, finished_at=utc_now().isoformat(), cost_usd=spent,
                        notes={**experiments.get(experiment.id).notes, "ingest": reports, "gates": checked, "teardown": torn})

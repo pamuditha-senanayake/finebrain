@@ -1,7 +1,7 @@
 # stages_retrieve.py: S5 Retrieve (K4 query to K4 bundle). Narrow first (step 13b), then hybrid search (meaning + exact
 # words), as-of time, access by tier and on_behalf_of, rerank, and a token budget. Denied items are counted, never shown.
 # Used by: run_steps.py, tests. Uses: contracts_reason.py, retrieve_scope.py, observe.py, a chunks store, embed and rerank.
-from app.pipeline import retrieve_scope
+from app.pipeline import access, retrieve_scope
 from app.pipeline.contracts_reason import AccessDecision, ContextBundle, ContextItem, ContextQuery, DeniedReason, SearchScope
 from app.pipeline.observe import count, log_event
 
@@ -147,6 +147,7 @@ def retrieve(query: ContextQuery, chunks, embed, rerank, people: dict, new_id, n
     decision = AccessDecision(
         decision_id=new_id("acc"), decision="allow", rule_id=SENSITIVITY_RULE_ID, reason=f"{len(kept)} shown, {denied} withheld, searched {scope.level}", latency_ms=0,
         principal_id=query.principal.id, on_behalf_of=query.on_behalf_of, action="kb.read", resource="knowledge", run_id=query.run_id,
+        capabilities=query.principal.capabilities, effective_tier=access.effective_tier(query.principal.tier, query.on_behalf_of, people),
     )
     bundle = ContextBundle(
         items=[ContextItem.model_validate({**item, "score": round(score, 4)}) for item, score in kept],

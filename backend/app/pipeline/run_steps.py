@@ -63,7 +63,8 @@ def govern_once(lane, task, action, bundle, principal, cause: Envelope, request_
     """S7 with the lane's policies, access checker and grader. Publishes the access decision."""
     policies = {node["_ref"]["id"]: node for node in lane.graph.latest("policy")}
     payments = govern_payments.payments_for(lane, signal_of(lane, task.signal_ids[0]), action.arguments.get("payment_ref"))
-    _, decision, verdict = stages_govern.govern(task, action, bundle, principal, policies, payments, lane.seed["cluster_id"], lane.now, lane.new_id, lane.check_access, lane.grade, request_text)
+    _, decision, verdict = stages_govern.govern(task, action, bundle, principal, policies, payments, lane.seed["cluster_id"], lane.now, lane.new_id, lane.check_access, lane.grade, request_text,
+                                               people=lane.seed["people"])
     lane.bus.publish("access.decisions", "access.decided", decision, "governance", cause)
     return decision, verdict
 

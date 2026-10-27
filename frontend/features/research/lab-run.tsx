@@ -9,7 +9,7 @@ import { EmptyState, PageHeader, QueryView, Section, Status } from "@/components
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useExperiment, useProgress, useStartExperiment } from "./lab-api";
-import { LabGate, paperLabel } from "./lab-ui";
+import { LabGate, caseWord, paperLabel } from "./lab-ui";
 
 const LIVE = new Set(["running", "estimated", "draft"]);
 const STOPPED_WORDS: Record<string, string> = {
@@ -47,8 +47,8 @@ function Live({ id, paper, conditions }: { id: string; paper: string; conditions
           <Section title={<span className="inline-flex items-center gap-2">Progress <Status value={p.status} /></span>} description={`Conditions ${conditions.join(", ")}`}>
             <div aria-live="polite" className="space-y-4">
               <div>
-                <div className="mb-2 flex justify-between text-[15px]"><span>Answers</span><span className="tabular">{p.done} of {p.total}</span></div>
-                <Progress value={share} aria-label="Answers done" />
+                <div className="mb-2 flex justify-between text-[15px]"><span className="capitalize">{caseWord(paper)}</span><span className="tabular">{p.done} of {p.total}</span></div>
+                <Progress value={share} aria-label={`${caseWord(paper)} done`} />
               </div>
               <div className="flex justify-between text-[15px]"><span>Spent</span><span className="tabular">${p.costUsd.toFixed(4)} of ${p.budgetUsd}</span></div>
               {p.stalled && <p className="text-[15px]">The worker stopped, for example when the server restarted. Resume continues after the last stored answer.</p>}

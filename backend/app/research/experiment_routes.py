@@ -1,7 +1,7 @@
 # experiment_routes.py: create, estimate, start, follow and read Lab experiments. Creating checks everything a run needs
 # (a locked preregistration that still holds, a pack of the right kind, conditions Finebrain can run, a cap inside the
 # limit) and saves the cost estimate; starting runs in one background worker per process; progress streams as SSE.
-# Used by: research/routes.py. Uses: research/runner.py, research/results.py, research/freshness_lab.py, research/prereg.py.
+# Used by: research/routes.py. Uses: research/runner.py, research/results.py, research/kinds.py, research/prereg.py.
 import asyncio
 import hashlib
 import json
@@ -13,13 +13,14 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app.research import experiment_store, freshness_lab, prereg, results, runner
+from app.research import experiment_store, freshness_lab, kinds, prereg, results, runner, security_lab
 from app.research.contracts import Experiment, Paper
 
 # Config
 MAX_BUDGET_USD = 40.0  # the most one run may spend without a code change
 TERMINAL = {"finished", "failed", "invalid_run", "budget_reached"}
-PAPER_FOR_KIND = {"freshness": "policies"}  # the kinds the Lab can run today
+PAPER_FOR_KIND = kinds.PAPER_FOR_KIND  # the kinds the Lab can run today
+KIND_FOR_PAPER = {paper: kind for kind, paper in PAPER_FOR_KIND.items()}
 STREAM_SECONDS = 2
 RUN_ONE_AT_A_TIME = threading.Semaphore(1)  # lab load never starves the product: one experiment per process
 
@@ -50,7 +51,8 @@ def problems_with(body: CreateBody, pack, locked) -> list[str]:
         found.append(f"a {pack.kind} pack cannot run for the {body.paper} paper yet")
     if locked and locked.paper != body.paper:
         found.append("the preregistration is for another paper")
-    found += [f"{c}: {freshness_lab.UNAVAILABLE.get(c, 'not a condition')}" for c in body.conditions if c not in freshness_lab.CONDITIONS]
+    kind = kinds.KINDS.get(KIND_FOR_PAPER.get(body.paper, ""))
+    found += [f"{c}: {kind.unavailable.get(c, 'not a condition') if kind else 'not a condition'}" for c in body.conditions if not kind or c not in kind.conditions]
     named = {c for h in (locked.hypotheses if locked else []) for c in h.conditions}
     found += [f"the preregistration compares {c}, which this run leaves out" for c in sorted(named - set(body.conditions))]
     found += [] if body.model in runner.PRICES else [f"unknown model {body.model}"]
@@ -72,8 +74,8 @@ def register(app: FastAPI, check, experiments, packs, preregs, load_pack, parts,
     @app.get("/options")
     def options(x_persona: str = Header(default="")) -> dict:
         check(x_persona)
-        return {"conditions": [{"code": c, "label": v["label"], "available": True} for c, v in freshness_lab.CONDITIONS.items()]
-                + [{"code": c, "label": "Delete and rebuild", "available": False, "reason": why} for c, why in freshness_lab.UNAVAILABLE.items()],
+        by_paper = {kind.paper: conditions_of(kind) for kind in kinds.KINDS.values()}
+        return {"conditions": by_paper["policies"], "conditionsByPaper": by_paper,
                 "models": [{"id": m, "inUsdPerMillion": p[0], "outUsdPerMillion": p[1]} for m, p in runner.PRICES.items()], "maxBudgetUsd": MAX_BUDGET_USD}
 
     @app.post("/experiments", status_code=201)
@@ -83,7 +85,7 @@ def register(app: FastAPI, check, experiments, packs, preregs, load_pack, parts,
         found = problems_with(body, pack, locked)
         if found:
             raise HTTPException(422, {"error": "experiment_not_ready", "problems": found})
-        config = {"conditions": body.conditions, "seeds": body.seeds, "trials": body.trials, "model": body.model, "prompt": freshness_lab.ANSWER_PROMPT, "top_k": freshness_lab.TOP_K}
+        config = {"conditions": body.conditions, "seeds": body.seeds, "trials": body.trials, "model": body.model, **config_of(pack.kind)}
         experiment = Experiment(id=str(uuid.uuid4()), paper=body.paper, pack_id=pack.id, prereg_id=locked.id, source="lab", conditions=body.conditions, seeds=body.seeds,
                                 trials=body.trials, models={"answer": body.model}, budget_usd=body.budget_usd, git_commit=git_commit(), status="estimated",
                                 config_sha256=hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest())
@@ -136,7 +138,7 @@ def register(app: FastAPI, check, experiments, packs, preregs, load_pack, parts,
         locked = preregs().get(experiment.prereg_id)
         return {"experiment": experiment.ui(), "metrics": results.snapshot_metrics(values), "verdicts": results.snapshot_verdicts(locked.hypotheses if locked else [], judged),
                 "hypotheses": [h.ui() for h in (locked.hypotheses if locked else [])], "preregSha256": locked.sha256 if locked else None,
-                "conditions": {c: v["label"] for c, v in freshness_lab.CONDITIONS.items()}}
+                "conditions": {c: v["label"] for c, v in kinds.KINDS[KIND_FOR_PAPER.get(experiment.paper, "freshness")].conditions.items()}}
 
     @app.get("/experiments/{experiment_id}/cases")
     def cases(experiment_id: str, condition: str | None = None, failed: bool = False, offset: int = 0, limit: int = 1, x_persona: str = Header(default="")) -> dict:
@@ -144,6 +146,18 @@ def register(app: FastAPI, check, experiments, packs, preregs, load_pack, parts,
         found_experiment(experiments(), experiment_id)
         chosen = [c for c in experiments().cases_of(experiment_id) if (condition is None or c.condition == condition) and not (failed and c.passed)]
         return {"total": len(chosen), "offset": offset, "items": [c.ui() for c in chosen[offset:offset + max(1, min(limit, 50))]]}
+
+
+def conditions_of(kind) -> list[dict]:
+    return ([{"code": c, "label": v["label"], "available": True} for c, v in kind.conditions.items()]
+            + [{"code": c, "label": kind.unavailable_labels.get(c, c), "available": False, "reason": why} for c, why in kind.unavailable.items()])
+
+
+def config_of(kind: str) -> dict:
+    """What fixes the run beyond its grid, hashed into config_sha256: the answer prompt, or the rules prompt-only writes in."""
+    if kind == "security":
+        return {"rules_prompt": security_lab.RULES, "conditions_meaning": {c: {k: v for k, v in rules.items() if k != "label"} for c, rules in security_lab.CONDITIONS.items()}}
+    return {"prompt": freshness_lab.ANSWER_PROMPT, "top_k": freshness_lab.TOP_K}
 
 
 def found_experiment(store, experiment_id: str) -> Experiment:

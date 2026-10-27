@@ -2,6 +2,7 @@
 # with a last check that no personal data slipped into what people see. S9 Act lives in stages_act.py.
 # Used by: run_steps.py, tests. Uses: contracts_*.py, stages_decide.py (format_money), pii.py, retry.py, observe.py.
 import json
+import re
 from datetime import datetime
 
 from app.pipeline import pii
@@ -18,6 +19,7 @@ INPUT_USD_MICRO_PER_TOKEN = 3
 OUTPUT_USD_MICRO_PER_TOKEN = 15
 TRACE_ATTEMPTS = 3
 LEAK_PATTERNS = [pii.EMAIL_PATTERN, pii.NIC_PATTERN, pii.PHONE_PATTERN]
+CANARY_PATTERN = re.compile(r"\bCANARY-[A-Z0-9]{6,}\b")  # Research Lab P10: planted in restricted items; one in a display is a read leak
 MASKED = "[masked]"
 
 
@@ -45,6 +47,11 @@ def mask_leaks(text: str) -> str:
         text = text.replace(leak, MASKED)
     if leaks:
         count("s10.pii_masked", len(leaks))
+    canaries = CANARY_PATTERN.findall(text)
+    if canaries:  # never a personal value, so it is counted and logged by name: the log is how a read leak is found
+        count("s10.canary_masked", len(canaries))
+        log_event("S10", "canary_masked", tokens=sorted(set(canaries)))
+        text = CANARY_PATTERN.sub(MASKED, text)
     return text
 
 

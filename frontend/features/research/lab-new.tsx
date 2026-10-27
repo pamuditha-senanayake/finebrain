@@ -14,10 +14,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { problemsOf, useCreateExperiment, useOptions, usePacks, usePreregs, useStartExperiment } from "./lab-api";
-import { LabGate, StepLine, paperLabel } from "./lab-ui";
+import { LabGate, StepLine, caseWord, paperLabel } from "./lab-ui";
 
 const STEPS = ["Pack and thresholds", "Conditions and repeats", "Budget and model"];
-const PAPER_OF_KIND: Record<string, "policies"> = { freshness: "policies" };
+const PAPER_OF_KIND: Record<string, "policies" | "security"> = { freshness: "policies", security: "security" };
 
 type Draft = { packId: string; preregId: string; conditions: string[]; seeds: number; trials: number; model: string; budget: string };
 
@@ -48,6 +48,7 @@ function Steps({ packs, preregs, options }: { packs: LabPack[]; preregs: LabPrer
   const locked = preregs.filter((p) => p.lockedAt && p.paper === paper);
   const prereg = locked.find((p) => p.id === d.preregId);
   const created: LabExperiment | undefined = create.data;
+  const conditions = (paper && options.conditionsByPaper?.[paper]) || options.conditions;
 
   const choosePrereg = (id: string) => {
     const needed = [...new Set(preregs.find((p) => p.id === id)?.hypotheses.flatMap((h) => h.conditions) ?? [])].sort();
@@ -77,9 +78,9 @@ function Steps({ packs, preregs, options }: { packs: LabPack[]; preregs: LabPrer
         </Section>
       )}
       {step === 1 && (
-        <Section title="Which conditions, how many times?" description={prereg ? `Your preregistration compares ${[...new Set(prereg.hypotheses.flatMap((h) => h.conditions))].join(" and ")}.` : undefined}>
+        <Section title="Which conditions, how many times?" description={prereg ? `Your preregistration compares ${spoken([...new Set(prereg.hypotheses.flatMap((h) => h.conditions))].sort())}.` : undefined}>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Conditions">
-            {options.conditions.map((c) => {
+            {conditions.map((c) => {
               const on = d.conditions.includes(c.code);
               return (
                 <button key={c.code} type="button" disabled={!c.available} aria-pressed={on} title={c.reason}
@@ -90,18 +91,18 @@ function Steps({ packs, preregs, options }: { packs: LabPack[]; preregs: LabPrer
               );
             })}
           </div>
-          {options.conditions.filter((c) => !c.available).map((c) => <p key={c.code} className="mt-2 text-[13px] text-muted-foreground">{c.code} is not offered: {c.reason}.</p>)}
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          {conditions.filter((c) => !c.available).map((c) => <p key={c.code} className="mt-2 text-[13px] text-muted-foreground">{c.code} is not offered: {c.reason}.</p>)}
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 [&>*]:mt-0">
             <Field label="Seeds"><NumberSelect value={d.seeds} choices={[1, 3, 5]} onChange={(seeds) => setD({ ...d, seeds })} label="Seeds" /></Field>
-            <Field label="Trials per question"><NumberSelect value={d.trials} choices={[1, 2, 4, 8]} onChange={(trials) => setD({ ...d, trials })} label="Trials" /></Field>
+            <Field label={`Trials per ${caseWord(paper, false)}`}><NumberSelect value={d.trials} choices={[1, 2, 4, 8]} onChange={(trials) => setD({ ...d, trials })} label="Trials" /></Field>
           </div>
         </Section>
       )}
       {step === 2 && !created && (
         <Section title="Which model, and the most it may spend?">
-          <Field label="Answering model">
+          <Field label={paper === "security" ? "Agent model" : "Answering model"}>
             <Select value={d.model} onValueChange={(model) => setD({ ...d, model })}>
-              <SelectTrigger className="w-full" aria-label="Answering model"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full" aria-label={paper === "security" ? "Agent model" : "Answering model"}><SelectValue /></SelectTrigger>
               <SelectContent>{options.models.map((m) => <SelectItem key={m.id} value={m.id}>{m.id} · ${m.inUsdPerMillion} in, ${m.outUsdPerMillion} out per million tokens</SelectItem>)}</SelectContent>
             </Select>
           </Field>
@@ -128,12 +129,15 @@ function Estimate({ experiment, onStart, starting, error }: { experiment: LabExp
   const estimate = experiment.notes.estimate as { cases: number; usd: number } | undefined;
   return (
     <Section title="Ready to run" description="Nothing has been spent yet.">
-      <p className="text-[15px]">{estimate?.cases ?? 0} answers, about <span className="font-semibold">${(estimate?.usd ?? 0).toFixed(2)}</span>. The run stops at ${experiment.budgetUsd} whatever happens.</p>
+      <p className="text-[15px]">{estimate?.cases ?? 0} {caseWord(experiment.paper)}, about <span className="font-semibold">${(estimate?.usd ?? 0).toFixed(2)}</span>. The run stops at ${experiment.budgetUsd} whatever happens.</p>
       {error ? <p role="alert" className="mt-2 text-[15px] text-risk">{(error as Error).message}</p> : null}
       <div className="mt-5 flex justify-end"><Button disabled={starting} onClick={onStart}>{starting ? "Starting…" : "Start run"}</Button></div>
     </Section>
   );
 }
+
+/** "I", "I and U", "I, R and U". */
+const spoken = (items: string[]) => (items.length < 3 ? items.join(" and ") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
 
 function Field({ label, hint, children }: { label: string; hint?: React.ReactNode; children: React.ReactNode }) {
   return <div className="mt-4 space-y-2 first:mt-0"><Label className="text-[15px]">{label}</Label>{children}{hint && <p className="text-[13px] text-muted-foreground">{hint}</p>}</div>;

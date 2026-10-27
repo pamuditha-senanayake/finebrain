@@ -43,6 +43,16 @@ def evaluate(rules_input: dict) -> dict:
     return {"allow": True, "rule_id": "capability_and_tier", "reason": "capability held and data readable"}
 
 
+TIER_ORDER = ["L3", "L2", "L1"]  # lowest first
+
+
+def effective_tier(principal_tier: str, on_behalf_of: str | None, people: dict) -> str:
+    """Acting for a person, the agent carries no more than that person may: the lower of the two tiers."""
+    person_tier = people.get(on_behalf_of, {}).get("tier") if on_behalf_of else None
+    tiers = [t for t in (principal_tier, person_tier) if t in TIER_ORDER]
+    return min(tiers, key=TIER_ORDER.index) if tiers else principal_tier
+
+
 def make_memory_checker(people: dict) -> Checker:
     return lambda check: evaluate(build_input(check, people))
 

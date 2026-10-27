@@ -4,6 +4,7 @@
 # Every function refuses an id that is not a lab id. Used by: the Lab runner (step 6), tests/test_research_lab.py.
 # Uses: orchestrate.py, adapters.py, conn_call.py, kafka_admin.py, store_postgres.py, store_s3.py, store_valkey.py, research/lab_shop.py.
 import re
+import threading
 import uuid
 from contextlib import contextmanager
 from datetime import datetime
@@ -22,6 +23,7 @@ LAB_ID = re.compile(r"^lab_[0-9a-f]{32}$")  # also safe as a Postgres name, a Ka
 LAB_PARTS = frozenset({"postgres", "valkey", "s3", "kafka", "opa"})  # Temporal waits on real time, so lab lanes run in process
 SHOP_CONNECTION = "conn_lab_shop"
 BUILD_LOCK = 72_000_002  # advisory lock id: the product's stores set up their tables on connect, and two at once can deadlock
+BUILDING = threading.Lock()  # the same within one process, where conditions build in parallel threads (the shop is always a Postgres schema)
 
 
 class NotALab(ValueError):
@@ -68,12 +70,13 @@ def connect_shop(lane, address: str) -> None:
 @contextmanager
 def one_build_at_a_time(on_postgres: bool):
     """Across every process: held on its own connection, released when the build ends or the process dies."""
-    if not on_postgres:
-        yield
-        return
-    with psycopg.connect(store_postgres.DATABASE_URL, autocommit=True) as connection:
-        connection.execute("SELECT pg_advisory_lock(%s)", (BUILD_LOCK,))
-        yield
+    with BUILDING:
+        if not on_postgres:
+            yield
+            return
+        with psycopg.connect(store_postgres.DATABASE_URL, autocommit=True) as connection:
+            connection.execute("SELECT pg_advisory_lock(%s)", (BUILD_LOCK,))
+            yield
 
 
 def create_lab(lab_id: str, seed: dict, model, now: datetime, shop: dict | None = None, parts: frozenset[str] = LAB_PARTS, new_id=None):
