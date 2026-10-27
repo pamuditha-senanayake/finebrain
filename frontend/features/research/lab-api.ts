@@ -2,7 +2,7 @@
 // every other case answers with a LabUnavailable error the screens turn into a plain explanation.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
-import { LabCasePage, LabExperiment, LabOptions, LabPack, LabPrereg, LabProgress, LabResults, type LabAudit, type LabHypothesis, type ResearchPaper } from "@/contracts/research";
+import { LabCasePage, LabExperiment, LabOptions, LabPack, LabPrereg, LabProgress, LabReference, LabResults, type LabAudit, type LabHypothesis, type ResearchPaper } from "@/contracts/research";
 import { config, realTenants } from "@/lib/flags";
 import { currentPersonaId, useUi } from "@/lib/store";
 
@@ -43,6 +43,8 @@ export const useLabStatus = () => useQuery({ queryKey: useKey("status"), queryFn
 export const usePacks = () => useQuery({ queryKey: useKey("packs"), queryFn: () => call("/packs", z.array(LabPack)), retry: false });
 export const usePreregs = () => useQuery({ queryKey: useKey("preregs"), queryFn: () => call("/preregistrations", z.array(LabPrereg)), retry: false });
 export const useExperiments = () => useQuery({ queryKey: useKey("experiments"), queryFn: () => call("/experiments", z.array(LabExperiment)), retry: false });
+export const useReferences = (paper: ResearchPaper) =>
+  useQuery({ queryKey: useKey("references", paper), queryFn: () => call(`/references?paper=${paper}`, z.array(LabReference)), retry: false });
 export const useOptions = () => useQuery({ queryKey: useKey("options"), queryFn: () => call("/options", LabOptions), retry: false });
 export const useExperiment = (id: string) =>
   useQuery({ queryKey: useKey("experiment", id), queryFn: () => call(`/experiments/${id}`, LabExperiment), retry: false });

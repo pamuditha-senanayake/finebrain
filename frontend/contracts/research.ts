@@ -149,6 +149,13 @@ export type LabCase = z.infer<typeof LabCase>;
 export const LabCasePage = z.object({ total: z.number(), offset: z.number(), items: z.array(LabCase) });
 export type LabCasePage = z.infer<typeof LabCasePage>;
 
+/** A number from outside the Lab: a published figure (a paper's table) or the Lab's own run of a public benchmark. */
+export const LabReference = z.object({
+  id: z.string(), benchmark: z.string(), metricKey: z.string(), value: z.number(), model: z.string(), sourceTitle: z.string(), sourceUrl: z.string(),
+  peerReviewed: z.boolean(), reportedOn: z.string(), note: z.string().optional(), ours: z.boolean(), n: z.number().optional(),
+});
+export type LabReference = z.infer<typeof LabReference>;
+
 const LabCondition = z.object({ code: z.string(), label: z.string(), available: z.boolean(), reason: z.string().optional() });
 
 export const LabOptions = z.object({

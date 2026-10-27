@@ -16,6 +16,9 @@ export const PAPERS: { key: ResearchPaper; label: string; question: string }[] =
   { key: "integration", label: "Integration", question: "Does the whole brain beat retrieval alone?" },
 ];
 
+/** What one case of a paper's run is called: a graded answer, or an agent's episode. */
+export const caseWord = (paper: string | undefined, plural = true) => (paper === "security" ? (plural ? "episodes" : "episode") : (plural ? "answers" : "question"));
+
 export const paperLabel = (key: string) => PAPERS.find((p) => p.key === key)?.label ?? key;
 
 const VERDICT: Record<string, [Tone, string]> = {

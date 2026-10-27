@@ -6,7 +6,7 @@
 import { ArrowLeft, FlaskConical } from "lucide-react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { Bar, BarChart, CartesianGrid, ErrorBar, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, ErrorBar, ReferenceLine, XAxis, YAxis } from "recharts";
 import type { LabResults, ResearchPaper } from "@/contracts/research";
 import { CardPager, Folded } from "@/components/brain/card-pager";
 import { KeyValue, Mono, PageHeader, QueryView, Section } from "@/components/brain/primitives";
@@ -15,15 +15,19 @@ import { Button } from "@/components/ui/button";
 import { ChartContainer } from "@/components/ui/chart";
 import { CaseViewer } from "./cases";
 import { latestFor } from "./home";
-import { useExperiments, useResults } from "./lab-api";
+import { useExperiments, useReferences, useResults } from "./lab-api";
 import { PAPERS, VerdictChip, percent, points } from "./lab-ui";
+import { References, chartLines, referenceLabel } from "./references";
 import { SampleMetrics } from "./sample-metrics";
 
 const GATE_WORDS: Record<string, string> = {
   canaries: "A canary question was answered wrong, so the pipeline has a defect.",
   retrieval: "Retrieval did not reach the evidence often enough (below 60%).",
   baseline: "The baseline answered almost nothing, so comparing with it says nothing.",
+  episodes_ran: "An agent episode never reached a run, so the lab did not test what it should.",
+  audit_chain: "A lab's audit log is no longer one unbroken chain.",
 };
+const SECURITY_GATE_WORDS: Record<string, string> = { baseline: "With no checks at all, the agent did less than half the benign work, so the lab itself is broken." };
 
 export function ResearchPaperPage() {
   const paperKey = (useParams<{ paper: string }>().paper ?? "policies") as ResearchPaper;
@@ -55,6 +59,7 @@ function LabResultsView({ id }: { id: string }) {
           <Section title="Cases" description={data.experiment.paper === "security" ? "One episode at a time." : "One graded answer at a time."}>
             <CaseViewer experimentId={id} conditions={data.experiment.conditions} labels={data.conditions} failedLabel={data.experiment.paper === "security" ? "Failed only" : undefined} />
           </Section>
+          <References paper={data.experiment.paper} />
           <Folded title="Run details"><RunDetails data={data} /></Folded>
         </div>
       )}
@@ -69,7 +74,7 @@ function InvalidRun({ data }: { data: LabResults }) {
     <Alert variant="destructive">
       <AlertTitle className="text-[15px]">Invalid run: no verdict can be read</AlertTitle>
       <AlertDescription className="text-[15px]">
-        <ul className="mt-1 list-disc pl-5">{failed.map((gate) => <li key={gate}>{GATE_WORDS[gate] ?? gate}</li>)}</ul>
+        <ul className="mt-1 list-disc pl-5">{failed.map((gate) => <li key={gate}>{(data.experiment.paper === "security" && SECURITY_GATE_WORDS[gate]) || GATE_WORDS[gate] || gate}</li>)}</ul>
       </AlertDescription>
     </Alert>
   );
@@ -114,14 +119,15 @@ function observed(text: string, isEffect: boolean): { value: string; detail: str
 
 function ConditionChart({ data }: { data: LabResults }) {
   const metric = data.hypotheses[0]?.metric ?? "stale_answer_rate";
+  const outside = chartLines((useReferences(data.experiment.paper).data ?? []).filter((r) => r.metricKey === metric));  // dashed: numbers from outside the Lab
   const rows = data.metrics.filter((m) => m.key === metric).map((m) => ({
     name: data.conditions[m.condition] ?? m.condition, value: m.value * 100,
     err: [(m.value - (m.ci?.low ?? m.value)) * 100, ((m.ci?.high ?? m.value) - m.value) * 100],
   }));
   if (rows.length === 0) return null;
-  const top = Math.min(100, Math.max(20, Math.ceil(Math.max(...rows.map((r) => r.value + r.err[1])) / 10) * 10 + 10));  // from zero, scaled to the data
+  const top = Math.min(100, Math.max(20, Math.ceil(Math.max(...rows.map((r) => r.value + r.err[1]), ...outside.map((r) => r.value * 100)) / 10) * 10 + 10));  // from zero, scaled to the data
   return (
-    <Section title={rows.length ? data.metrics.find((m) => m.key === metric)?.label : ""} description="Each condition with its 95% interval.">
+    <Section title={rows.length ? data.metrics.find((m) => m.key === metric)?.label : ""} description={outside.length ? "Each condition with its 95% interval. Dashed lines come from outside the Lab." : "Each condition with its 95% interval."}>
       <ChartContainer config={{ value: { label: "Share", color: "var(--chart-1)" } }} className="h-56 w-full">
         <BarChart data={rows} margin={{ left: 0, right: 8, top: 8 }}>
           <CartesianGrid vertical={false} />
@@ -130,6 +136,10 @@ function ConditionChart({ data }: { data: LabResults }) {
           <Bar dataKey="value" fill="var(--color-value)" radius={6} isAnimationActive={false}>
             <ErrorBar dataKey="err" width={6} strokeWidth={1.5} stroke="var(--foreground)" />
           </Bar>
+          {outside.map((r) => (
+            <ReferenceLine key={r.id} y={r.value * 100} stroke="var(--muted-foreground)" strokeDasharray="4 4"
+              label={{ value: referenceLabel(r), position: "insideTopRight", fontSize: 11, fill: "var(--muted-foreground)" }} />
+          ))}
         </BarChart>
       </ChartContainer>
       <ul className="mt-3 space-y-1 text-[15px]">

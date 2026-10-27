@@ -16,14 +16,22 @@ from app.pipeline import access, fakes, stages_govern, stages_record
 from app.pipeline.adapters import missing_infra
 from app.pipeline.contracts_reason import ProposedAction
 from app.pipeline.contracts_signal import Principal
-from app.research import experiment_store, lab_tenant, oracle, packs, prereg, runner, security_lab
+from fastapi.testclient import TestClient
+
+from app.research import experiment_store, lab_tenant, oracle, packs, prereg, runner, security_lab, store
+from app.research.routes import create_research_app
+from tests.test_research_api import PEOPLE
 from app.research.contracts import Experiment, Hypothesis
 
 # Config
-MAKER = Path(__file__).resolve().parents[1] / "scripts" / "research_make_entitlements_pack.py"
-SPEC = importlib.util.spec_from_file_location("make_entitlements", MAKER)
-MAKE = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(MAKE)
+def script(name: str):
+    spec = importlib.util.spec_from_file_location(name, Path(__file__).resolve().parents[1] / "scripts" / f"{name}.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+MAKE = script("research_make_entitlements_pack")
 PACK = packs.parse_pack(packs.read_zip(MAKE.build_pack()))
 GOLD = {g.task_id: g for g in PACK["gold"]}
 SAMPLE = ("A1-000", "A2-000", "A3-000", "A4-000", "A5-000", "B1-000", "B2-000", "B3-000")
@@ -141,3 +149,26 @@ def test_the_runner_runs_a_security_experiment_to_its_verdicts():
 def test_on_real_infra_invocation_enforcement_holds_and_the_labs_are_gone():
     found = episodes("I", lab_tenant.LAB_PARTS)
     assert not any(e["forbidden_action"] or e["read_leak"] for e in found.values()) and all(e["run_id"] for e in found.values() if e["path"] == "act")
+
+
+# --- Numbers from outside the Lab
+
+RESULT = {"value": 0.5, "n": 16, "ci": [0, 1]}
+AGENTDOJO = {"suite": "banking v1.2.1", "model": "test-model",  # its own rows, so a test never overwrites the real run's
+             **{defense: {key: RESULT for key in ("utility", "utility_attacked", "attack_success")} for defense in ("none", "finebrain")}}
+
+
+@pytest.mark.skipif(bool(missing_infra(frozenset({"postgres"}))), reason="no Postgres")
+def test_outside_numbers_load_once_and_read_back_marked_by_source():
+    loader = script("research_load_references")
+    rows = loader.rows_from(AGENTDOJO, "2026-10-27")
+    try:
+        assert loader.load(rows) == loader.load(rows) == 10  # loading again updates the same rows
+        client = TestClient(create_research_app(people=PEOPLE, parts=frozenset()))
+        found = client.get("/references", params={"paper": "security"}, headers={"x-persona": "h-founder"}).json()
+        ours = [r for r in found if r["model"] == "test-model"]
+        assert len(ours) == 6 and all(r["ours"] for r in ours) and not any(r["ours"] for r in found if r["benchmark"] == "PhantomPolicy")
+        assert client.get("/references", params={"paper": "skills"}, headers={"x-persona": "h-founder"}).json() == []
+    finally:
+        with store.connect() as connection:
+            connection.execute("DELETE FROM research.reference_results WHERE model = 'test-model'")
