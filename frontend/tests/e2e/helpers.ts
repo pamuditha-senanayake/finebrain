@@ -39,6 +39,10 @@ export const ROUTES: { path: string; persona: string; label: string }[] = [
   { path: "/studio?wf=wf-billing&view=diagram", persona: "h-aiops", label: "studio-diagram" },
   { path: "/studio?wf=wf-care&view=parts", persona: "h-op", label: "studio-parts-l3" },
   { path: "/research/skills", persona: "h-research", label: "research" },
+  { path: "/research", persona: "h-research", label: "research-home" },
+  { path: "/research/lab", persona: "h-research", label: "research-lab" },
+  { path: "/research/lab/new", persona: "h-research", label: "research-lab-new" },
+  { path: "/research/prereg", persona: "h-research", label: "research-prereg" },
 ];
 
 /** Sets tenant and persona in the persisted UI store before the app boots. */

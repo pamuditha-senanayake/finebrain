@@ -1,6 +1,6 @@
 # Research Lab: build plan
 
-27 October 2026. How we build `CB_Research_Tab_Build_Spec_v1.md` on Finebrain `main` (`a7bc601`). Approved. Steps 1 to 4 are done (see the Research Lab rows in `CB_System_Reference.md`).
+27 October 2026. How we build `CB_Research_Tab_Build_Spec_v1.md` on Finebrain `main` (`a7bc601`). Approved. Stage 1 (steps 1 to 8) is done (see the Research Lab rows in `CB_System_Reference.md`).
 
 ## 1. In short
 

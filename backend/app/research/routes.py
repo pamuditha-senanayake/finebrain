@@ -1,8 +1,9 @@
 # routes.py: the Research Lab API, its own app that main.py mounts at /research only when RESEARCH_LAB=enabled.
-# Only the founder or a person with the research role may open it. It serves the lab's status and packs (pack_routes.py);
-# later steps add preregistrations, experiments and results. Used by: app/main.py.
-# Uses: research/store.py, research/pack_store.py, research/pack_routes.py, store_s3.py, api/routes.py (console origins).
+# Only the founder or a person with the research role may open it. It serves the lab's status, packs (pack_routes.py)
+# preregistrations (prereg_routes.py), and experiments with their results (experiment_routes.py). Used by: app/main.py.
+# Uses: research/store.py, research/pack_store.py, research/pack_routes.py, research/prereg.py, research/prereg_routes.py, store_s3.py, api/routes.py (console origins).
 import json
+import os
 from pathlib import Path
 
 import psycopg
@@ -14,10 +15,11 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from app.api.routes import CONSOLE_ORIGINS
 from app.pipeline import store_s3
-from app.research import pack_routes, pack_store, store
+from app.research import experiment_routes, experiment_store, lab_tenant, pack_routes, pack_store, packs as pack_reader, prereg, prereg_routes, store
 
 # Config
 HQ_TENANT = Path(__file__).resolve().parents[2] / "samples" / "hq_tenant.json"
+LAB_PARTS = lab_tenant.LAB_PARTS | ({"voyage"} if os.environ.get("VOYAGE_API_KEY") else set())  # real embeddings when there is a key
 OPEN_ROLES = {"founder", "research"}  # the same rule as the console's canView for the research area (frontend/lib/auth.ts)
 
 
@@ -36,7 +38,8 @@ def postgres_packs(connection: psycopg.Connection) -> pack_store.PostgresPacks:
     return pack_store.PostgresPacks(connection, store_s3.S3ObjectStore(store_s3.connect()))
 
 
-def create_research_app(connect=store.connect, people: dict | None = None, make_packs=postgres_packs) -> FastAPI:
+def create_research_app(connect=store.connect, people: dict | None = None, make_packs=postgres_packs,
+                        make_preregs=prereg.PostgresPreregs, make_experiments=experiment_store.PostgresExperiments, parts: frozenset[str] = LAB_PARTS) -> FastAPI:
     """The Lab's API. The store connects on first use, so a Postgres outage never stops the product from starting."""
     app = FastAPI(title="finebrain research lab")
     app.add_middleware(CORSMiddleware, allow_origins=CONSOLE_ORIGINS, allow_methods=["*"], allow_headers=["*"])
@@ -84,4 +87,15 @@ def create_research_app(connect=store.connect, people: dict | None = None, make_
         return {"lab": "enabled", "store": "ready" if ready else "unavailable"}
 
     pack_routes.register(app, check, packs)
+    prereg_routes.register(app, check, lambda: make_preregs(connection()))
+
+    def load_pack(pack_id: str) -> dict:
+        kept = packs()
+        return pack_reader.parse_pack(pack_reader.read_zip(kept.zip_of(kept.get(pack_id))))
+
+    def worker_stores():
+        own = connect()
+        return make_experiments(own), make_preregs(own)
+
+    experiment_routes.register(app, check, lambda: make_experiments(connection()), packs, lambda: make_preregs(connection()), load_pack, parts, worker_stores)
     return app

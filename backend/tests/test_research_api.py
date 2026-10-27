@@ -41,9 +41,7 @@ def load_main(lab: str | None):
     """app/main.py as the server would load it with RESEARCH_LAB set to `lab`, the environment left as it was."""
     saved_env = dict(os.environ)
     try:
-        os.environ.pop("RESEARCH_LAB", None)
-        if lab is not None:
-            os.environ["RESEARCH_LAB"] = lab
+        os.environ["RESEARCH_LAB"] = lab if lab is not None else ""  # blank, not absent: a developer's backend/.env may enable it
         return importlib.reload(importlib.import_module("app.main"))
     finally:
         os.environ.clear()

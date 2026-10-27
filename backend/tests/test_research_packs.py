@@ -82,6 +82,11 @@ def test_an_update_that_announces_itself_fails_the_marker_leak_audit(leak):
     assert check["status"] == "fail" and leak in check["lines"][0]
 
 
+def test_an_update_title_that_says_update_is_a_leak():
+    titled = files(**{"documents/UPD-F01.md": document("UPD-F01", UPDATE, supersedes="POL-001").replace("title: UPD-F01 standard", "title: Policy Update: refunds")})
+    assert audits(titled)["marker_leak"]["lines"] == ["documents/UPD-F01.md: title: Policy Update: refunds"]
+
+
 def test_boilerplate_every_kind_of_document_carries_is_not_a_leak():
     assert "supersedes" in BOILERPLATE and audits(files())["marker_leak"]["status"] == "pass"
 
@@ -134,5 +139,7 @@ def test_execution_v1_the_old_corpus_leaks_markers_and_the_fixed_one_does_not():
     data = convert.build_pack(FIXED, "nyrivell_freshness_v2")
     _, sha, fixed = pack_audits.audit_pack(data)
     assert next(c for c in old if c["key"] == "marker_leak")["status"] == "fail"
-    assert {c["key"]: c["status"] for c in fixed if c["status"] != "pass" and c["status"] != "not_applicable"} == {"overlap": "warn", "exposure": "warn"}
+    leak = next(c for c in fixed if c["key"] == "marker_leak")
+    assert leak["status"] == "fail" and all(": title: Policy Update:" in line for line in leak["lines"])  # only the titles still leak
+    assert {c["key"]: c["status"] for c in fixed if c["status"] not in ("pass", "not_applicable")} == {"marker_leak": "fail", "overlap": "warn", "exposure": "warn"}
     assert pack_audits.audit_pack(convert.build_pack(FIXED, "nyrivell_freshness_v2"))[1] == sha  # converting again gives the same pack

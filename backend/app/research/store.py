@@ -35,6 +35,9 @@ CREATE TABLE IF NOT EXISTS research.experiments (
     config_sha256 text NOT NULL, git_commit text NOT NULL,
     status text NOT NULL, started_at timestamptz, finished_at timestamptz, cost_usd numeric
 );
+ALTER TABLE research.experiments ADD COLUMN IF NOT EXISTS worker_id text;
+ALTER TABLE research.experiments ADD COLUMN IF NOT EXISTS heartbeat_at timestamptz;
+ALTER TABLE research.experiments ADD COLUMN IF NOT EXISTS notes jsonb NOT NULL DEFAULT '{{}}';
 CREATE TABLE IF NOT EXISTS research.case_results (
     experiment_id uuid REFERENCES research.experiments ON DELETE CASCADE,
     condition text, seed int, trial int, case_id text,

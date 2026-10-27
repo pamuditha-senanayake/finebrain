@@ -14,6 +14,8 @@ Paper = Literal["skills", "policies", "security", "integration"]
 PackKind = Literal["freshness", "policy_drift", "skills", "security", "integration"]
 VerdictKind = Literal["supported", "not_supported", "invalid_run"]
 ExperimentSource = Literal["lab", "benchmark"]
+Comparator = Literal["at_least", "at_most", "below", "above"]
+StatTest = Literal["exact_mcnemar", "paired_bootstrap", "wilson", "rule_of_three", "bootstrap_mean"]  # each one is in stats.py
 ExperimentStatus = Literal["draft", "estimated", "running", "paused", "budget_reached", "finished", "failed", "invalid_run"]
 EXPORTABLE: frozenset[str] = frozenset({"field", "lab", "benchmark", "reference"})  # a sample value is never a result
 
@@ -77,14 +79,15 @@ class ResearchSnapshot(ResearchModel):
 # --- Rows of the research schema (store.py)
 
 class Hypothesis(ResearchModel):
-    id: str
-    metric: str
-    comparator: Literal["at_least", "at_most", "below", "above", "equals"]
+    """One condition: the threshold applies to its value. Two: to the first minus the second (ratios, so 10 points is 0.10)."""
+    id: str = Field(pattern=r"^[A-Za-z0-9_]+$")
+    metric: str = Field(pattern=r"^[a-z0-9_]+$")
+    comparator: Comparator
     threshold: float
-    conditions: list[str]  # the condition first, then the one it is compared with
-    test: str
-    alpha: float = 0.05
-    diagnosis_stage: int | None = None
+    conditions: list[str] = Field(min_length=1, max_length=2)
+    test: StatTest
+    alpha: float = Field(default=0.05, gt=0, le=0.5)
+    diagnosis_stage: int | None = Field(default=None, ge=1, le=4)
 
 
 class Pack(ResearchModel):
@@ -127,6 +130,7 @@ class Experiment(ResearchModel):
     started_at: str | None = None
     finished_at: str | None = None
     cost_usd: float | None = None
+    notes: dict = Field(default_factory=dict)  # the estimate, each condition's ingest report, the gates, and any error
 
 
 class CaseResult(ResearchModel):
