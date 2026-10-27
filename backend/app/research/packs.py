@@ -139,4 +139,4 @@ def parse_pack(files: dict[str, str]) -> dict:
     return {"manifest": manifest, "files": files, "errors": errors, "documents": parse_documents(files, errors),
             "main": parse_lines(files.get(main_path), main_model, main_path, errors),
             "gold": parse_lines(files.get(gold_path), gold_model, gold_path, errors),
-            "extra": {path: parse_lines(files.get(path), model, path, errors) for path, model in kind["extra"].items()}}
+            "extra": {path: parse_lines(files.get(path), model, path, errors) for path, model in {**kind["extra"], **kind.get("optional", {})}.items()}}
