@@ -4,6 +4,7 @@ import {
   AlarmClock,
   AudioLines,
   BarChart3,
+  Beaker,
   BookOpen,
   Boxes,
   Bot,
@@ -13,6 +14,7 @@ import {
   GraduationCap,
   Inbox,
   LayoutDashboard,
+  Lock,
   Library,
   MessagesSquare,
   Network,
@@ -101,6 +103,15 @@ export const NAV: NavArea[] = [
   },
 ];
 
-export const RESEARCH_NAV: NavArea = { area: "research", label: "tier.research", home: "/research", items: [{ href: "/research", label: "nav.research", icon: FlaskConical, exact: true }] };
+export const RESEARCH_NAV: NavArea = {
+  area: "research",
+  label: "tier.research",
+  home: "/research",
+  items: [
+    { href: "/research", label: "nav.research", icon: FlaskConical, exact: true, also: ["/research/policies", "/research/skills", "/research/security", "/research/integration"] },
+    { href: "/research/lab", label: "nav.lab", icon: Beaker, also: ["/research/lab/new"] },
+    { href: "/research/prereg", label: "nav.prereg", icon: Lock },
+  ],
+};
 
 export const AREA_ICON: Record<Area, LucideIcon> = { L1: LayoutDashboard, L2: ShieldCheck, L3: Activity, research: FlaskConical };

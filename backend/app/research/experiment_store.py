@@ -56,6 +56,11 @@ class MemoryExperiments:
         if self.claims.get(experiment_id, ("",))[0] == worker:
             self.claims[experiment_id] = (worker, now)
 
+    def stalled(self, experiment_id: str, now: datetime) -> bool:
+        """Running, but its worker has not beaten for STALE_AFTER: it is gone, and the run can be resumed."""
+        current, holder = self.rows.get(experiment_id), self.claims.get(experiment_id)
+        return bool(current and current.status == "running" and holder and now - holder[1] > STALE_AFTER)
+
     def update(self, experiment_id: str, **changes) -> Experiment:
         self.rows[experiment_id] = self.rows[experiment_id].model_copy(update=changes)
         return self.rows[experiment_id]
@@ -114,6 +119,10 @@ class PostgresExperiments:
                WHERE id = %s AND (status = ANY(%s) OR (status = 'running' AND heartbeat_at < %s)) RETURNING id""",
             (worker, now, now, experiment_id, list(CLAIMABLE), now - STALE_AFTER)).fetchone()
         return row is not None
+
+    def stalled(self, experiment_id: str, now: datetime) -> bool:
+        row = self.connection.execute("SELECT status = 'running' AND heartbeat_at < %s FROM research.experiments WHERE id = %s", (now - STALE_AFTER, experiment_id)).fetchone()
+        return bool(row and row[0])
 
     def heartbeat(self, experiment_id: str, worker: str, now: datetime) -> None:
         self.connection.execute("UPDATE research.experiments SET heartbeat_at = %s WHERE id = %s AND worker_id = %s", (now, experiment_id, worker))

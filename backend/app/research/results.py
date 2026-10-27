@@ -89,7 +89,7 @@ def comparisons(hypotheses: list[Hypothesis], cases: list[CaseResult], experimen
 
 def gates(values: list[MetricValue], conditions: list[str]) -> dict:
     by = {(v.metric_key, v.condition): v for v in values}
-    baseline = conditions[0]
+    baseline = min(conditions)  # C0, the plainest condition, whatever order they were chosen in
     checks = {
         "canaries": all(by[("canary_accuracy", c)].n and by[("canary_accuracy", c)].value == 1.0 for c in conditions),
         "retrieval": by[("retrieval_either_recall", baseline)].value >= MIN_EITHER_RECALL,

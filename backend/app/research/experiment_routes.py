@@ -13,7 +13,7 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app.research import freshness_lab, prereg, results, runner
+from app.research import experiment_store, freshness_lab, prereg, results, runner
 from app.research.contracts import Experiment, Paper
 
 # Config
@@ -155,6 +155,6 @@ def found_experiment(store, experiment_id: str) -> Experiment:
 
 def progress_of(store, experiment: Experiment) -> dict:
     done = store.count_of(experiment.id)
-    return {"status": experiment.status, "done": done, "total": experiment.notes.get("estimate", {}).get("cases", 0),
+    return {"status": experiment.status, "stalled": store.stalled(experiment.id, experiment_store.utc_now()), "done": done, "total": experiment.notes.get("estimate", {}).get("cases", 0),
             "costUsd": round(store.cost_of(experiment.id) + experiment.notes.get("lab_usd", 0.0), 4), "budgetUsd": experiment.budget_usd,
             "error": experiment.notes.get("error")}

@@ -69,7 +69,7 @@ def run_case(experiment: Experiment, lane, condition: str, seed: int, trial: int
     label = grade_freshness.grade(asked["answer"], gold.expected_value, gold.superseded_values, gold.tolerance)
     fact = facts.get(query.fact_id)
     sentences = [s for s in ((fact.old_sentence, fact.new_sentence) if fact else ()) if s]
-    outcome = {"kind": query.kind, "label": label, "answer": asked["answer"], "expected": gold.expected_value, "superseded": gold.superseded_values,
+    outcome = {"kind": query.kind, "question": query.text, "label": label, "answer": asked["answer"], "expected": gold.expected_value, "superseded": gold.superseded_values,
                "items": asked["items"], "either_hit": any(s in asked["context"] for s in sentences), "as_of": query.as_of}
     model = experiment.models["answer"]
     return CaseResult(experiment_id=experiment.id, condition=condition, seed=seed, trial=trial, case_id=query.query_id, outcome=outcome,
@@ -120,7 +120,10 @@ def ask_everything(experiment: Experiment, experiments, pack: dict, answer, part
     done = {(c.condition, c.seed, c.trial, c.case_id) for c in experiments.cases_of(experiment.id)}
     reports = {}
     for condition in experiment.conditions:
-        lane, reports[condition] = freshness_lab.build(experiment.id, condition, pack, parts, meter)
+        def beat() -> None:  # a long ingest or run is not a dead worker
+            experiments.heartbeat(experiment.id, worker, utc_now())
+
+        lane, reports[condition] = freshness_lab.build(experiment.id, condition, pack, parts, meter, beat)
         for count, (_, seed, trial, query) in enumerate(item for item in plan(experiment, pack) if item[0] == condition):
             if (condition, seed, trial, query.query_id) in done:
                 continue
@@ -130,7 +133,7 @@ def ask_everything(experiment: Experiment, experiments, pack: dict, answer, part
             if experiments.add_case(case):
                 spent["usd"] += case.cost_usd
             if count % HEARTBEAT_EVERY == 0:
-                experiments.heartbeat(experiment.id, worker, utc_now())
+                beat()
         lab_tenant.close_lab(lane)
     return reports
 

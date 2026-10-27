@@ -5,9 +5,13 @@
 #   C3 living map: Finebrain finds the change itself (Lane B: S11 extraction, S12 librarian, conflict proposal), the lab's
 #      steward accepts new facts and its L1 approves each proposed change, as people following the brain would.
 #   C2 (delete and rebuild) needs a summary tree Finebrain does not have, so it is refused, never approximated.
-# A question goes through the real S5 as of its date, then Execution_V1's own answer prompt. Used by: research/runner.py.
+# A question goes through the real S5 as of its date, then Execution_V1's own answer prompt. As in Execution_V1's frozen
+# config, each string is embedded once (cached, and patient when the embedding service rate limits) and nothing reranks.
+# Used by: research/runner.py.
 # Uses: research/lab_tenant.py, api/documents.py, stages_retrieve.py, retrieve_scope.py, fact_commit.py, fact_conflicts.py, studio_approvals.py, llm.py.
 import json
+import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,7 +19,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from app.api import documents, fact_conflicts, studio_approvals
-from app.pipeline import fact_commit, llm, orchestrate, retrieve_scope, stages_retrieve
+from app.pipeline import fact_commit, llm, orchestrate, retrieve_scope, stages_file, stages_retrieve
 from app.pipeline.contracts_reason import ContextQuery
 from app.pipeline.contracts_run import Decision
 from app.pipeline.contracts_signal import Principal
@@ -30,6 +34,8 @@ UNAVAILABLE = {"C2": "Delete and rebuild needs a summary tree that Finebrain doe
 ASKER, STEWARD, UPLOADER = "founder", "steward_1", "research_lab"
 REPORT_KIND = "research_ingest"  # records kind: the lab's ingest report, so a resumed run never ingests twice
 TOP_K = 8  # Execution_V1's frozen retrieval top_k
+EMBED_WAITS = [5, 10, 20, 30, 60, 60, 60, 60, 60, 60, 60, 60]  # seconds between tries when the embedding service says 429
+EMBED_BATCH = 100  # strings per embedding call when the lab embeds a pack ahead of time
 ANSWER_PROMPT = """You are a policy assistant for an internal knowledge system. Answer the question using only the retrieved context below. The context is the only source you may use.
 
 Rules:
@@ -44,6 +50,49 @@ Retrieved context:
 Question: {question}
 
 Answer: """  # Execution_V1 config/prompts/answer.txt, word for word, so both systems answer the same way
+
+
+# --- Embeddings: once per string, patient with rate limits; no reranker (Execution_V1: "reranker: null")
+
+EMBEDDED: dict[tuple[str, str], list[float]] = {}
+EMBEDDED_LOCK = threading.Lock()
+
+
+def once_each(embed, sleep=time.sleep):
+    """The lane's embedder, asked only for strings it has not embedded before, waiting out a rate limit instead of failing."""
+    def cached(texts: list[str], input_type: str = "document") -> list[list[float]]:
+        missing = [t for t in dict.fromkeys(texts) if (t, input_type) not in EMBEDDED]
+        if missing:
+            vectors = patiently(lambda: embed(missing, input_type), sleep)
+            with EMBEDDED_LOCK:
+                EMBEDDED.update({(t, input_type): v for t, v in zip(missing, vectors)})
+        return [EMBEDDED[(t, input_type)] for t in texts]
+    return cached
+
+
+def patiently(call, sleep):
+    for wait in [*EMBED_WAITS, None]:
+        try:
+            return call()
+        except Exception as error:
+            if wait is None or not getattr(error, "retryable", False):
+                raise
+            sleep(wait)
+
+
+def embed_ahead(lane, pack: dict) -> None:
+    """Embed the pack's chunk texts (as S11 will cut them) and its questions in a few large calls, as Execution_V1 embedded
+    everything once up front. S11 and S5 then find them in the cache; a chunk masking changed is simply embedded later."""
+    chunks = [f"{doc['meta'].title}: {part}" for doc in pack["documents"].values() for part in stages_file.chunks_of(doc["body"])]
+    questions = [q.text for q in pack["main"]]
+    for texts, kind in ((chunks, "document"), (questions, "query")):
+        for start in range(0, len(texts), EMBED_BATCH):
+            lane.embed(texts[start:start + EMBED_BATCH], kind)
+
+
+def keep_order(query: str, texts: list[str]) -> list[float]:
+    """No reranker: S5 keeps its fused order."""
+    return [float(len(texts) - i) for i in range(len(texts))]
 
 
 def lab_id_for(experiment_id: str, condition: str) -> str:
@@ -64,10 +113,15 @@ def set_clock(lane, when: datetime) -> None:
 
 # --- Building one condition's lab
 
-def build(experiment_id: str, condition: str, pack: dict, parts: frozenset[str], meter=None):
-    """The condition's lab lane, ingested once. A resumed run finds the report and reuses the lab as it is."""
+def build(experiment_id: str, condition: str, pack: dict, parts: frozenset[str], meter=None, beat=lambda: None):
+    """The condition's lab lane, ingested once. A resumed run finds the report and reuses the lab as it is; a lab whose
+    ingest never finished is cleared and built again, so no document is ever filed twice."""
     lab_id = lab_id_for(experiment_id, condition)
-    lane = lab_tenant.create_lab(lab_id, {**SEED, "knowledge": []}, None, day(min(d["meta"].valid_from for d in pack["documents"].values())), parts=parts)
+    lane = open_lab(lab_id, pack, parts)
+    if lane.records.load(REPORT_KIND, "report") is None and parts:
+        lab_tenant.close_lab(lane)
+        lab_tenant.teardown(lab_id)
+        lane = open_lab(lab_id, pack, parts)
     if CONDITIONS[condition]["living"]:
         lane.extract = metered(llm.make_tool_caller(model=llm.FAST_MODEL, max_tokens=4000), llm.FAST_MODEL, meter)
         lane.resolve = metered(llm.make_tool_caller(model=llm.CAREFUL_MODEL), llm.CAREFUL_MODEL, meter)
@@ -75,12 +129,19 @@ def build(experiment_id: str, condition: str, pack: dict, parts: frozenset[str],
     done = lane.records.load(REPORT_KIND, "report")
     if done:
         return lane, done["report"]
-    report = ingest(lane, pack, CONDITIONS[condition])
+    embed_ahead(lane, pack)
+    report = ingest(lane, pack, CONDITIONS[condition], beat)
     lane.records.save(REPORT_KIND, "report", IngestReport(report=report))
     return lane, report
 
 
-def ingest(lane, pack: dict, condition: dict) -> dict:
+def open_lab(lab_id: str, pack: dict, parts: frozenset[str]):
+    lane = lab_tenant.create_lab(lab_id, {**SEED, "knowledge": []}, None, day(min(d["meta"].valid_from for d in pack["documents"].values())), parts=parts)
+    lane.embed, lane.rerank = once_each(lane.embed), keep_order
+    return lane
+
+
+def ingest(lane, pack: dict, condition: dict, beat=lambda: None) -> dict:
     """Documents grouped by the day they became valid, oldest first; after each day the condition does its part."""
     held, report = {}, {"documents": 0, "closed_chunks": 0, "sentences_not_found": [], "facts_accepted": 0, "changes_merged": 0, "changes_kept": 0}
     for when in sorted({doc["meta"].valid_from for doc in pack["documents"].values()}):
@@ -90,6 +151,7 @@ def ingest(lane, pack: dict, condition: dict) -> dict:
                 held[doc_id] = documents.accept(lane, UPLOADER, f"{doc['meta'].title}.md", doc["body"].encode(), doc["meta"].sensitivity)["id"]
                 lane.bus.drain()
                 report["documents"] += 1
+                beat()  # a long ingest is not a dead worker
         if condition["living"]:
             settle_librarian(lane, report)
     if condition["close"]:

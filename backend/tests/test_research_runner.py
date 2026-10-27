@@ -165,3 +165,23 @@ def test_on_postgres_four_workers_claim_at_once_and_one_wins():
         assert sorted(won) == [False, False, False, True]
     finally:
         connection.execute("DELETE FROM research.experiments WHERE id = %s", (experiment.id,))
+
+
+# --- Embeddings in the lab
+
+def test_each_string_is_embedded_once_and_a_rate_limit_is_waited_out():
+    from app.pipeline.embeddings import VoyageError
+    from app.research import freshness_lab
+    calls, waits = [], []
+
+    def flaky(texts, input_type):
+        calls.append(list(texts))
+        if len(calls) == 1:
+            raise VoyageError("voyage /embeddings answered 429")
+        return [[float(len(t))] for t in texts]
+
+    embed = freshness_lab.once_each(flaky, sleep=waits.append)
+    first = embed([f"lab-test {uuid.uuid4()}", "lab-test shared"], "query")
+    again = embed(["lab-test shared"], "query")
+    assert waits == [5] and len(calls) == 2 and again == [first[1]]  # asked again only after the wait, never for a known string
+    assert freshness_lab.keep_order("q", ["a", "b", "c"]) == [3.0, 2.0, 1.0]
