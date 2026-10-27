@@ -69,7 +69,7 @@ def run_case(experiment: Experiment, lane, condition: str, seed: int, trial: int
     label = grade_freshness.grade(asked["answer"], gold.expected_value, gold.superseded_values, gold.tolerance)
     fact = facts.get(query.fact_id)
     sentences = [s for s in ((fact.old_sentence, fact.new_sentence) if fact else ()) if s]
-    outcome = {"kind": query.kind, "question": query.text, "label": label, "answer": asked["answer"], "expected": gold.expected_value, "superseded": gold.superseded_values,
+    outcome = {"kind": query.kind, "question": query.text, "label": label, "grader": grade_freshness.GRADER_VERSION, "answer": asked["answer"], "expected": gold.expected_value, "superseded": gold.superseded_values,
                "items": asked["items"], "either_hit": any(s in asked["context"] for s in sentences), "as_of": query.as_of}
     model = experiment.models["answer"]
     return CaseResult(experiment_id=experiment.id, condition=condition, seed=seed, trial=trial, case_id=query.query_id, outcome=outcome,
@@ -85,6 +85,8 @@ def run(experiment_id: str, experiments, preregs, load_pack, answer=None, parts:
     if not experiments.claim(experiment_id, worker, utc_now()):
         return "not_claimed"
     experiment = experiments.get(experiment_id)
+    if "error" in experiment.notes:  # a resumed run starts without the last stop's error
+        experiment = experiments.update(experiment_id, notes={k: v for k, v in experiment.notes.items() if k != "error"})
     try:
         return run_claimed(experiment, experiments, preregs, load_pack(experiment.pack_id), answer or make_answerer(experiment.models["answer"]), parts, worker)
     except Exception as error:  # the run stops, says why, and can be started again from where it was
@@ -111,7 +113,8 @@ def run_claimed(experiment: Experiment, experiments, preregs, pack: dict, answer
         experiments.update(experiment.id, status="budget_reached", cost_usd=spent["usd"], notes={**experiments.get(experiment.id).notes, "lab_usd": spent["usd"] - experiments.cost_of(experiment.id)})
         return "budget_reached"
 
-    # Step 3: results, gates, verdicts; then the labs go
+    # Step 3: every answer graded by today's rule, then results, gates, verdicts; then the labs go
+    regrade(experiments, experiment.id, {g.query_id: g for g in pack["gold"]})
     return finish(experiment, experiments, locked, reports, spent["usd"], parts)
 
 
@@ -136,6 +139,19 @@ def ask_everything(experiment: Experiment, experiments, pack: dict, answer, part
                 beat()
         lab_tenant.close_lab(lane)
     return reports
+
+
+def regrade(experiments, experiment_id: str, gold: dict) -> int:
+    """Grade every stored answer again with the current grader, so one rule judges the whole run, however often it resumed.
+    Answers never change; only labels can. Returns how many labels changed."""
+    changed = 0
+    for case in experiments.cases_of(experiment_id):
+        answer = gold.get(case.case_id)
+        label = grade_freshness.grade(case.outcome["answer"], answer.expected_value, answer.superseded_values, answer.tolerance) if answer else case.outcome["label"]
+        if label != case.outcome["label"] or case.outcome.get("grader") != grade_freshness.GRADER_VERSION:
+            experiments.relabel(case.model_copy(update={"outcome": {**case.outcome, "label": label, "grader": grade_freshness.GRADER_VERSION}, "passed": label == "fresh"}))
+            changed += label != case.outcome["label"]
+    return changed
 
 
 def finish(experiment: Experiment, experiments, locked, reports: dict, spent: float, parts: frozenset[str]) -> str:

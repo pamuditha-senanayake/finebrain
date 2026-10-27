@@ -75,6 +75,10 @@ class MemoryExperiments:
     def cases_of(self, experiment_id: str) -> list[CaseResult]:
         return list(self.cases.get(experiment_id, {}).values())
 
+    def relabel(self, case: CaseResult) -> None:
+        """A case graded again: same answer, the current grader's label."""
+        self.cases[case.experiment_id][case_key(case)] = case
+
     def cost_of(self, experiment_id: str) -> float:
         return sum(case.cost_usd or 0.0 for case in self.cases_of(experiment_id))
 
@@ -142,6 +146,10 @@ class PostgresExperiments:
     def cases_of(self, experiment_id: str) -> list[CaseResult]:
         rows = self.connection.execute(f"SELECT {CASE_COLUMNS} FROM research.case_results WHERE experiment_id = %s ORDER BY condition, seed, trial, case_id", (experiment_id,))
         return [CaseResult(**dict(zip([c.strip() for c in CASE_COLUMNS.split(",")], (str(r[0]), *r[1:])))) for r in rows]
+
+    def relabel(self, c: CaseResult) -> None:
+        self.connection.execute("UPDATE research.case_results SET outcome = %s, passed = %s WHERE experiment_id = %s AND condition = %s AND seed = %s AND trial = %s AND case_id = %s",
+                                (Jsonb(c.outcome), c.passed, c.experiment_id, c.condition, c.seed, c.trial, c.case_id))
 
     def count_of(self, experiment_id: str) -> int:
         return self.connection.execute("SELECT count(*) FROM research.case_results WHERE experiment_id = %s", (experiment_id,)).fetchone()[0]

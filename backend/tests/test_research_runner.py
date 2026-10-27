@@ -171,7 +171,7 @@ def test_on_postgres_four_workers_claim_at_once_and_one_wins():
 
 def test_each_string_is_embedded_once_and_a_rate_limit_is_waited_out():
     from app.pipeline.embeddings import VoyageError
-    from app.research import freshness_lab
+    from app.research import lab_embed
     calls, waits = [], []
 
     def flaky(texts, input_type):
@@ -180,8 +180,23 @@ def test_each_string_is_embedded_once_and_a_rate_limit_is_waited_out():
             raise VoyageError("voyage /embeddings answered 429")
         return [[float(len(t))] for t in texts]
 
-    embed = freshness_lab.once_each(flaky, sleep=waits.append)
+    embed = lab_embed.once_each(flaky, sleep=waits.append)
     first = embed([f"lab-test {uuid.uuid4()}", "lab-test shared"], "query")
     again = embed(["lab-test shared"], "query")
     assert waits == [5] and len(calls) == 2 and again == [first[1]]  # asked again only after the wait, never for a known string
-    assert freshness_lab.keep_order("q", ["a", "b", "c"]) == [3.0, 2.0, 1.0]
+    assert lab_embed.keep_order("q", ["a", "b", "c"]) == [3.0, 2.0, 1.0]
+
+
+def test_batches_stay_under_the_token_cap_and_keep_every_string_in_order():
+    from app.research import lab_embed
+    texts = [f"t{i} " + "word " * 300 for i in range(40)]  # about 375 tokens each
+    groups = lab_embed.batches(texts)
+    assert [t for g in groups for t in g] == texts and len(groups) > 1
+    assert all(sum(len(t) // 4 + 1 for t in g) <= lab_embed.EMBED_BATCH_TOKENS for g in groups)
+
+
+def test_text_answers_match_by_meaning_words_and_yes_no_by_their_first_word():
+    assert grade_freshness.grade("Figures are stated in the reporting currency of Nyrivell Dynamics.", "the reporting currency of the company", []) == "fresh"
+    assert grade_freshness.grade("No. Superseded versions are never withdrawn from the archive.", "no, they are retained", []) == "fresh"
+    assert grade_freshness.grade("Yes, they are withdrawn.", "no, they are retained", []) == "wrong"
+    assert grade_freshness.grade("A single published source.", "one", []) == "wrong"  # a synonym is beyond a rule; the report says so

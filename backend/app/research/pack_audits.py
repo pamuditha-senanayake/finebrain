@@ -17,6 +17,7 @@ MARKERS = ["replaces", "replaced", "previously", "no longer", "updated", "new po
 MARKER = re.compile(r"\b(" + "|".join(re.escape(m) for m in MARKERS) + r")\b", re.I)
 DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2} (January|February|March|April|May|June|July|August|September|October|November|December)\b"
                   r"|\b(January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2}(st|nd|rd|th)?,? \d{4}\b", re.I)
+TITLE_MARKER = re.compile(r"\b(update[sd]?|revision|revised|amend\w*|new|supersed\w*|replac\w*|change[sd]?)\b", re.I)  # Finebrain puts each title into every chunk
 OVERLAP_LIMIT = 0.3
 MIN_CANARIES = 3
 STOPWORDS = {"a", "an", "the", "of", "to", "in", "on", "for", "and", "or", "is", "are", "be", "by", "with", "at", "it", "its",
@@ -55,8 +56,17 @@ def marker_leak(pack: dict) -> dict:
     shared = {line.strip() for doc in pack["documents"].values() if not doc["meta"].supersedes for line in doc["body"].split("\n")}
     found = [f"{doc['path']}:{number}: {line.strip()[:160]}" for doc in updates for number, line in enumerate(doc["body"].split("\n"), start=1)
              if (MARKER.search(line) or DATE.search(line)) and line.strip() not in shared]
+    found += title_leaks(pack, updates)
     detail = f"{len(found)} lines in {len(updates)} update documents" if found else f"{len(updates)} update documents read"
     return result("marker_leak", "Marker leak", "fail" if found else "pass", detail, found)
+
+
+def title_leaks(pack: dict, updates: list[dict]) -> list[str]:
+    """Update titles that say what they are ("Policy Update: ..."), in words no other title uses. S11 puts the title into every
+    chunk, so a title marks the chunk as newer as plainly as a sentence would."""
+    others = {word.lower() for doc in pack["documents"].values() if not doc["meta"].supersedes for word in TITLE_MARKER.findall(doc["meta"].title)}
+    return [f"{doc['path']}: title: {doc['meta'].title}" for doc in updates
+            if any(word.lower() not in others for word in TITLE_MARKER.findall(doc["meta"].title))]
 
 
 def changed_outside(old: str, new: str, allowed: set[str]) -> bool:

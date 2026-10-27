@@ -6,12 +6,10 @@
 #      steward accepts new facts and its L1 approves each proposed change, as people following the brain would.
 #   C2 (delete and rebuild) needs a summary tree Finebrain does not have, so it is refused, never approximated.
 # A question goes through the real S5 as of its date, then Execution_V1's own answer prompt. As in Execution_V1's frozen
-# config, each string is embedded once (cached, and patient when the embedding service rate limits) and nothing reranks.
+# config, each string is embedded once and nothing reranks (lab_embed.py).
 # Used by: research/runner.py.
-# Uses: research/lab_tenant.py, api/documents.py, stages_retrieve.py, retrieve_scope.py, fact_commit.py, fact_conflicts.py, studio_approvals.py, llm.py.
+# Uses: research/lab_tenant.py, research/lab_embed.py, api/documents.py, stages_retrieve.py, retrieve_scope.py, fact_commit.py, fact_conflicts.py, studio_approvals.py, llm.py.
 import json
-import threading
-import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,11 +17,11 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from app.api import documents, fact_conflicts, studio_approvals
-from app.pipeline import fact_commit, llm, orchestrate, retrieve_scope, stages_file, stages_retrieve
+from app.pipeline import fact_commit, llm, orchestrate, retrieve_scope, stages_retrieve
 from app.pipeline.contracts_reason import ContextQuery
 from app.pipeline.contracts_run import Decision
 from app.pipeline.contracts_signal import Principal
-from app.research import lab_tenant
+from app.research import lab_embed, lab_tenant
 
 # Config
 SEED = json.loads((Path(__file__).resolve().parents[2] / "samples" / "golden_refund_run.json").read_text())["seed"]
@@ -34,8 +32,6 @@ UNAVAILABLE = {"C2": "Delete and rebuild needs a summary tree that Finebrain doe
 ASKER, STEWARD, UPLOADER = "founder", "steward_1", "research_lab"
 REPORT_KIND = "research_ingest"  # records kind: the lab's ingest report, so a resumed run never ingests twice
 TOP_K = 8  # Execution_V1's frozen retrieval top_k
-EMBED_WAITS = [5, 10, 20, 30, 60, 60, 60, 60, 60, 60, 60, 60]  # seconds between tries when the embedding service says 429
-EMBED_BATCH = 100  # strings per embedding call when the lab embeds a pack ahead of time
 ANSWER_PROMPT = """You are a policy assistant for an internal knowledge system. Answer the question using only the retrieved context below. The context is the only source you may use.
 
 Rules:
@@ -50,49 +46,6 @@ Retrieved context:
 Question: {question}
 
 Answer: """  # Execution_V1 config/prompts/answer.txt, word for word, so both systems answer the same way
-
-
-# --- Embeddings: once per string, patient with rate limits; no reranker (Execution_V1: "reranker: null")
-
-EMBEDDED: dict[tuple[str, str], list[float]] = {}
-EMBEDDED_LOCK = threading.Lock()
-
-
-def once_each(embed, sleep=time.sleep):
-    """The lane's embedder, asked only for strings it has not embedded before, waiting out a rate limit instead of failing."""
-    def cached(texts: list[str], input_type: str = "document") -> list[list[float]]:
-        missing = [t for t in dict.fromkeys(texts) if (t, input_type) not in EMBEDDED]
-        if missing:
-            vectors = patiently(lambda: embed(missing, input_type), sleep)
-            with EMBEDDED_LOCK:
-                EMBEDDED.update({(t, input_type): v for t, v in zip(missing, vectors)})
-        return [EMBEDDED[(t, input_type)] for t in texts]
-    return cached
-
-
-def patiently(call, sleep):
-    for wait in [*EMBED_WAITS, None]:
-        try:
-            return call()
-        except Exception as error:
-            if wait is None or not getattr(error, "retryable", False):
-                raise
-            sleep(wait)
-
-
-def embed_ahead(lane, pack: dict) -> None:
-    """Embed the pack's chunk texts (as S11 will cut them) and its questions in a few large calls, as Execution_V1 embedded
-    everything once up front. S11 and S5 then find them in the cache; a chunk masking changed is simply embedded later."""
-    chunks = [f"{doc['meta'].title}: {part}" for doc in pack["documents"].values() for part in stages_file.chunks_of(doc["body"])]
-    questions = [q.text for q in pack["main"]]
-    for texts, kind in ((chunks, "document"), (questions, "query")):
-        for start in range(0, len(texts), EMBED_BATCH):
-            lane.embed(texts[start:start + EMBED_BATCH], kind)
-
-
-def keep_order(query: str, texts: list[str]) -> list[float]:
-    """No reranker: S5 keeps its fused order."""
-    return [float(len(texts) - i) for i in range(len(texts))]
 
 
 def lab_id_for(experiment_id: str, condition: str) -> str:
@@ -129,7 +82,7 @@ def build(experiment_id: str, condition: str, pack: dict, parts: frozenset[str],
     done = lane.records.load(REPORT_KIND, "report")
     if done:
         return lane, done["report"]
-    embed_ahead(lane, pack)
+    lab_embed.embed_ahead(lane, pack, beat)
     report = ingest(lane, pack, CONDITIONS[condition], beat)
     lane.records.save(REPORT_KIND, "report", IngestReport(report=report))
     return lane, report
@@ -137,7 +90,7 @@ def build(experiment_id: str, condition: str, pack: dict, parts: frozenset[str],
 
 def open_lab(lab_id: str, pack: dict, parts: frozenset[str]):
     lane = lab_tenant.create_lab(lab_id, {**SEED, "knowledge": []}, None, day(min(d["meta"].valid_from for d in pack["documents"].values())), parts=parts)
-    lane.embed, lane.rerank = once_each(lane.embed), keep_order
+    lane.embed, lane.rerank = lab_embed.once_each(lane.embed), lab_embed.keep_order
     return lane
 
 
@@ -153,7 +106,7 @@ def ingest(lane, pack: dict, condition: dict, beat=lambda: None) -> dict:
                 report["documents"] += 1
                 beat()  # a long ingest is not a dead worker
         if condition["living"]:
-            settle_librarian(lane, report)
+            settle_librarian(lane, report, beat)
     if condition["close"]:
         close_superseded(lane, pack, held, report)
     return report
@@ -171,19 +124,29 @@ def close_superseded(lane, pack: dict, held: dict, report: dict) -> None:
             report["closed_chunks"] += 1
 
 
-def settle_librarian(lane, report: dict) -> None:
-    """C3: the steward accepts what waits for verification; each conflict gets the librarian's proposal, which the DRI approves."""
-    for item in lane.records.list_kind(fact_commit.ITEM_KIND):
-        if item["status"] == "open" and item["kind"] == "unverified":
-            fact_commit.accept(lane, item["item_id"], STEWARD)
-            report["facts_accepted"] += 1
-    for item in lane.records.list_kind(fact_commit.ITEM_KIND):
-        if item["status"] == "open" and item["kind"] == "conflict":
-            proposed = fact_conflicts.propose(lane, item["item_id"], STEWARD)
-            report["changes_kept" if proposed["kept"] else "changes_merged"] += 1
-            if proposed["id"]:
-                approve_change(lane, proposed["id"])
-    lane.bus.drain()
+def settle_librarian(lane, report: dict, beat=lambda: None) -> None:
+    """C3: the steward accepts what waits for verification; each conflict gets the librarian's proposal, which the DRI approves.
+    Each item is read again just before acting, because settling one (an accept, a merge) can settle or reclassify others.
+    The new facts are embedded in a few batches before their releases reach S5, which embeds one fact per release."""
+    for kind in ("unverified", "conflict"):
+        for listed in lane.records.list_kind(fact_commit.ITEM_KIND):
+            item = lane.records.load(fact_commit.ITEM_KIND, listed["item_id"])
+            if item["status"] == "open" and item["kind"] == kind:
+                settle_one(lane, item, report)
+                beat()
+        lab_embed.embed_texts(lane, [fact["text"] for fact in lane.graph.latest("fact") if fact.get("text")], beat)
+        lane.bus.drain()
+
+
+def settle_one(lane, item: dict, report: dict) -> None:
+    if item["kind"] == "unverified":
+        fact_commit.accept(lane, item["item_id"], STEWARD)
+        report["facts_accepted"] += 1
+        return
+    proposed = fact_conflicts.propose(lane, item["item_id"], STEWARD)
+    report["changes_kept" if proposed["kept"] else "changes_merged"] += 1
+    if proposed["id"]:
+        approve_change(lane, proposed["id"])
 
 
 def approve_change(lane, cr_id: str) -> None:

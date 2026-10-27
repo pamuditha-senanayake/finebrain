@@ -1,14 +1,18 @@
 # grade_freshness.py: grades one freshness answer by rule, never by a model (spec rule R7). An answer is fresh when it
 # states the expected value, stale when it states a superseded one instead, mixed when it states both, refused when it says
 # the context has no answer, and wrong otherwise. Numbers match by value (within the gold tolerance) with their unit words;
-# text matches when every content word of the gold value appears. Used by: research/runner.py. Uses: nothing local.
+# a yes or no answer matches by its first word; other text when most of the gold's meaning-bearing words appear.
+# GRADER_VERSION goes with every graded case, so a finished run can be graded again by the same rule.
+# Used by: research/runner.py. Uses: nothing local.
 import re
 
 # Config
+GRADER_VERSION = "2"
 REFUSAL = "NOT_IN_CONTEXT"  # what the Execution_V1 answer prompt tells the model to say
 NUMBER = re.compile(r"\d+(?:\.\d+)?")
 SYMBOLS = {"%": " percent ", "$": " dollars "}
-FILLER = {"a", "an", "the", "of", "to", "in", "on", "for", "and", "or", "by", "with", "at"}
+FILLER = {"a", "an", "the", "of", "to", "in", "on", "for", "and", "or", "by", "with", "at", "is", "are", "be", "it", "its", "via", "not", "without"}
+TEXT_SHARE = 0.6  # of the gold's meaning-bearing words an answer must state
 
 
 def normalized(text: str) -> str:
@@ -22,14 +26,22 @@ def unit_words(value: str) -> set[str]:
     return {word.rstrip("s") for word in re.findall(r"[a-z]+", normalized(value)) if word not in FILLER}
 
 
+def polarity(text: str) -> str | None:
+    first = re.findall(r"[a-z]+", normalized(text))[:1]
+    return first[0] if first and first[0] in ("yes", "no") else None
+
+
 def states(answer: str, value: str, tolerance: float = 0.0) -> bool:
     """True when the answer states this value."""
     wanted, said = NUMBER.findall(normalized(value)), normalized(answer)
     words = {word.rstrip("s") for word in re.findall(r"[a-z]+", said)}
-    if not wanted:
-        return bool(unit_words(value)) and unit_words(value) <= words
-    numbers = [float(n) for n in NUMBER.findall(said)]
-    return all(any(abs(float(n) - got) <= tolerance for got in numbers) for n in wanted) and unit_words(value) <= words
+    if wanted:
+        numbers = [float(n) for n in NUMBER.findall(said)]
+        return all(any(abs(float(n) - got) <= tolerance for got in numbers) for n in wanted) and unit_words(value) <= words
+    if polarity(value):
+        return polarity(answer) == polarity(value)
+    meaning = unit_words(value)
+    return bool(meaning) and len(meaning & words) / len(meaning) >= TEXT_SHARE
 
 
 def grade(answer: str, expected: str, superseded: list[str], tolerance: float = 0.0) -> str:
