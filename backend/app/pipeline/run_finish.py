@@ -2,10 +2,11 @@
 # once; S10 records the outcome and who let the action through. A reply that asks the customer something keeps the run open:
 # it is kept where any worker can resume it, until the wait ends. In a chat, a run that goes to a person says so once, so
 # the customer never waits in silence. Used by: orchestrate.py, run_approvals.py, run_resume.py,
-# temporal_flow.py. Uses: run_steps.py (RunState, steps, turns), stages_act.py, stages_record.py, govern_payments.py, tools_write.py, tools_chat.py.
+# temporal_flow.py. Uses: run_steps.py (RunState, steps, turns), stages_act.py, stages_record.py, govern_payments.py, tools_write.py, tools_chat.py,
+# tool_runners.py (shadow mode: the Research Lab records each outside call and makes none).
 from datetime import timedelta
 
-from app.pipeline import govern_payments, stages_act, stages_record, tools_chat, tools_write
+from app.pipeline import govern_payments, stages_act, stages_record, tool_runners, tools_chat, tools_write
 from app.pipeline import conversation_log
 from app.pipeline.stages_orchestrate import signal_of
 from app.pipeline.contracts_run import Decision
@@ -38,8 +39,12 @@ def tool_endpoint(lane, action_type: str) -> str | None:
 
 
 def tooling(lane, run: RunState) -> dict:
-    """What S9 needs for this run: rate limiter, finished results, one runner per endpoint, the graph's endpoints, how to wait."""
-    runners = {"shop_database": tools_write.runner(lane, run), "chat": tools_chat.runner(lane, run)}
+    """What S9 needs for this run: rate limiter, finished results, one runner per endpoint, the graph's endpoints, how to wait.
+    A lane in shadow mode (the Research Lab) gets runners that record each call and call nothing."""
+    if tool_runners.is_live(lane.tooling):
+        runners = {"shop_database": tools_write.runner(lane, run), "chat": tools_chat.runner(lane, run)}
+    else:
+        runners = tool_runners.shadow_runners(lane.records, lane.tooling["claims"], run.action.run_id, lane.now)
     endpoints = {name: endpoint for name in TOOLS if (endpoint := tool_endpoint(lane, name))}
     return {**lane.tooling, "runners": runners, "endpoints": endpoints}
 

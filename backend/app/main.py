@@ -1,5 +1,5 @@
 # main.py: the API on port 8000 (uv run fastapi dev app/main.py). Serves Finebase HQ to the console and takes captures.
-# Uses: api/hq.py. Reads backend/.env first, because pipeline modules read their settings when imported.
+# Uses: api/hq.py, research/routes.py (only when RESEARCH_LAB=enabled). Reads backend/.env first, because pipeline modules read their settings when imported.
 # The HQ lane is built when the server starts, never on import: fastapi dev's reloader parent imports this file only to
 # find `app`, and a lane built there would consume the same Kafka topics as the worker's and handle every message twice.
 import os
@@ -23,6 +23,7 @@ def load_env(path: Path) -> None:
 
 
 load_env(ENV_PATH)
+RESEARCH_LAB = os.environ.get("RESEARCH_LAB", "disabled") == "enabled"  # off: no research routes, no research tables touched
 
 from app.api import hq  # noqa: E402  (after the environment is loaded)
 
@@ -35,3 +36,7 @@ async def serve_hq(app: FastAPI):
 
 
 app = FastAPI(title="finebrain API", lifespan=serve_hq)
+if RESEARCH_LAB:  # mounted before HQ's "/", so /research reaches the Lab; HQ never imports research code
+    from app.research.routes import create_research_app  # noqa: E402
+
+    app.mount("/research", create_research_app())

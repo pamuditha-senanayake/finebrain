@@ -1,6 +1,6 @@
 import { guideFor } from "@/lib/page-context";
 import type { Analytics, AskAnswer, Human, LegibilityCell, Overview, SearchHit } from "@/contracts";
-import type { ResearchSnapshot } from "@/contracts/research";
+import { ResearchSnapshot } from "@/contracts/research";
 import { checkNode, humanPrincipal } from "@/lib/governance/access";
 import { DAY, HOUR, hashString, iso } from "./prng";
 import type { TenantData } from "./types";
@@ -216,7 +216,8 @@ export function researchSnapshots(d: TenantData, now: number): ResearchSnapshot[
   const denials = d.accessDecisions.filter((a) => a.decision === "deny").length;
   const policies = d.policies.filter((p) => !p.supersededBy);
   const meta = { isSample: true, source: "Mock event stream (SAMPLE)", takenAt: iso(now) };
-  return [
+  // Parsed by the contract, so every mock metric carries provenance sample
+  return ResearchSnapshot.array().parse([
     { paper: "skills", title: "Skills: documented procedure vs observed work", ...meta, metrics: [
       { key: "conformance", label: "Skill conformance to observed runs", definition: "Share of observed run steps that match the documented skill steps, averaged over active skills.", value: avg(skills.map((s) => s.health.conformance)), unit: "ratio", condition: "production", series: series("conf", 8, 0.84, 0.1) },
       { key: "gap", label: "Documented vs observed gap", definition: "1 minus conformance, averaged over skills with at least 20 runs.", value: 1 - avg(skills.map((s) => s.health.conformance)), unit: "ratio", condition: "production", series: series("gap", 8, 0.16, 0.08) },
@@ -243,5 +244,5 @@ export function researchSnapshots(d: TenantData, now: number): ResearchSnapshot[
       { key: "pass8", label: "pass^8", definition: "All 8 attempts pass.", value: 0.66, unit: "ratio", condition: "company brain", series: series("p8", 8, 0.66, 0.08) },
       { key: "stale", label: "Stale answer rate", definition: "Answers citing a fact whose validity had closed.", value: 0.012, unit: "ratio", condition: "company brain", series: series("st", 8, 0.012, 0.01) },
     ] },
-  ];
+  ]);
 }
