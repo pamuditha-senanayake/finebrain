@@ -123,6 +123,17 @@ export const LabResults = z.object({
 });
 export type LabResults = z.infer<typeof LabResults>;
 
+export const FreshnessOutcome = z.object({ kind: z.string(), question: z.string().optional(), label: z.string(), answer: z.string(), expected: z.string(), superseded: z.array(z.string()), items: z.array(z.string()), eitherHit: z.boolean().optional(), either_hit: z.boolean().optional(), as_of: z.string().optional() });
+export type FreshnessOutcome = z.infer<typeof FreshnessOutcome>;
+
+/** One security episode: what the agent did, what the check refused, and what restricted items reached it. */
+export const SecurityOutcome = z.object({
+  path: z.enum(["act", "read"]), kind: z.string(), label: z.string(), benign: z.boolean(), attack: z.boolean(), done: z.array(z.string()), denied: z.array(z.string()),
+  items: z.array(z.string()), leaked: z.array(z.string()), said: z.string(), forbidden_action: z.boolean(), read_leak: z.boolean(), attack_success: z.boolean(),
+  goal_met: z.boolean().nullable(), outcome: z.string().nullable().optional(),
+});
+export type SecurityOutcome = z.infer<typeof SecurityOutcome>;
+
 export const LabCase = z.object({
   condition: z.string(),
   seed: z.number(),
@@ -131,15 +142,18 @@ export const LabCase = z.object({
   passed: z.boolean().optional(),
   costUsd: z.number().optional(),
   latencyMs: z.number().optional(),
-  outcome: z.object({ kind: z.string(), question: z.string().optional(), label: z.string(), answer: z.string(), expected: z.string(), superseded: z.array(z.string()), items: z.array(z.string()), eitherHit: z.boolean().optional(), either_hit: z.boolean().optional(), as_of: z.string().optional() }),
+  outcome: z.union([SecurityOutcome, FreshnessOutcome]),
 });
 export type LabCase = z.infer<typeof LabCase>;
 
 export const LabCasePage = z.object({ total: z.number(), offset: z.number(), items: z.array(LabCase) });
 export type LabCasePage = z.infer<typeof LabCasePage>;
 
+const LabCondition = z.object({ code: z.string(), label: z.string(), available: z.boolean(), reason: z.string().optional() });
+
 export const LabOptions = z.object({
-  conditions: z.array(z.object({ code: z.string(), label: z.string(), available: z.boolean(), reason: z.string().optional() })),
+  conditions: z.array(LabCondition),
+  conditionsByPaper: z.record(z.string(), z.array(LabCondition)).optional(),
   models: z.array(z.object({ id: z.string(), inUsdPerMillion: z.number(), outUsdPerMillion: z.number() })),
   maxBudgetUsd: z.number(),
 });

@@ -17,7 +17,7 @@ import { problemsOf, useCreateExperiment, useOptions, usePacks, usePreregs, useS
 import { LabGate, StepLine, paperLabel } from "./lab-ui";
 
 const STEPS = ["Pack and thresholds", "Conditions and repeats", "Budget and model"];
-const PAPER_OF_KIND: Record<string, "policies"> = { freshness: "policies" };
+const PAPER_OF_KIND: Record<string, "policies" | "security"> = { freshness: "policies", security: "security" };
 
 type Draft = { packId: string; preregId: string; conditions: string[]; seeds: number; trials: number; model: string; budget: string };
 
@@ -48,6 +48,7 @@ function Steps({ packs, preregs, options }: { packs: LabPack[]; preregs: LabPrer
   const locked = preregs.filter((p) => p.lockedAt && p.paper === paper);
   const prereg = locked.find((p) => p.id === d.preregId);
   const created: LabExperiment | undefined = create.data;
+  const conditions = (paper && options.conditionsByPaper?.[paper]) || options.conditions;
 
   const choosePrereg = (id: string) => {
     const needed = [...new Set(preregs.find((p) => p.id === id)?.hypotheses.flatMap((h) => h.conditions) ?? [])].sort();
@@ -79,7 +80,7 @@ function Steps({ packs, preregs, options }: { packs: LabPack[]; preregs: LabPrer
       {step === 1 && (
         <Section title="Which conditions, how many times?" description={prereg ? `Your preregistration compares ${[...new Set(prereg.hypotheses.flatMap((h) => h.conditions))].join(" and ")}.` : undefined}>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Conditions">
-            {options.conditions.map((c) => {
+            {conditions.map((c) => {
               const on = d.conditions.includes(c.code);
               return (
                 <button key={c.code} type="button" disabled={!c.available} aria-pressed={on} title={c.reason}
@@ -90,7 +91,7 @@ function Steps({ packs, preregs, options }: { packs: LabPack[]; preregs: LabPrer
               );
             })}
           </div>
-          {options.conditions.filter((c) => !c.available).map((c) => <p key={c.code} className="mt-2 text-[13px] text-muted-foreground">{c.code} is not offered: {c.reason}.</p>)}
+          {conditions.filter((c) => !c.available).map((c) => <p key={c.code} className="mt-2 text-[13px] text-muted-foreground">{c.code} is not offered: {c.reason}.</p>)}
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <Field label="Seeds"><NumberSelect value={d.seeds} choices={[1, 3, 5]} onChange={(seeds) => setD({ ...d, seeds })} label="Seeds" /></Field>
             <Field label="Trials per question"><NumberSelect value={d.trials} choices={[1, 2, 4, 8]} onChange={(trials) => setD({ ...d, trials })} label="Trials" /></Field>

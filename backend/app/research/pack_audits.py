@@ -8,7 +8,7 @@ import re
 import xml.etree.ElementTree as ElementTree
 from collections import Counter
 
-from app.research import packs
+from app.research import oracle as research_oracle, packs
 from app.research.pack_schemas import KINDS, row_id
 
 # Config
@@ -157,9 +157,11 @@ def log_labels(path: str, text: str) -> set[str]:
 
 
 def oracle(pack: dict) -> dict:
+    """Security packs: every task's allowed and forbidden actions agree with the independent oracle (research/oracle.py)."""
     if pack["manifest"].kind != "security":
         return result("oracle", "Oracle", "not_applicable", "Only security packs")
-    return result("oracle", "Oracle", "fail", "The oracle check arrives in step 9; security packs wait until then")
+    found = research_oracle.disagreements(pack)
+    return result("oracle", "Oracle", "fail" if found else "pass", f"{len(found)} labels the oracle disagrees with" if found else f"{len(pack['main'])} tasks agree", found)
 
 
 def exposure(pack: dict) -> dict:

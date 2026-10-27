@@ -113,14 +113,12 @@ def test_a_fact_whose_sentence_is_not_in_its_document_fails_gold_coverage():
     assert "F01: sentence not found in UPD-F01" in audits(files(**{"documents/UPD-F01.md": moved}))["gold_coverage"]["lines"]
 
 
-def test_event_labels_must_be_in_the_alphabet_and_security_waits_for_its_oracle():
+def test_event_labels_must_be_in_the_alphabet():
     xes = '<log><trace><event><string key="concept:name" value="check_order"/></event><event><string key="concept:name" value="refund"/></event></trace></log>'
     skills = {"manifest.json": manifest_with(kind="skills", files=[]), "tasks.jsonl": "", "gold.jsonl": "", "train_log.xes": xes, "alphabet.json": '["check_order"]'}
     assert audits(skills)["alphabet"]["lines"] == ["refund"]
     assert audits({**skills, "alphabet.json": '["check_order", "refund"]'})["alphabet"]["status"] == "pass"
     assert audits({**skills, "train_log.xes": "<log><broken"})["alphabet"]["status"] == "fail"
-    security = {"manifest.json": manifest_with(kind="security", files=[]), **{p: "" for p in ("tasks.jsonl", "gold.jsonl", "principals.jsonl", "relations.jsonl", "attributes.jsonl", "attacks.jsonl")}}
-    assert audits(security)["oracle"]["status"] == "fail"
 
 
 # --- Volume and the real corpus

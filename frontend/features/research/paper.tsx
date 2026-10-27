@@ -52,8 +52,8 @@ function LabResultsView({ id }: { id: string }) {
         <div className="space-y-6">
           {data.experiment.status === "invalid_run" ? <InvalidRun data={data} /> : <Headlines data={data} />}
           <ConditionChart data={data} />
-          <Section title="Cases" description="One graded answer at a time.">
-            <CaseViewer experimentId={id} conditions={data.experiment.conditions} labels={data.conditions} />
+          <Section title="Cases" description={data.experiment.paper === "security" ? "One episode at a time." : "One graded answer at a time."}>
+            <CaseViewer experimentId={id} conditions={data.experiment.conditions} labels={data.conditions} failedLabel={data.experiment.paper === "security" ? "Failed only" : undefined} />
           </Section>
           <Folded title="Run details"><RunDetails data={data} /></Folded>
         </div>
@@ -141,6 +141,13 @@ function ConditionChart({ data }: { data: LabResults }) {
   );
 }
 
+/** The access check's time at the call, per condition that checks (security only). */
+function latency(data: LabResults): [string, string][] {
+  const of = (key: string, c: string) => data.metrics.find((m) => m.key === key && m.condition === c && (m.n ?? 0) > 0)?.value;
+  return data.experiment.conditions.filter((c) => of("check_latency_p50_ms", c) !== undefined)
+    .map((c) => [`Access check, ${data.conditions[c] ?? c}`, `${of("check_latency_p50_ms", c)} ms median, ${of("check_latency_p95_ms", c)} ms p95`]);
+}
+
 function RunDetails({ data }: { data: LabResults }) {
   const e = data.experiment;
   return (
@@ -152,6 +159,7 @@ function RunDetails({ data }: { data: LabResults }) {
       ["Code", <Mono key="g">{e.gitCommit}</Mono>],
       ["Config hash", <Mono key="c">{e.configSha256.slice(0, 16)}</Mono>],
       ["Preregistration hash", <Mono key="p">{data.preregSha256?.slice(0, 16) ?? "none"}</Mono>],
+      ...latency(data),
       ["Ingest", <pre key="i" className="whitespace-pre-wrap text-[12px]">{JSON.stringify(e.notes.ingest ?? {}, null, 1)}</pre>],
     ]} />
   );

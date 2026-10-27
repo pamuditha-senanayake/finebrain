@@ -1,8 +1,10 @@
 # stages_govern.py: S7 Govern (K5 to K6 and K7). Access through OPA, the skill's policy from the graph, quality
 # gates (citations, amount, confidence, a grader), criticality with every section 2 bump, then the route.
 # Used by: run_steps.py, tests. Uses: contracts_*.py, stages_decide.py (format_money), an access checker, a grader.
+import time
 from datetime import datetime
 
+from app.pipeline import access
 from app.pipeline.contracts_reason import AccessCheck, AccessDecision, ContextBundle, ProposedAction, Resource
 from app.pipeline.contracts_run import Approvers, GateResult, GovernanceVerdict, PolicyResult
 from app.pipeline.contracts_signal import Money, Principal, TaskRequest, VersionRef
@@ -25,14 +27,18 @@ C4_COOLING_HOURS = 24
 
 # --- Checks
 
-def check_access(action: ProposedAction, task: TaskRequest, principal: Principal, cluster_id: str, checker, new_id) -> tuple[AccessCheck, AccessDecision]:
-    """K6 through the checker (OPA, or its memory twin). Unknown actions need a capability nobody has."""
+def check_access(action: ProposedAction, task: TaskRequest, principal: Principal, cluster_id: str, checker, new_id, people: dict | None = None) -> tuple[AccessCheck, AccessDecision]:
+    """K6 through the checker (OPA, or its memory twin). Unknown actions need a capability nobody has. The decision records the
+    authority it carried (effective tier, capabilities) and how long the check took."""
     resource = Resource(type="payment", id=action.arguments.get("payment_ref", ""), cluster_id=cluster_id, sensitivity="confidential")
     check = AccessCheck(check_id=new_id("chk"), principal=principal, on_behalf_of=task.on_behalf_of, action=CAPABILITY_FOR_ACTION.get(action.action_type, "unknown"), resource=resource)
+    started = time.perf_counter()
     answer = checker(check)
     decision = AccessDecision(
-        decision_id=new_id("acc"), decision="allow" if answer["allow"] else "deny", rule_id=answer["rule_id"], reason=answer["reason"], latency_ms=0,
-        principal_id=principal.id, on_behalf_of=task.on_behalf_of, action=check.action, resource=f"{resource.type}:{resource.id}", run_id=action.run_id,
+        decision_id=new_id("acc"), decision="allow" if answer["allow"] else "deny", rule_id=answer["rule_id"], reason=answer["reason"],
+        latency_ms=round((time.perf_counter() - started) * 1000), principal_id=principal.id, on_behalf_of=task.on_behalf_of, action=check.action,
+        resource=f"{resource.type}:{resource.id}", run_id=action.run_id, capabilities=principal.capabilities,
+        effective_tier=access.effective_tier(principal.tier, task.on_behalf_of, people or {}),
     )
     return check, decision
 
@@ -107,10 +113,11 @@ def early_escalation(task: TaskRequest, action: ProposedAction, decision: Access
 
 # --- S7 Govern
 
-def govern(task, action, bundle, principal, policies: dict, payments: dict, cluster_id: str, now, new_id, checker, grade, request_text: str = "") -> tuple[AccessCheck, AccessDecision, GovernanceVerdict]:
+def govern(task, action, bundle, principal, policies: dict, payments: dict, cluster_id: str, now, new_id, checker, grade, request_text: str = "",
+           people: dict | None = None) -> tuple[AccessCheck, AccessDecision, GovernanceVerdict]:
     """S7: access first, then policy, gates and criticality, then the route."""
     # Step 1: access; S6 asking for a human, or a missing policy, escalates at once
-    check, decision = check_access(action, task, principal, cluster_id, checker, new_id)
+    check, decision = check_access(action, task, principal, cluster_id, checker, new_id, people)
     policy = policies.get(POLICY_FOR_ACTION.get(action.action_type, ""))
     if action.action_type == "escalate" or (action.touches.money and policy is None):
         return check, decision, early_escalation(task, action, decision, action.arguments.get("reason", "policy_missing"))

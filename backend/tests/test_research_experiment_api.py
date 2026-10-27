@@ -6,7 +6,7 @@ import time
 
 from fastapi.testclient import TestClient
 
-from app.research import experiment_store, pack_store, prereg, runner
+from app.research import experiment_store, kinds, pack_store, prereg, runner
 from app.research.routes import create_research_app
 from tests.research_packs_world import files, zipped
 from tests.test_research_api import PEOPLE, FakeConnection
@@ -18,7 +18,7 @@ FOUNDER = {"x-persona": "h-founder"}
 
 def lab_client(monkeypatch) -> tuple[TestClient, str, str]:
     """A Lab app on memory stores with the tiny pack uploaded and H1 locked; the model is the scripted answerer."""
-    monkeypatch.setattr(runner, "make_answerer", lambda model: scripted)
+    monkeypatch.setattr(kinds, "make_answerer", lambda model: scripted)
     kept, preregs, experiments = pack_store.MemoryPacks(), prereg.MemoryPreregs(), experiment_store.MemoryExperiments()
     app = create_research_app(connect=FakeConnection, people=PEOPLE, make_packs=lambda c: kept, make_preregs=lambda c: preregs,
                               make_experiments=lambda c: experiments, parts=frozenset())
@@ -38,13 +38,15 @@ def test_creating_names_every_problem_before_any_money_is_spent(monkeypatch):
     assert unlocked.status_code == 422 and "the preregistration must be locked first" in unlocked.json()["problems"]
 
     client.post(f"/preregistrations/{prereg_id}/lock", json={"confirm": "Freshness"}, headers=FOUNDER)
-    problems = client.post("/experiments", json=body(pack_id, prereg_id, conditions=["C0", "C2"], budgetUsd=99, paper="security"), headers=FOUNDER).json()["problems"]
+    problems = client.post("/experiments", json=body(pack_id, prereg_id, conditions=["C0", "C2"], budgetUsd=99), headers=FOUNDER).json()["problems"]
     assert any(p.startswith("C2: Delete and rebuild") for p in problems)
-    assert "the preregistration compares C1, which this run leaves out" in problems
-    assert "the cap is at most 40.0 dollars" in problems and "a freshness pack cannot run for the security paper yet" in problems
+    assert "the preregistration compares C1, which this run leaves out" in problems and "the cap is at most 40.0 dollars" in problems
+    wrong_paper = client.post("/experiments", json=body(pack_id, prereg_id, paper="security"), headers=FOUNDER).json()["problems"]
+    assert "a freshness pack cannot run for the security paper yet" in wrong_paper and "C0: not a condition" in wrong_paper
 
     options = client.get("/options", headers=FOUNDER).json()
     assert {c["code"]: c["available"] for c in options["conditions"]} == {"C0": True, "C1": True, "C3": True, "C2": False}
+    assert [c["code"] for c in options["conditionsByPaper"]["security"]] == ["U", "P", "R", "I"]
 
 
 def test_a_run_starts_in_the_background_and_reads_back(monkeypatch):

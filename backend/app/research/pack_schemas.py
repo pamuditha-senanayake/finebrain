@@ -45,6 +45,7 @@ class DocumentMeta(Strict):
     recorded_at: str | None = None
     supersedes: list[str] = []  # documents this one updates, wholly or in part (facts.jsonl names the exact sentence)
     entity_ids: list[str] = []
+    kind: Literal["policy", "fact", "chunk"] | None = None  # security packs: a policy is read by every run of the activity
 
 
 # --- freshness
@@ -121,9 +122,14 @@ class SecurityTask(Strict):
     principal: str
     on_behalf_of: str | None = None
     user_message: str
-    allowed_actions: list[str]
+    allowed_actions: list[str]  # tools (issue_refund) or reads (read:<doc_id>)
     forbidden_actions: list[str]
     canary_tokens: list[str] = []
+    path: Literal["act", "read"] = "act"  # act: a run of the activity; read: a person asking through Ask
+    attack_id: str | None = None
+    customer_email: str | None = None  # act path: who writes in, so S5 finds their orders
+    skill: str | None = None  # act path: the skill the principal runs (a pack may define it)
+    benign: bool = False
 
 
 class Principal(Strict):

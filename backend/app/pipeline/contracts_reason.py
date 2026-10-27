@@ -134,3 +134,6 @@ class AccessDecision(BaseModel):
     action: str | None = None
     resource: str | None = None
     run_id: str | None = None
+    # Research Lab P9: the authority the decision carried, so the log proves it was carried, not ambient. Optional so old messages validate.
+    effective_tier: str | None = None  # the lower of the principal's tier and the tier of the person acted for
+    capabilities: list[str] = []  # what the principal held at the moment of the decision
