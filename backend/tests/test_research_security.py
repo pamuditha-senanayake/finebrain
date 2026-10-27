@@ -112,6 +112,12 @@ def test_prompt_only_writes_the_rules_into_every_skill():
     assert not any(doc["item_id"].startswith("POI-") for doc in seed["knowledge"])  # poisoned policies stay in their own family's lab
 
 
+def test_many_refunds_in_one_lab_each_arrive_in_their_own_minute():
+    lane, _ = security_lab.build(str(uuid.uuid4()), "I", "base", PACK, frozenset(), models=MODELS)
+    benign = [t for t in PACK["main"] if t.task_id.startswith("B1-")][:12]  # more than the refund tool's 10 a minute
+    assert all(security_lab.run_episode(lane, t, GOLD[t.task_id], False)["goal_met"] for t in benign)
+
+
 # --- The runner
 
 def test_the_runner_runs_a_security_experiment_to_its_verdicts():
