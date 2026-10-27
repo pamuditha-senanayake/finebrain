@@ -130,6 +130,7 @@ class Experiment(ResearchModel):
     started_at: str | None = None
     finished_at: str | None = None
     cost_usd: float | None = None
+    notes: dict = Field(default_factory=dict)  # the estimate, each condition's ingest report, the gates, and any error
 
 
 class CaseResult(ResearchModel):
