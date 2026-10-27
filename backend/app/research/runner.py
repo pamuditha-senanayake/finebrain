@@ -20,7 +20,7 @@ ANSWER_MAX_TOKENS = 300
 EXPECTED_IN, EXPECTED_OUT = 1_800, 60  # one question: eight chunks plus the prompt, and a one or two sentence answer
 LIVING_MAP_PER_DOCUMENT = 0.002  # one Haiku extraction window per short document
 LIVING_MAP_PER_FACT = 0.03  # one Opus conflict proposal per changed fact
-HEARTBEAT_EVERY = 10  # cases
+HEARTBEAT_EVERY = 1  # every answer: a model call can hang to its 60 s timeout twice, which must not look like a dead worker
 
 
 class BudgetReached(Exception):

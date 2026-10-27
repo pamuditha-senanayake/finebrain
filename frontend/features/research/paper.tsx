@@ -91,8 +91,9 @@ function Headlines({ data }: { data: LabResults }) {
             </div>
             <VerdictChip verdict={verdict.verdict} />
           </div>
-          <div className="mt-5 text-4xl font-semibold tracking-tight tabular">{hypothesis ? observed(verdict.observed, !!second) : verdict.observed}</div>
-          <p className="mt-2 text-[15px] text-muted-foreground">Locked threshold: {verdict.threshold}. Test: {verdict.test.replaceAll("_", " ")}.</p>
+          <div className="mt-5 text-4xl font-semibold tracking-tight tabular">{observed(verdict.observed, !!second).value}</div>
+          <p className="mt-2 text-[15px] tabular">{observed(verdict.observed, !!second).detail}</p>
+          <p className="mt-1 text-[15px] text-muted-foreground">Locked threshold: {hypothesis ? `${hypothesis.comparator.replace("_", " ")} ${shown(hypothesis.threshold, !!second)}` : verdict.threshold}. Test: {verdict.test.replaceAll("_", " ")}.</p>
           {verdict.diagnosisStage && verdict.verdict !== "supported" && <p className="mt-1 text-[15px]">Diagnosis stage {verdict.diagnosisStage}.</p>}
         </section>
       );
@@ -100,10 +101,15 @@ function Headlines({ data }: { data: LabResults }) {
   );
 }
 
-/** "+0.123 [+0.05, +0.20], p 0.01" read as points for an effect or as a share for one condition. */
-function observed(text: string, isEffect: boolean): string {
-  const value = Number.parseFloat(text);
-  return Number.isFinite(value) ? (isEffect ? points(value) : percent(value)) : text;
+const shown = (value: number, isEffect: boolean) => (isEffect ? points(value) : percent(value));
+
+/** "+0.123 [+0.05, +0.20], p 0.01" read as points for an effect or as a share for one condition, with its interval and p. */
+function observed(text: string, isEffect: boolean): { value: string; detail: string } {
+  const [value, low, high] = (text.match(/[+-]?\d+\.\d+/g) ?? []).map(Number);
+  const p = text.match(/p ([\d.e-]+)/)?.[1];
+  if (!Number.isFinite(value)) return { value: text, detail: "" };
+  const pText = p === undefined ? "" : Number(p) < 0.0001 ? " · p < 0.0001" : ` · p ${Number(p).toFixed(4)}`;
+  return { value: shown(value, isEffect), detail: Number.isFinite(low) ? `95% interval ${shown(low, isEffect)} to ${shown(high, isEffect)}${pText}` : "" };
 }
 
 function ConditionChart({ data }: { data: LabResults }) {
@@ -113,13 +119,14 @@ function ConditionChart({ data }: { data: LabResults }) {
     err: [(m.value - (m.ci?.low ?? m.value)) * 100, ((m.ci?.high ?? m.value) - m.value) * 100],
   }));
   if (rows.length === 0) return null;
+  const top = Math.min(100, Math.max(20, Math.ceil(Math.max(...rows.map((r) => r.value + r.err[1])) / 10) * 10 + 10));  // from zero, scaled to the data
   return (
     <Section title={rows.length ? data.metrics.find((m) => m.key === metric)?.label : ""} description="Each condition with its 95% interval.">
       <ChartContainer config={{ value: { label: "Share", color: "var(--chart-1)" } }} className="h-56 w-full">
         <BarChart data={rows} margin={{ left: 0, right: 8, top: 8 }}>
           <CartesianGrid vertical={false} />
           <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={13} />
-          <YAxis unit="%" domain={[0, 100]} width={44} fontSize={12} />
+          <YAxis unit="%" domain={[0, top]} width={44} fontSize={12} />
           <Bar dataKey="value" fill="var(--color-value)" radius={6} isAnimationActive={false}>
             <ErrorBar dataKey="err" width={6} strokeWidth={1.5} stroke="var(--foreground)" />
           </Bar>
