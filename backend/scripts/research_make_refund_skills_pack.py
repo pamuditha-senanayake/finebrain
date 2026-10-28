@@ -21,8 +21,10 @@ SEED, NOW = 20261028, datetime.fromisoformat("2026-10-10T10:00:00+05:30")
 TOOLS = ["issue_refund", "reply_customer", "escalate"]
 CASES = [("refund", 8), ("late", 3), ("large", 3)]  # (kind, how many); plus escalations for unknown payments below
 UNKNOWN = 2
-NORMATIVE = ("->( 'retrieve_context', X( ->( 'propose_issue_refund', 'access_allow', X( tau, 'await_approval' ), 'act_issue_refund' ), "
-             "->( 'propose_escalate', 'access_allow', 'act_escalate' ), ->( 'propose_reply_customer', 'access_allow', 'act_reply_customer' ) ) )")
+NORMATIVE = ("->( 'retrieve_context', X( ->( 'propose_issue_refund', 'access_allow', X( 'act_issue_refund', ->( 'await_approval', X( tau, 'act_issue_refund' ) ) ) ), "
+             "->( 'propose_escalate', 'access_allow', X( tau, 'act_escalate' ) ), ->( 'propose_reply_customer', 'access_allow', 'act_reply_customer' ) ) )")
+# v1.1: as the product records a case, an escalation ends at the hand-off (no tool step) and a refund waiting for a person ends
+# at the wait until someone decides; v1.0 asked for an action after both, which no run of the product can show
 CONFIRM_FIRST, FAILED_THEN_PERSON = 0.35, 0.08  # how often real handling deviates from the written procedure
 TRAIN, HELDOUT = 200, 100
 
@@ -89,7 +91,7 @@ def build_pack() -> bytes:
              "shop.json": json.dumps(shop, indent=1), "alphabet.json": json.dumps(alphabet), "normative_model.ptree": NORMATIVE + "\n",
              "train_log.xes": xes([trace(rng) for _ in range(TRAIN)], "refund_train"), "heldout_log.xes": xes([trace(rng) for _ in range(HELDOUT)], "refund_heldout"),
              "README.md": "Generated refund cases and logs for the skills paper (seed 20261028). Not field data.\n"}
-    manifest = {"kind": "skills", "name": "refund_skills_v1", "version": "1.0.0", "company": "Finebase Labs", "timezone": "Asia/Colombo", "currency": "LKR",
+    manifest = {"kind": "skills", "name": "refund_skills_v1", "version": "1.1.0", "company": "Finebase Labs", "timezone": "Asia/Colombo", "currency": "LKR",
                 "created_by": "research_lab", "license": "generated for the Finebrain Research Lab", "files": sorted(files)}  # no web check: there is nothing to search for in generated text, so the upload states that as the warning's reason
     files["manifest.json"] = json.dumps(manifest, indent=1)
     buffer = io.BytesIO()
