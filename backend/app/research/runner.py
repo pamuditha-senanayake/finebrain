@@ -8,7 +8,7 @@ import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
-from app.research import grade_freshness, kinds, lab_tenant, prereg, results
+from app.research import kinds, lab_tenant, prereg, results
 from app.research.contracts import Experiment
 from app.research.experiment_store import utc_now
 
@@ -78,7 +78,7 @@ def run_claimed(experiment: Experiment, experiments, preregs, pack: dict, answer
 
     # Step 3: every answer graded by today's rule, then results, gates, verdicts; then the labs go
     if kind.kind == "freshness":
-        regrade(experiments, experiment.id, kind.gold_of(pack))
+        regrade(experiments, experiment.id, kind.grader(pack))
     return finish(experiment, experiments, locked, reports, spent["usd"], parts, kind)
 
 
@@ -140,15 +140,15 @@ def run_condition(experiment: Experiment, experiments, pack: dict, kind, conditi
     return reports if kind.kind == "security" else reports["all"]
 
 
-def regrade(experiments, experiment_id: str, gold: dict) -> int:
-    """Grade every stored answer again with the current grader, so one rule judges the whole run, however often it resumed.
-    Answers never change; only labels can. Returns how many labels changed."""
+def regrade(experiments, experiment_id: str, grade) -> int:
+    """Grade every stored answer again with the current grader (`grade(case_id, answer)` gives the label and the grader's
+    version), so one rule judges the whole run, however often it resumed. Answers never change; only labels can.
+    Returns how many labels changed."""
     changed = 0
     for case in experiments.cases_of(experiment_id):
-        answer = gold.get(case.case_id)
-        label = grade_freshness.grade(case.outcome["answer"], answer.expected_value, answer.superseded_values, answer.tolerance) if answer else case.outcome["label"]
-        if label != case.outcome["label"] or case.outcome.get("grader") != grade_freshness.GRADER_VERSION:
-            experiments.relabel(case.model_copy(update={"outcome": {**case.outcome, "label": label, "grader": grade_freshness.GRADER_VERSION}, "passed": label == "fresh"}))
+        label, version = grade(case.case_id, case.outcome["answer"])
+        if label != case.outcome["label"] or case.outcome.get("grader") != version:
+            experiments.relabel(case.model_copy(update={"outcome": {**case.outcome, "label": label, "grader": version}, "passed": label == "fresh"}))
             changed += label != case.outcome["label"]
     return changed
 

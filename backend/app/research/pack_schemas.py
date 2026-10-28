@@ -79,6 +79,20 @@ class Fact(Strict):
     change_at: str | None = None
 
 
+class Nugget(Strict):
+    """One deterministic check of an answer, as FiscalQA Pro scores (a regex, an exact string, or a number within a tolerance).
+    A query with nuggets is graded by them; all required ones must hold."""
+    query_id: str
+    nugget_id: str
+    kind: Literal["regex", "exact", "numeric_tol"]
+    pattern: str | None = None
+    value: str | None = None
+    target: float | None = None
+    tol: float = 0.01
+    label: str | None = None
+    required: bool = True
+
+
 # --- policy_drift
 
 class DriftTask(Strict):
@@ -170,10 +184,11 @@ class GoldFinal(Strict):
     expected: dict = {}
 
 
-# --- What each kind holds: main file, gold file and extra JSONL files, each with its line model
+# --- What each kind holds: main file, gold file and extra JSONL files, each with its line model (optional ones may be absent)
 
 KINDS: dict[str, dict] = {
-    "freshness": {"main": ("queries.jsonl", FreshnessQuery), "gold": ("gold.jsonl", FreshnessGold), "extra": {"facts.jsonl": Fact}},
+    "freshness": {"main": ("queries.jsonl", FreshnessQuery), "gold": ("gold.jsonl", FreshnessGold), "extra": {"facts.jsonl": Fact},
+                  "optional": {"nuggets.jsonl": Nugget}},  # nuggets: grade by them; answer_prompt.txt: the pack's own answer prompt
     "policy_drift": {"main": ("tasks.jsonl", DriftTask), "gold": ("gold.jsonl", GoldFinal),
                      "extra": {"policies.jsonl": PolicyVersion, "drift_points.jsonl": DriftPoint}, "logs": ("event_log.csv", "event_log.xes")},
     "skills": {"main": ("tasks.jsonl", SkillTask), "gold": ("gold.jsonl", GoldFinal), "extra": {}, "logs": ("train_log.xes", "heldout_log.xes")},

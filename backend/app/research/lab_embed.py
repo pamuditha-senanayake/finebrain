@@ -9,7 +9,7 @@ from app.pipeline import stages_file
 # Config
 EMBED_WAITS = [5, 10, 20, 30, 60, 60, 60, 60, 60, 60, 60, 60]  # seconds between tries when the embedding service says 429
 EMBED_BATCH_TOKENS = 8_000  # per call when the lab embeds a pack ahead of time: under Voyage's 10,000 tokens a minute
-CHARS_PER_TOKEN = 4
+CHARS_PER_TOKEN = 3  # French and accented text run near 3; at 4 a French batch passed the minute's limit and could never succeed
 
 
 EMBEDDED: dict[tuple[str, str], list[float]] = {}

@@ -163,7 +163,7 @@ def test_outside_numbers_load_once_and_read_back_marked_by_source():
     loader = script("research_load_references")
     rows = loader.rows_from(AGENTDOJO, "2026-10-27")
     try:
-        assert loader.load(rows) == loader.load(rows) == 10  # loading again updates the same rows
+        assert loader.load(rows) == loader.load(rows) == 15  # loading again updates the same rows
         client = TestClient(create_research_app(people=PEOPLE, parts=frozenset()))
         found = client.get("/references", params={"paper": "security"}, headers={"x-persona": "h-founder"}).json()
         ours = [r for r in found if r["model"] == "test-model"]

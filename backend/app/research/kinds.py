@@ -1,7 +1,8 @@
 # kinds.py: what the runner needs from each kind of pack, so one runner runs them all: its conditions, how its cases group
 # into labs, how a lab is built, how one case runs, what it should cost, and which labs to tear down. Freshness runs one
 # lab per condition, one condition at a time; security runs one lab per condition and episode family, conditions in parallel.
-# Used by: research/runner.py, research/experiment_routes.py. Uses: research/freshness_lab.py, research/security_lab.py, research/grade_freshness.py, llm.py.
+# Used by: research/runner.py, research/experiment_routes.py. Uses: research/freshness_lab.py, research/security_lab.py, research/grade_freshness.py,
+# research/grade_nuggets.py, llm.py.
 import time
 
 import anthropic
@@ -9,7 +10,7 @@ import anthropic
 from app.pipeline import llm
 from app.pipeline.audit import verify_chain
 from app.pipeline.retry import call_with_retry
-from app.research import freshness_lab, grade_freshness, security_lab
+from app.research import freshness_lab, grade_freshness, grade_nuggets, security_lab
 from app.research.contracts import CaseResult, Experiment
 
 # Config
@@ -61,16 +62,33 @@ class Freshness:
 
     def run_case(self, experiment: Experiment, lane, condition: str, seed: int, trial: int, query, gold, pack: dict, answer) -> CaseResult:
         started = time.monotonic()
-        asked = freshness_lab.ask(lane, query.text, query.as_of, answer)
-        label = grade_freshness.grade(asked["answer"], gold.expected_value, gold.superseded_values, gold.tolerance)
+        asked = freshness_lab.ask(lane, query.text, query.as_of, answer, freshness_lab.prompt_of(pack))
+        label, version = (pack.get("_grade") or pack.setdefault("_grade", self.grader(pack)))(query.query_id, asked["answer"])  # built once per run
         fact = {f.fact_id: f for f in pack["extra"].get("facts.jsonl", [])}.get(query.fact_id)
         sentences = [s for s in ((fact.old_sentence, fact.new_sentence) if fact else ()) if s]
-        outcome = {"kind": query.kind, "question": query.text, "label": label, "grader": grade_freshness.GRADER_VERSION, "answer": asked["answer"], "expected": gold.expected_value,
+        outcome = {"kind": query.kind, "question": query.text, "label": label, "grader": version, "answer": asked["answer"], "expected": gold.expected_value,
                    "superseded": gold.superseded_values, "items": asked["items"], "either_hit": any(s in asked["context"] for s in sentences), "as_of": query.as_of}
         usage = asked["usage"]
         return CaseResult(experiment_id=experiment.id, condition=condition, seed=seed, trial=trial, case_id=query.query_id, outcome=outcome, passed=label == "fresh",
                           latency_ms=int((time.monotonic() - started) * 1000), tokens_in=usage["in"], tokens_out=usage["out"],
                           cost_usd=cost(experiment.models["answer"], usage["in"], usage["out"]))
+
+    def grader(self, pack: dict):
+        """grade(query_id, answer) -> (label, grader version): by the pack's nuggets when it has them (a stale answer states
+        the value of the same article's question at another date), else by the gold value and its superseded ones."""
+        nuggets: dict[str, list] = {}
+        for nugget in pack["extra"].get("nuggets.jsonl", []):
+            nuggets.setdefault(nugget.query_id, []).append(nugget)
+        gold, article = self.gold_of(pack), {q.query_id: q.fact_id for q in pack["main"]}
+        values = {q: {n.target for n in found if n.kind == "numeric_tol"} for q, found in nuggets.items()}
+        others = {q: [nuggets[o] for o in nuggets if o != q and article.get(o) == article.get(q) and values[o] != values[q]] for q in nuggets}
+
+        def grade(query_id: str, answer: str) -> tuple[str, str]:
+            if query_id in nuggets:
+                return grade_nuggets.grade(answer, nuggets[query_id], others[query_id]), grade_nuggets.GRADER_VERSION
+            g = gold[query_id]
+            return grade_freshness.grade(answer, g.expected_value, g.superseded_values, g.tolerance), grade_freshness.GRADER_VERSION
+        return grade
 
     def finish_lab(self, lane) -> dict:
         return {}

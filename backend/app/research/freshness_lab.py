@@ -113,7 +113,14 @@ def ingest(lane, pack: dict, condition: dict, beat=lambda: None) -> dict:
 
 
 def close_superseded(lane, pack: dict, held: dict, report: dict) -> None:
-    """C1: end the valid time of every chunk that holds a superseded sentence, at the moment its update starts."""
+    """C1: end the valid time of every chunk that holds a superseded sentence, at the moment its update starts; and of every
+    chunk of a document whose own valid time ends (a law article's version, which the next version replaces whole)."""
+    for doc_id, doc in sorted(pack["documents"].items()):
+        if doc["meta"].valid_to and doc_id in held:
+            for chunk in (c for c in lane.chunks.of_document(held[doc_id]) if c["kind"] == "chunk"):
+                lane.chunks.retire(chunk["item_id"], day(doc["meta"].valid_to))
+                report["closed_chunks"] += 1
+            report["closed_documents"] = report.get("closed_documents", 0) + 1
     for fact in pack["extra"].get("facts.jsonl", []):
         if not (fact.old_sentence and fact.old_doc_id in held and fact.change_at):
             continue
@@ -158,14 +165,19 @@ def approve_change(lane, cr_id: str) -> None:
 
 # --- One question
 
-def ask(lane, text: str, as_of: str, answer) -> dict:
+def prompt_of(pack: dict) -> str:
+    """The pack's own answer prompt (answer_prompt.txt, with {context} and {question}), or Execution_V1's."""
+    return pack["files"].get("answer_prompt.txt") or ANSWER_PROMPT
+
+
+def ask(lane, text: str, as_of: str, answer, prompt: str = ANSWER_PROMPT) -> dict:
     """The real S5 as of the question's date, then the answer prompt. Returns the answer, what S5 gave, and the usage."""
     set_clock(lane, day(as_of))
     query = ContextQuery(run_id=lane.new_id("lab"), principal=Principal(type="human", id=ASKER, capabilities=["kb.read"], tier="L1"), on_behalf_of=None,
                          query_text=text, branch="main", top_k=TOP_K, entity_ids=retrieve_scope.entities_in_question(lane, text))
     bundle, _ = stages_retrieve.retrieve(query, lane.chunks, lane.embed, lane.rerank, lane.seed["people"], lane.new_id, lane.now, lane.commons)
     context = "\n\n".join(item.text for item in bundle.items)
-    reply, usage = answer(ANSWER_PROMPT.format(context=context, question=text))
+    reply, usage = answer(prompt.replace("{context}", context).replace("{question}", text))  # replace, not format: a pack's prompt may hold braces
     return {"answer": reply, "items": [item.item_id for item in bundle.items], "context": context, "usage": usage}
 
 

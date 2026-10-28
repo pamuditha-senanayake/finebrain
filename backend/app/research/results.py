@@ -12,6 +12,8 @@ from app.research.contracts import CaseResult, Comparison, Hypothesis, MetricVal
 METRICS = {  # key: (label, query kind it counts, labels that count as a hit, definition)
     "stale_answer_rate": ("Stale answers", "stale_sensitive", {"stale"}, "Answers stating a superseded value, over questions whose fact changed."),
     "as_of_now_current": ("Current answers", "stale_sensitive", {"fresh"}, "Answers stating the value valid at the question's date, over questions whose fact changed."),
+    "states_current": ("States the current value", "stale_sensitive", {"fresh", "mixed"},
+                       "Answers stating the value valid at the question's date, with or without an older one (FiscalQA Pro's strict score)."),
     "mixed_rate": ("Mixed answers", "stale_sensitive", {"mixed"}, "Answers stating both the old and the new value."),
     "refusal_rate": ("Refusals", "stale_sensitive", {"refused"}, "Answers saying the context does not hold the answer."),
     "control_accuracy": ("Control accuracy", "control", {"fresh"}, "Correct answers to questions about facts that never changed."),

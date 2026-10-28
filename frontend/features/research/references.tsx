@@ -12,8 +12,11 @@ import { percent } from "./lab-ui";
 /** A short chart label: the benchmark and what the figure measures ("PhantomPolicy: No enforcement"). */
 export const referenceLabel = (r: LabReference) => `${r.benchmark}: ${(r.note ?? r.model).split(",")[0]}`;
 
-/** One dashed line per kind of figure: the first row of each label (rows come largest first), so lines never stack. */
-export const chartLines = (rows: LabReference[]) => rows.filter((r, i) => rows.findIndex((o) => referenceLabel(o) === referenceLabel(r)) === i);
+const MIN_GAP = 0.08;  // two dashed lines closer than 8 points would print their labels on top of each other
+
+/** One dashed line per kind of figure, largest first, skipping any too close to one already drawn; the list shows them all. */
+export const chartLines = (rows: LabReference[]) =>
+  rows.reduce<LabReference[]>((kept, r) => (kept.some((k) => referenceLabel(k) === referenceLabel(r) || Math.abs(k.value - r.value) < MIN_GAP) ? kept : [...kept, r]), []);
 
 export function References({ paper }: { paper: ResearchPaper }) {
   const references = useReferences(paper);
