@@ -4,7 +4,7 @@ from datetime import datetime
 
 from app.api import ui_models as ui
 from app.api import ui_models_work as work
-from app.api import documents, grant_views, nightly, ready_views, trend_views, vault_views, views
+from app.api import access_views, documents, grant_views, nightly, ready_views, trend_views, vault_views, views
 from app.api.versions_views import approval_of
 from app.pipeline import stages_decide
 from app.pipeline.observe import read_count, read_last_seen
@@ -68,6 +68,12 @@ def list_view(lane, resource: str, query: dict) -> list[dict] | None:
     if resource == "access-decisions":
         shown = [views.access_view(lane, entry).ui() for entry in views.audit_entries(lane, "access.decisions")]
         return [a for a in shown if (not query.get("principal") or a["principal"] == query["principal"]) and (not query.get("decision") or a["decision"] == query["decision"])]
+    if resource == "access-rules":
+        return access_views.rules_view(lane)
+    if resource == "access-homes":
+        return access_views.homes_view(lane)
+    if resource == "access-tiers":
+        return access_views.tiers_view(lane)
     if resource == "audit":
         shown = [views.audit_view(lane, entry).ui() for entry in views.audit_entries(lane)]
         return [a for a in shown if (not query.get("correlation") or a["correlationId"] == query["correlation"]) and a["criticality"] >= int(query.get("minCriticality", 0))]

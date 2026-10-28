@@ -810,9 +810,23 @@ export function markRead(d: TenantData, _ctx: Ctx, { id }: { id: string | "all" 
   return { ok: true };
 }
 
+const READS: Record<string, string[]> = { L1: ["public", "internal", "confidential", "restricted"], L2: ["public", "internal", "confidential", "restricted"], L3: ["public", "internal", "confidential"] };
+
+/** The same rules S7 applies, run on a made-up action. Nothing changes. */
+export function accessCheck(d: TenantData, _ctx: Ctx, a: { agentId: string; action: string; sensitivity: string; onBehalfOf?: string }) {
+  const agent = must(d.agents.find((x) => x.id === a.agentId), "Agent");
+  const person = a.onBehalfOf ? must(d.humans.find((h) => h.id === a.onBehalfOf), "Person") : null;
+  const effective = person && person.tier > agent.tier ? person.tier : agent.tier;  // "L3" > "L1": the lower tier wins
+  const base = { tier: agent.tier, effectiveTier: effective };
+  if (a.action !== "escalate" && !agent.capabilities.includes(a.action)) return { ...base, allow: false, ruleId: "missing_capability", reason: "principal lacks this capability" };
+  if (!READS[agent.tier].includes(a.sensitivity)) return { ...base, allow: false, ruleId: "sensitivity_by_tier", reason: "data too sensitive for this tier" };
+  if (person && !READS[person.tier].includes(a.sensitivity)) return { ...base, allow: false, ruleId: "on_behalf_of", reason: "the person acted for may not see this data" };
+  return { ...base, allow: true, ruleId: "capability_and_tier", reason: "capability held and data readable" };
+}
+
 export const OPS = {
   takeover, handback, markRunWrong, sendMessage, closeConversation, skillify, runChecks, decide, rollback, runReadinessScheduler, uploadEvidence, requestGrant, revokeGrant,
   librarianPropose, experimentPreview, experimentStart, experimentConclude, experimentKeep, experimentDiscard, runOvernightReview, saveSkillDraft, promoteAgent,
-  revealPersonal, addTrackingItem, markRead, studioApply, studioSuggest, markTrendKnown,
+  revealPersonal, addTrackingItem, markRead, studioApply, studioSuggest, markTrendKnown, accessCheck,
 } as const;
 export type OpName = keyof typeof OPS;

@@ -41,6 +41,12 @@ const GETTERS: Record<string, Getter> = {
   documents: (d) => d.documents,
   "filing-rules": (d) => d.filingRules,
   "access-rules": (d) => d.accessRules,
+  "access-homes": (d) => Object.fromEntries(d.studio.items.filter((i) => i.workflowId).map((i) => [i.id, i.workflowId])),
+  "access-tiers": () => [
+    { tier: "L1", reads: ["public", "internal", "confidential", "restricted"] },
+    { tier: "L2", reads: ["public", "internal", "confidential", "restricted"] },
+    { tier: "L3", reads: ["public", "internal", "confidential"] },
+  ],
   sensors: (d) => d.sensors,
   "tracking-plan": (d) => d.trackingPlan,
   templates: (d) => d.templates,

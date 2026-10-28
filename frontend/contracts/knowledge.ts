@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Criticality, IsoDate, NodeType, Sensitivity, VersionRef } from "./common";
+import { Criticality, IsoDate, NodeType, Sensitivity, Tier, VersionRef } from "./common";
 
 export const SkillStep = z.object({
   id: z.string(),
@@ -175,6 +175,14 @@ export const AccessRule = z.object({
   description: z.string(),
 });
 export type AccessRule = z.infer<typeof AccessRule>;
+
+/** Which data each tier reads. */
+export const TierReads = z.object({ tier: Tier, reads: z.array(Sensitivity) });
+export type TierReads = z.infer<typeof TierReads>;
+
+/** The answer to "would this be allowed?": nothing runs and nothing is logged. */
+export const AccessCheckResult = z.object({ allow: z.boolean(), ruleId: z.string(), reason: z.string(), tier: Tier, effectiveTier: Tier });
+export type AccessCheckResult = z.infer<typeof AccessCheckResult>;
 
 export const Sensor = z.object({
   id: z.string(),

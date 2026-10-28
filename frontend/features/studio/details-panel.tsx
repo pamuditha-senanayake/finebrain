@@ -12,6 +12,7 @@ import { useStudioActivity, useStudioHealth, useStudioHistory, useStudioPending 
 import { relTime } from "@/lib/format";
 import { FIELD_SPECS, KIND_LABEL, KIND_PLURAL, MEMBER_ORDER, describeCron, fieldLabel, formatValue, isParam, paramName, refsOf } from "@/lib/studio/spec";
 import { cn } from "@/lib/utils";
+import { AccessTab } from "./access-tab";
 import { KindIcon } from "./cards";
 import type { Focus } from "./state";
 
@@ -72,13 +73,15 @@ export function DetailsPanel(props: Props) {
         )}
       </div>
       <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
-        <TabsList className="mx-3 mt-2 grid w-auto grid-cols-3">
+        <TabsList className="mx-3 mt-2 grid w-auto grid-cols-4">
           <TabsTrigger value="details" className="text-xs">Details</TabsTrigger>
+          <TabsTrigger value="access" className="text-xs">Access</TabsTrigger>
           <TabsTrigger value="history" className="text-xs">Versions</TabsTrigger>
           <TabsTrigger value="related" className="text-xs">Related</TabsTrigger>
         </TabsList>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 pt-2">
           <TabsContent value="details">{item ? <ItemDetails {...props} item={item} /> : <WorkflowDetails {...props} />}</TabsContent>
+          <TabsContent value="access"><AccessTab detail={detail} item={item} onFocus={props.onFocus} onAsk={props.onAsk} /></TabsContent>
           <TabsContent value="history">
             <History targetId={item?.id ?? detail.workflow.id} current={item?.version ?? detail.workflow.version} kind={item?.kind ?? null} detail={detail} now={props.now} />
             {!item && <Activity {...props} />}

@@ -6,18 +6,19 @@ import type { AccessDecision } from "@/contracts";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable, type Column } from "@/components/brain/data-table";
-import { AgentChip, PersonChip, useLookup } from "@/components/brain/names";
-import { CritBadge, Mono, PageHeader, QueryView, Section, Status, StatusChip } from "@/components/brain/primitives";
-import { useAccessDecisions, useAccessRules, useAgents, useApprovals, useGrants, useHumans } from "@/lib/api/hooks";
+import { ShieldCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AgentChip, useLookup } from "@/components/brain/names";
+import { AccessCheckDialog } from "./access-check";
+import { AgentsTab, PeopleTab, RulesTab, SourcesTab } from "./security-tabs";
+import { CritBadge, Mono, PageHeader, QueryView, Section, Status } from "@/components/brain/primitives";
+import { useAccessDecisions, useApprovals } from "@/lib/api/hooks";
 import { dateTime } from "@/lib/format";
 
 export function Security() {
   const [decision, setDecision] = useState<"all" | "deny" | "allow">("deny");
   const decisions = useAccessDecisions(decision === "all" ? {} : { decision });
-  const rules = useAccessRules();
-  const agents = useAgents();
-  const humans = useHumans();
-  const grants = useGrants();
+  const [checking, setChecking] = useState<{ open: boolean; agentId?: string }>({ open: false });
   const approvals = useApprovals();
   const lookup = useLookup();
   const columns: Column<AccessDecision>[] = useMemo(
@@ -35,15 +36,19 @@ export function Security() {
   const pendingSecurity = (approvals.data ?? []).filter((a) => a.status === "pending" && a.criticality === 4);
   return (
     <div>
-      <PageHeader title="Security and access" description="Human roles and attributes, agent capability grants, connector scopes, and every allow and deny with the principal, on whose behalf, the deciding rule and the latency." />
+      <PageHeader
+        title="Security"
+        description="Who may do what, and every yes and no."
+        actions={<Button onClick={() => setChecking({ open: true })}><ShieldCheck /> Check access</Button>}
+      />
       {pendingSecurity.length > 0 && (
-        <Section title="Proposed by the Security Sentinel" className="mb-4">
-          <ul className="space-y-2">
+        <Section title="Waiting for you" className="mb-6">
+          <ul className="space-y-3">
             {pendingSecurity.map((a) => (
-              <li key={a.id} className="flex flex-wrap items-center gap-2 text-sm">
+              <li key={a.id} className="flex flex-wrap items-center gap-3 text-[15px]">
                 <CritBadge level={a.criticality} />
                 <Link href={`/l1/approvals/${a.id}`} className="font-medium hover:underline">{a.title}</Link>
-                <span className="text-xs text-muted-foreground">needs {a.requiredApprovers.count} {a.requiredApprovers.tier} approvers · {a.votes.filter((v) => v.decision === "approve").length} so far</span>
+                <span className="text-[14px] text-muted-foreground">{a.votes.filter((v) => v.decision === "approve").length} of {a.requiredApprovers.count} approved</span>
               </li>
             ))}
           </ul>
@@ -51,13 +56,13 @@ export function Security() {
       )}
       <Tabs defaultValue="log">
         <TabsList>
-          <TabsTrigger value="log">Decision log</TabsTrigger>
-          <TabsTrigger value="agents">Agent capabilities</TabsTrigger>
-          <TabsTrigger value="humans">Human roles</TabsTrigger>
-          <TabsTrigger value="rules">Access rules</TabsTrigger>
-          <TabsTrigger value="scopes">Connector scopes</TabsTrigger>
+          <TabsTrigger value="log">Decisions</TabsTrigger>
+          <TabsTrigger value="agents">Agents</TabsTrigger>
+          <TabsTrigger value="humans">People</TabsTrigger>
+          <TabsTrigger value="rules">Rules</TabsTrigger>
+          <TabsTrigger value="scopes">Data</TabsTrigger>
         </TabsList>
-        <TabsContent value="log" className="mt-3">
+        <TabsContent value="log" className="mt-6">
           <QueryView query={decisions}>
             {(ds) => (
               <DataTable
@@ -67,89 +72,25 @@ export function Security() {
                 columns={columns}
                 getRowId={(a) => a.id}
                 initialSort={{ id: "at", desc: true }}
-                height="calc(100dvh - 330px)"
+                height="calc(100dvh - 380px)"
+                emptyText={decision === "deny" ? "Nothing denied. Everything asked for was allowed." : "No decisions yet."}
                 toolbar={
                   <ToggleGroup type="single" value={decision} onValueChange={(v) => v && setDecision(v as typeof decision)} variant="outline" size="sm" aria-label="Decision filter">
-                    <ToggleGroupItem value="deny" className="px-2.5 text-xs">Denied</ToggleGroupItem>
-                    <ToggleGroupItem value="allow" className="px-2.5 text-xs">Allowed</ToggleGroupItem>
-                    <ToggleGroupItem value="all" className="px-2.5 text-xs">All</ToggleGroupItem>
+                    <ToggleGroupItem value="deny" className="px-3 text-[13px]">Denied</ToggleGroupItem>
+                    <ToggleGroupItem value="allow" className="px-3 text-[13px]">Allowed</ToggleGroupItem>
+                    <ToggleGroupItem value="all" className="px-3 text-[13px]">All</ToggleGroupItem>
                   </ToggleGroup>
                 }
               />
             )}
           </QueryView>
         </TabsContent>
-        <TabsContent value="agents" className="mt-3">
-          <QueryView query={agents}>
-            {(as) => (
-              <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                {as.slice(0, 120).map((a) => (
-                  <li key={a.id} className="rounded-lg border bg-card p-3 text-sm">
-                    <div className="flex items-center justify-between"><AgentChip id={a.id} /><StatusChip tone={a.accessLevel === "restricted" ? "risk" : a.accessLevel === "confidential" ? "warn" : "neutral"}>{a.accessLevel}</StatusChip></div>
-                    <ul className="mt-2 flex flex-wrap gap-1">
-                      {a.capabilities.map((c) => <li key={c}><Mono className="rounded bg-muted px-1">{c}</Mono></li>)}
-                    </ul>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </QueryView>
-        </TabsContent>
-        <TabsContent value="humans" className="mt-3">
-          <QueryView query={humans}>
-            {(hs) => (
-              <table className="mini-table">
-                <thead className="text-left">
-                  <tr><th className="py-1.5 font-medium">Person</th><th className="py-1.5 font-medium">Tier</th><th className="py-1.5 font-medium">Roles</th><th className="py-1.5 font-medium">Attributes</th><th className="py-1.5 font-medium">Approves up to</th></tr>
-                </thead>
-                <tbody>
-                  {hs.map((h) => (
-                    <tr key={h.id} className="border-t">
-                      <td className="py-2"><PersonChip id={h.id} /></td>
-                      <td className="py-2">{h.tier}</td>
-                      <td className="py-2 text-xs">{h.roles.join(", ")}</td>
-                      <td className="py-2"><Mono className="text-xs">{Object.entries(h.attributes).map(([k, v]) => `${k}=${v}`).join(", ")}</Mono></td>
-                      <td className="py-2">{h.maxApprovalCriticality > 0 ? <CritBadge level={h.maxApprovalCriticality} /> : <span className="text-xs text-muted-foreground">cannot approve</span>}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </QueryView>
-        </TabsContent>
-        <TabsContent value="rules" className="mt-3">
-          <QueryView query={rules}>
-            {(rs) => (
-              <ul className="grid gap-2 md:grid-cols-2">
-                {rs.map((r) => (
-                  <li key={r.id} className="rounded-lg border bg-card p-3 text-sm">
-                    <div className="flex items-center justify-between gap-2"><span className="font-medium">{r.name}</span><StatusChip tone={r.sensitivity === "restricted" ? "risk" : "neutral"}>{r.sensitivity}</StatusChip></div>
-                    <p className="mt-1 text-xs text-muted-foreground">{r.description}</p>
-                    <p className="mt-1 text-xs">Applies to <Mono>{r.appliesTo}</Mono>{r.requiresCapability && <> · needs <Mono>{r.requiresCapability}</Mono></>}{r.requiresRoles.length > 0 && <> · roles {r.requiresRoles.join(", ")}</>}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </QueryView>
-        </TabsContent>
-        <TabsContent value="scopes" className="mt-3">
-          <QueryView query={grants}>
-            {(gs) => (
-              <ul className="space-y-2">
-                {gs.map((g) => (
-                  <li key={g.id} className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3 text-sm">
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium">{g.source}</div>
-                      <div className="text-xs text-muted-foreground">{g.scope} · retention {g.retentionDays} days · {g.agents.map((a) => lookup.name(a)).join(", ")}</div>
-                    </div>
-                    <Status value={g.status} />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </QueryView>
-        </TabsContent>
+        <TabsContent value="agents" className="mt-6"><AgentsTab onCheck={(agentId) => setChecking({ open: true, agentId })} /></TabsContent>
+        <TabsContent value="humans" className="mt-6"><PeopleTab /></TabsContent>
+        <TabsContent value="rules" className="mt-6"><RulesTab /></TabsContent>
+        <TabsContent value="scopes" className="mt-6"><SourcesTab /></TabsContent>
       </Tabs>
+      <AccessCheckDialog key={checking.agentId ?? "any"} open={checking.open} agentId={checking.agentId} onOpenChange={(open) => setChecking((c) => ({ ...c, open }))} />
     </div>
   );
 }

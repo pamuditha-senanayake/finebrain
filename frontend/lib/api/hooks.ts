@@ -42,6 +42,9 @@ export const useDocuments = () => useResource("documents", list(C.Document));
 export const useDocumentText = (id: string, enabled: boolean) => useResource(`documents/${id}/chunks`, list(z.object({ id: z.string(), text: z.string() })), { enabled: enabled && !!id });
 export const useFilingRules = () => useResource("filing-rules", list(C.FilingRule));
 export const useAccessRules = () => useResource("access-rules", list(C.AccessRule));
+export const useAccessTiers = () => useResource("access-tiers", list(C.TierReads));
+/** Which workflow each part of Studio lives in. */
+export const useAccessHomes = () => useResource("access-homes", z.record(z.string(), z.string()));
 export const useSensors = () => useResource("sensors", list(C.Sensor));
 export const useTrackingPlan = () => useResource("tracking-plan", list(C.TrackingPlanItem));
 export const useTemplates = () => useResource("templates", list(C.Template));
