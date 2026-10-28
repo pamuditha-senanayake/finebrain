@@ -1,6 +1,8 @@
 # kinds.py: what the runner needs from each kind of pack, so one runner runs them all: its conditions, how its cases group
 # into labs, how a lab is built, how one case runs, what it should cost, and which labs to tear down. Freshness runs one
-# lab per condition, one condition at a time; security runs one lab per condition and episode family, conditions in parallel.
+# lab per condition, one condition at a time; security runs one lab per condition and episode family, conditions in parallel;
+# skills runs one lab per condition, its cases repeated trial after trial for pass^k. One file holds every kind so their
+# differences read side by side.
 # Used by: research/runner.py, research/experiment_routes.py. Uses: research/freshness_lab.py, research/security_lab.py, research/grade_freshness.py,
 # research/grade_nuggets.py, llm.py.
 import time
@@ -10,7 +12,7 @@ import anthropic
 from app.pipeline import llm
 from app.pipeline.audit import verify_chain
 from app.pipeline.retry import call_with_retry
-from app.research import freshness_lab, grade_freshness, grade_nuggets, security_lab
+from app.research import freshness_lab, grade_freshness, grade_nuggets, security_lab, skills_lab
 from app.research.contracts import CaseResult, Experiment
 
 # Config
@@ -146,5 +148,29 @@ class Security:
         return 0.0
 
 
-KINDS = {"freshness": Freshness(), "security": Security()}
+class Skills(Security):
+    """Refund cases through the real pipeline, B0 without the skill's steps and B1 with them, repeated for pass^k."""
+    kind, paper, threads = "skills", "skills", 2
+    conditions, unavailable, unavailable_labels = skills_lab.CONDITIONS, skills_lab.UNAVAILABLE, {"B2": "Extracted skill", "B3": "Normative model"}
+
+    def groups(self, pack: dict) -> list[tuple[str, list]]:
+        return [("all", pack["main"])]
+
+    def build(self, experiment: Experiment, condition: str, group: str, pack: dict, parts, meter, beat, doubles):
+        return skills_lab.build(experiment.id, condition, pack, parts, doubles, beat)
+
+    def case_cost(self, experiment: Experiment, task) -> float:
+        return cost(experiment.models["answer"], *self.act_tokens) + cost(llm.FAST_MODEL, *self.grade_tokens)
+
+    def run_case(self, experiment: Experiment, lane, condition: str, seed: int, trial: int, task, gold, pack: dict, doubles) -> CaseResult:
+        started = time.monotonic()
+        outcome = skills_lab.run_case(lane, task, gold)
+        return CaseResult(experiment_id=experiment.id, condition=condition, seed=seed, trial=trial, case_id=task.task_id, correlation_id=outcome.get("run_id"),
+                          outcome=outcome, passed=outcome["goal_met"], latency_ms=int((time.monotonic() - started) * 1000), tokens_in=0, tokens_out=0, cost_usd=0.0)
+
+    def lab_ids(self, experiment_id: str, conditions: list[str]) -> list[str]:
+        return [skills_lab.lab_id_for(experiment_id, c) for c in conditions]
+
+
+KINDS = {"freshness": Freshness(), "security": Security(), "skills": Skills()}
 PAPER_FOR_KIND = {name: kind.paper for name, kind in KINDS.items()}

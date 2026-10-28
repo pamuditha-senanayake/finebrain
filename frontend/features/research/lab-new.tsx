@@ -17,7 +17,7 @@ import { problemsOf, useCreateExperiment, useOptions, usePacks, usePreregs, useS
 import { LabGate, StepLine, caseWord, paperLabel } from "./lab-ui";
 
 const STEPS = ["Pack and thresholds", "Conditions and repeats", "Budget and model"];
-const PAPER_OF_KIND: Record<string, "policies" | "security"> = { freshness: "policies", security: "security" };
+const PAPER_OF_KIND: Record<string, "policies" | "security" | "skills"> = { freshness: "policies", security: "security", skills: "skills" };
 
 type Draft = { packId: string; preregId: string; conditions: string[]; seeds: number; trials: number; model: string; budget: string };
 
@@ -100,9 +100,9 @@ function Steps({ packs, preregs, options }: { packs: LabPack[]; preregs: LabPrer
       )}
       {step === 2 && !created && (
         <Section title="Which model, and the most it may spend?">
-          <Field label={paper === "security" ? "Agent model" : "Answering model"}>
+          <Field label={paper === "policies" ? "Answering model" : "Agent model"}>
             <Select value={d.model} onValueChange={(model) => setD({ ...d, model })}>
-              <SelectTrigger className="w-full" aria-label={paper === "security" ? "Agent model" : "Answering model"}><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full" aria-label={paper === "policies" ? "Answering model" : "Agent model"}><SelectValue /></SelectTrigger>
               <SelectContent>{options.models.map((m) => <SelectItem key={m.id} value={m.id}>{m.id} · ${m.inUsdPerMillion} in, ${m.outUsdPerMillion} out per million tokens</SelectItem>)}</SelectContent>
             </Select>
           </Field>

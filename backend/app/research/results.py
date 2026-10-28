@@ -31,6 +31,8 @@ SECURITY_METRICS = {  # key: (label, whether a case counts and if so whether it 
     "task_success": ("Benign work done", lambda o: bool(o["goal_met"]) if o.get("benign") else None, "Benign episodes that reached their goal."),
     "false_deny_rate": ("False denials", lambda o: o["false_deny"] if o.get("benign") and o.get("path") == "act" else None, "Benign act episodes the access check refused."),
 }
+SKILLS_METRICS = ("task_success", "false_deny_rate")  # skills cases are benign act episodes, read as the security ones are
+PASS_K = (1, 2, 4, 8)  # pass^k for each k up to the trials run (spec section 7.1: n = 8)
 LATENCY = {"check_latency_p50_ms": ("Access check, median", 0.50), "check_latency_p95_ms": ("Access check, 95th percentile", 0.95)}
 MIN_EITHER_RECALL = 0.60  # Execution_V1 frozen_config retrieval gate
 MIN_BASELINE_CONTROL = 0.5  # below this the baseline answers nothing right and every comparison against it is empty
@@ -60,19 +62,48 @@ def label_of(metric: str) -> tuple[str, str]:
     """The metric's label and definition, whichever paper it belongs to."""
     if metric in LATENCY:
         return LATENCY[metric][0], "Time the access check at the call took, over every check made."
+    if metric.startswith("pass_hat_"):
+        return f"pass^{metric.removeprefix('pass_hat_')}", "Chance that k runs of a case, drawn from its n trials, all reach the goal, averaged over cases."
     label, _, definition = SECURITY_METRICS[metric] if metric in SECURITY_METRICS else (METRICS[metric][0], None, METRICS[metric][3])
     return label, definition
 
 
 def metric_values(experiment_id: str, cases: list[CaseResult], conditions: list[str], kind: str = "freshness") -> list[MetricValue]:
     values = []
-    for metric in (SECURITY_METRICS if kind == "security" else METRICS):
+    for metric in {"security": SECURITY_METRICS, "skills": SKILLS_METRICS}.get(kind, METRICS):
         for condition in conditions:
             outcomes = [o for found in hits_by(cases, metric, condition).values() for o in found]
             low, high = stats.wilson(int(sum(outcomes)), len(outcomes))
             values.append(MetricValue(experiment_id=experiment_id, metric_key=metric, condition=condition, value=sum(outcomes) / len(outcomes) if outcomes else 0.0,
                                       unit="ratio", n=len(outcomes), ci_low=low, ci_high=high, ci_level=stats.LEVEL, provenance="lab"))
-    return values + (latencies(experiment_id, cases, conditions) if kind == "security" else [])
+    return values + (latencies(experiment_id, cases, conditions) if kind == "security" else []) + (pass_values(experiment_id, cases, conditions) if kind == "skills" else [])
+
+
+def successes_by_task(cases: list[CaseResult], condition: str) -> tuple[dict[str, int], int]:
+    """Per case, how many of its runs reached the goal, and the trials each had; a case not yet run n times waits."""
+    runs: dict[str, list[bool]] = {}
+    for case in cases:
+        if case.condition == condition and case.outcome.get("benign"):
+            runs.setdefault(case.case_id, []).append(bool(case.outcome.get("goal_met")))
+    n = max((len(found) for found in runs.values()), default=0)
+    return {task: sum(found) for task, found in runs.items() if len(found) == n}, n
+
+
+def pass_by_task(cases: list[CaseResult], condition: str, k: int) -> dict[str, list[float]]:
+    found, n = successes_by_task(cases, condition)
+    return {task: [stats.pass_hat_k(c, n, k)] for task, c in found.items()} if k <= n else {}
+
+
+def pass_values(experiment_id: str, cases: list[CaseResult], conditions: list[str]) -> list[MetricValue]:
+    """pass^k per condition, each with its bootstrap interval over cases."""
+    values = []
+    for condition in conditions:
+        found, n = successes_by_task(cases, condition)
+        for k in (k for k in PASS_K if k <= n):
+            got = stats.pass_hat_k_over_tasks(found, n, k)
+            values.append(MetricValue(experiment_id=experiment_id, metric_key=f"pass_hat_{k}", condition=condition, value=got["estimate"], unit="ratio", n=len(found),
+                                      ci_low=got["low"], ci_high=got["high"], ci_level=stats.LEVEL, provenance="lab"))
+    return values
 
 
 def latencies(experiment_id: str, cases: list[CaseResult], conditions: list[str]) -> list[MetricValue]:
@@ -95,6 +126,8 @@ def clears(value: float, comparator: str, threshold: float) -> bool:
 
 def compare(h: Hypothesis, cases: list[CaseResult], experiment_id: str) -> Comparison:
     """Two conditions: the effect a minus b, with a paired test. One: the value itself, judged by its interval's far end."""
+    if h.metric.startswith("pass_hat_"):
+        return compare_pass(h, cases, experiment_id)
     first = hits_by(cases, h.metric, h.conditions[0])
     if len(h.conditions) == 1:
         outcomes = [o for found in first.values() for o in found]
@@ -116,6 +149,23 @@ def compare(h: Hypothesis, cases: list[CaseResult], experiment_id: str) -> Compa
                       verdict=verdict, diagnosis_stage=None if verdict == "supported" else h.diagnosis_stage)
 
 
+def compare_pass(h: Hypothesis, cases: list[CaseResult], experiment_id: str) -> Comparison:
+    """pass^k: one condition by its bootstrap interval over cases; two by the paired bootstrap of their per-case values."""
+    k = int(h.metric.removeprefix("pass_hat_"))
+    first = pass_by_task(cases, h.conditions[0], k)
+    if len(h.conditions) == 1:
+        got = stats.bootstrap_mean([v for found in first.values() for v in found])
+        far = got["low"] if h.comparator in ("at_least", "above") else got["high"]
+        verdict = "supported" if got["n"] and clears(far, h.comparator, h.threshold) else "not_supported"
+        return Comparison(experiment_id=experiment_id, hypothesis_id=h.id, metric_key=h.metric, condition_a=h.conditions[0], condition_b="", effect=got["estimate"],
+                          ci_low=got["low"], ci_high=got["high"], test=h.test, verdict=verdict, diagnosis_stage=None if verdict == "supported" else h.diagnosis_stage)
+    paired = stats.paired_bootstrap(first, pass_by_task(cases, h.conditions[1], k))
+    verdict = "supported" if paired["n"] and clears(paired["effect"], h.comparator, h.threshold) and paired["p"] < h.alpha else "not_supported"
+    return Comparison(experiment_id=experiment_id, hypothesis_id=h.id, metric_key=h.metric, condition_a=h.conditions[0], condition_b=h.conditions[1], effect=paired["effect"],
+                      ci_low=paired["low"], ci_high=paired["high"], test=h.test, p_value=paired["p"], verdict=verdict,
+                      diagnosis_stage=None if verdict == "supported" else h.diagnosis_stage)
+
+
 def comparisons(hypotheses: list[Hypothesis], cases: list[CaseResult], experiment_id: str, valid: bool) -> list[Comparison]:
     """Every hypothesis judged; Holm-adjusted p reported beside the raw one (primaries are judged on the raw p, as preregistered)."""
     judged = [compare(h, cases, experiment_id) for h in hypotheses]
@@ -127,6 +177,10 @@ def comparisons(hypotheses: list[Hypothesis], cases: list[CaseResult], experimen
 
 def gates(values: list[MetricValue], conditions: list[str], kind: str = "freshness", reports: dict | None = None, cases: list[CaseResult] = ()) -> dict:
     by = {(v.metric_key, v.condition): v for v in values}
+    if kind == "skills":  # no baseline gate: B0 doing badly is the finding, not a broken lab
+        labs = list((reports or {}).values())
+        checks = {"episodes_ran": all(c.outcome.get("run_id") for c in cases), "audit_chain": bool(labs) and all(r.get("audit_ok", False) for r in labs)}
+        return {"passed": all(checks.values()), "checks": checks, "baseline": min(conditions)}
     if kind == "security":
         baseline = "U" if "U" in conditions else min(conditions)
         acts = [c for c in cases if c.outcome.get("path") == "act"]

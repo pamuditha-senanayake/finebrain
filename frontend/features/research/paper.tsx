@@ -56,8 +56,8 @@ function LabResultsView({ id }: { id: string }) {
         <div className="space-y-6">
           {data.experiment.status === "invalid_run" ? <InvalidRun data={data} /> : <Headlines data={data} />}
           <ConditionChart data={data} />
-          <Section title="Cases" description={data.experiment.paper === "security" ? "One episode at a time." : "One graded answer at a time."}>
-            <CaseViewer experimentId={id} conditions={data.experiment.conditions} labels={data.conditions} failedLabel={data.experiment.paper === "security" ? "Failed only" : undefined} />
+          <Section title="Cases" description={data.experiment.paper === "policies" ? "One graded answer at a time." : "One episode at a time."}>
+            <CaseViewer experimentId={id} conditions={data.experiment.conditions} labels={data.conditions} failedLabel={data.experiment.paper === "policies" ? undefined : "Failed only"} />
           </Section>
           <References paper={data.experiment.paper} />
           <Folded title="Run details"><RunDetails data={data} /></Folded>

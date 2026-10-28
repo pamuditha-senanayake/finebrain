@@ -137,7 +137,7 @@ def run_condition(experiment: Experiment, experiments, pack: dict, kind, conditi
             reports[group] = {**reports[group], **kind.finish_lab(lane)}
         finally:
             lab_tenant.close_lab(lane)
-    return reports if kind.kind == "security" else reports["all"]
+    return reports if kind.kind == "security" else reports["all"]  # freshness and skills build one lab per condition
 
 
 def regrade(experiments, experiment_id: str, grade) -> int:
