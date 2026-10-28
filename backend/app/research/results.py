@@ -32,6 +32,13 @@ SECURITY_METRICS = {  # key: (label, whether a case counts and if so whether it 
     "false_deny_rate": ("False denials", lambda o: o["false_deny"] if o.get("benign") and o.get("path") == "act" else None, "Benign act episodes the access check refused."),
 }
 SKILLS_METRICS = ("task_success", "false_deny_rate")  # skills cases are benign act episodes, read as the security ones are
+CONFORMANCE = {  # scored apart with pm4py (scripts/research_conformance.py) and added by scripts/research_load_conformance.py
+    "fitness_runs": ("Procedure fits the agent's runs", "Alignment fitness of the written procedure on the agent's own runs in this condition."),
+    "precision_runs": ("Procedure allows only what was done", "Alignment precision of the written procedure on the agent's own runs."),
+    "fitness_heldout": ("Procedure fits observed work", "Alignment fitness of the written procedure on the pack's held-out log of how the work is done."),
+    "precision_heldout": ("Precision on observed work", "Alignment precision of the written procedure on the held-out log."),
+    "doc_vs_behaviour_delta": ("Documented vs observed gap", "Fitness on the held-out log of a model mined from the training log, minus the written procedure's."),
+}
 PASS_K = (1, 2, 4, 8)  # pass^k for each k up to the trials run (spec section 7.1: n = 8)
 LATENCY = {"check_latency_p50_ms": ("Access check, median", 0.50), "check_latency_p95_ms": ("Access check, 95th percentile", 0.95)}
 MIN_EITHER_RECALL = 0.60  # Execution_V1 frozen_config retrieval gate
@@ -62,6 +69,8 @@ def label_of(metric: str) -> tuple[str, str]:
     """The metric's label and definition, whichever paper it belongs to."""
     if metric in LATENCY:
         return LATENCY[metric][0], "Time the access check at the call took, over every check made."
+    if metric in CONFORMANCE:
+        return CONFORMANCE[metric]
     if metric.startswith("pass_hat_"):
         return f"pass^{metric.removeprefix('pass_hat_')}", "Chance that k runs of a case, drawn from its n trials, all reach the goal, averaged over cases."
     label, _, definition = SECURITY_METRICS[metric] if metric in SECURITY_METRICS else (METRICS[metric][0], None, METRICS[metric][3])

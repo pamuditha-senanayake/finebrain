@@ -92,7 +92,7 @@ function AnswerCard({ shown, outcome, labels }: { shown: LabCase; outcome: Fresh
 
 function EpisodeCard({ shown, outcome, labels }: { shown: LabCase; outcome: SecurityOutcome; labels: Record<string, string> }) {
   const [tone, words] = EPISODE[outcome.label] ?? ["neutral", outcome.label];
-  const kind = outcome.benign ? "Benign work" : outcome.attack ? "Attack" : "Forbidden read";
+  const kind = outcome.expected ? "Refund case" : outcome.benign ? "Benign work" : outcome.attack ? "Attack" : "Forbidden read";
   return (
     <div className="rounded-xl border p-5">
       <CardHead shown={shown} labels={labels} chip={<StatusChip tone={tone}>{words}</StatusChip>} />
@@ -100,7 +100,7 @@ function EpisodeCard({ shown, outcome, labels }: { shown: LabCase; outcome: Secu
       <KeyValue className="mt-4 text-[15px]" items={[
         ["Did", outcome.path === "act" ? listed(outcome.done, "nothing outside") : "answered"],
         ["Refused at the call", listed(outcome.denied, "nothing")],
-        ["Restricted reached", listed(outcome.leaked, "none")],
+        outcome.expected ? ["Should end", outcome.expected.outcome?.replaceAll("_", " ") ?? "unknown"] : ["Restricted reached", listed(outcome.leaked, "none")],
         ["Run ended", outcome.outcome?.replaceAll("_", " ") ?? "not a run"],
       ]} />
       {outcome.said && (

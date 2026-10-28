@@ -17,6 +17,7 @@ import { CaseViewer } from "./cases";
 import { latestFor } from "./home";
 import { useExperiments, useReferences, useResults } from "./lab-api";
 import { PAPERS, VerdictChip, percent, points } from "./lab-ui";
+import { PassKCurve } from "./pass-k";
 import { References, chartLines, referenceLabel } from "./references";
 import { SampleMetrics } from "./sample-metrics";
 
@@ -56,6 +57,7 @@ function LabResultsView({ id }: { id: string }) {
         <div className="space-y-6">
           {data.experiment.status === "invalid_run" ? <InvalidRun data={data} /> : <Headlines data={data} />}
           <ConditionChart data={data} />
+          <PassKCurve data={data} />
           <Section title="Cases" description={data.experiment.paper === "policies" ? "One graded answer at a time." : "One episode at a time."}>
             <CaseViewer experimentId={id} conditions={data.experiment.conditions} labels={data.conditions} failedLabel={data.experiment.paper === "policies" ? undefined : "Failed only"} />
           </Section>
@@ -119,7 +121,7 @@ function observed(text: string, isEffect: boolean): { value: string; detail: str
 
 function ConditionChart({ data }: { data: LabResults }) {
   const references = useReferences(data.experiment.paper).data ?? [];
-  const compared = references.find((r) => data.metrics.some((m) => m.key === r.metricKey))?.metricKey;  // a metric outside numbers exist for
+  const compared = references.find((r) => !r.metricKey.startsWith("pass_hat_") && data.metrics.some((m) => m.key === r.metricKey))?.metricKey;  // pass^k has its own curve
   const metric = compared ?? data.hypotheses[0]?.metric ?? "stale_answer_rate";
   const outside = chartLines(references.filter((r) => r.metricKey === metric));  // dashed: numbers from outside the Lab
   const rows = data.metrics.filter((m) => m.key === metric).map((m) => ({
@@ -153,6 +155,13 @@ function ConditionChart({ data }: { data: LabResults }) {
   );
 }
 
+/** The written procedure scored against behaviour (skills only), each condition side by side. */
+function conformance(data: LabResults): [string, string][] {
+  const keys = [...new Set(data.metrics.filter((m) => ["fitness_runs", "precision_runs", "fitness_heldout", "precision_heldout", "doc_vs_behaviour_delta"].includes(m.key)).map((m) => m.key))];
+  return keys.map((key) => [data.metrics.find((m) => m.key === key)?.label ?? key,
+    data.experiment.conditions.map((c) => `${data.conditions[c] ?? c} ${(data.metrics.find((m) => m.key === key && m.condition === c)?.value ?? 0).toFixed(2)}`).join(" · ")]);
+}
+
 /** The access check's time at the call, per condition that checks (security only). */
 function latency(data: LabResults): [string, string][] {
   const of = (key: string, c: string) => data.metrics.find((m) => m.key === key && m.condition === c && (m.n ?? 0) > 0)?.value;
@@ -172,6 +181,7 @@ function RunDetails({ data }: { data: LabResults }) {
       ["Config hash", <Mono key="c">{e.configSha256.slice(0, 16)}</Mono>],
       ["Preregistration hash", <Mono key="p">{data.preregSha256?.slice(0, 16) ?? "none"}</Mono>],
       ...latency(data),
+      ...conformance(data),
       ["Ingest", <pre key="i" className="whitespace-pre-wrap text-[12px]">{JSON.stringify(e.notes.ingest ?? {}, null, 1)}</pre>],
     ]} />
   );
