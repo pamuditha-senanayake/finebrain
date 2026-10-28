@@ -6,7 +6,7 @@ from fastapi import FastAPI, Header
 from app.research.contracts import ReferenceResult
 
 # Config
-BENCHMARKS_OF_PAPER = {"security": ["PhantomPolicy", "AgentDojo banking v1.2.1"], "policies": ["FiscalQA Pro"]}  # which outside numbers each paper sets beside its own
+BENCHMARKS_OF_PAPER = {"security": ["PhantomPolicy", "AgentDojo banking v1.2.1"], "policies": ["FiscalQA Pro"], "skills": ["tau3-bench retail"]}  # which outside numbers each paper sets beside its own
 OURS = "Finebrain Lab run"  # a source title that starts with this is the Lab's own run of a public benchmark, not a published figure
 COLUMNS = "id, benchmark, metric_key, value, model, source_title, source_url, peer_reviewed, reported_on, note"
 

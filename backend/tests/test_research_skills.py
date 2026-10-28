@@ -58,3 +58,14 @@ def test_b0_keeps_the_tools_but_not_the_steps():
     skill = lambda seed: next(s for s in seed["skills"] if s["id"] == skills_lab.SKILL)
     assert skill(bare)["steps"] == skills_lab.BARE_STEPS and skill(bare)["allowed_tools"] == skill(written)["allowed_tools"]
     assert skill(written)["steps"] != skills_lab.BARE_STEPS
+
+
+def test_the_tau3_adapter_reads_pass_k_and_cost_from_taus_results():
+    tau3 = script("research_tau3")
+    sims = [{"task_id": t, "trial": i, "reward_info": {"reward": 1.0 if (t == "a" or i < 2) else 0.0}, "termination_reason": "user_stop",
+             "messages": [{"usage": {"prompt_tokens": 1000, "completion_tokens": 100}}]} for t in ("a", "b") for i in range(4)]
+    found = tau3.summarize({"info": {}, "simulations": sims}, "claude-haiku-5-5")
+    assert (found["tasks"], found["trials"], found["errored"]) == (2, 4, 0)
+    assert found["curve"]["pass_hat_1"]["value"] == (1 + 0.5) / 2 and found["curve"]["pass_hat_4"]["value"] == 0.5 and "pass_hat_8" not in found["curve"]
+    assert found["cost_usd"] == round((8000 * 0.10 + 800 * 0.50) / 1_000_000, 4)
+    assert not tau3.version_ok({"info": {"tau2_version": "1.0.0"}}) and tau3.version_ok({"info": {"tau2_version": "2.0.0"}})

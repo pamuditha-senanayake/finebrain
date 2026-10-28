@@ -39,6 +39,10 @@ export function PassKCurve({ data }: { data: LabResults }) {
           <li key={c} className="flex justify-between"><span>{data.conditions[c] ?? c}</span>
             <span className="tabular">{ks.map((k) => `${percent(at(k, c) ?? 0)}`).join(" · ")}</span></li>
         ))}
+        {outside && (
+          <li className="flex justify-between text-muted-foreground"><span>{outside} (other tasks)</span>
+            <span className="tabular">{ks.map((k) => percent(references.find((r) => r.metricKey === `pass_hat_${k}`)?.value ?? 0)).join(" · ")}</span></li>
+        )}
       </ul>
     </Section>
   );

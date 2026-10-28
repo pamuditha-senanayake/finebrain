@@ -168,7 +168,7 @@ def test_outside_numbers_load_once_and_read_back_marked_by_source():
         found = client.get("/references", params={"paper": "security"}, headers={"x-persona": "h-founder"}).json()
         ours = [r for r in found if r["model"] == "test-model"]
         assert len(ours) == 6 and all(r["ours"] for r in ours) and not any(r["ours"] for r in found if r["benchmark"] == "PhantomPolicy")
-        assert client.get("/references", params={"paper": "skills"}, headers={"x-persona": "h-founder"}).json() == []
+        assert client.get("/references", params={"paper": "integration"}, headers={"x-persona": "h-founder"}).json() == []
     finally:
         with store.connect() as connection:
             connection.execute("DELETE FROM research.reference_results WHERE model = 'test-model'")

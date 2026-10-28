@@ -33,6 +33,18 @@ METRIC_OF = {"attack_success": "attack_success_rate", "utility": "task_success",
 DEFENSE_WORDS = {"none": "No defense", "finebrain": "Finebrain's rule at the call"}
 
 
+TAU3 = {"benchmark": "tau3-bench retail", "source_title": "Finebrain Lab run of tau3-bench retail (tau's own agent and user simulator)",
+        "source_url": "https://github.com/sierra-research/tau2-bench", "peer_reviewed": False}
+
+
+def tau3_rows(tau3: dict | None, reported_on: str) -> list[dict]:
+    """pass^1 to pass^n of the Lab's tau3 run (scripts/research_tau3.py), for scale beside the skills paper's own curve."""
+    if not tau3:
+        return []
+    return [{**TAU3, "metric_key": key, "value": got["value"], "model": tau3["model"], "reported_on": reported_on,
+             "note": f"{key.replace('pass_hat_', 'pass^')}, {tau3['tasks']} tasks x {tau3['trials']} trials"} for key, got in tau3["curve"].items()]
+
+
 def rows_from(agentdojo: dict | None, reported_on: str) -> list[dict]:
     found = [{**PHANTOM, "metric_key": m, "value": v, "model": model, "note": note} for m, v, model, note in PHANTOM_ROWS]
     found += [{**FISCAL, "metric_key": m, "value": v, "model": model, "note": note} for m, v, model, note in FISCAL_ROWS]
@@ -58,6 +70,9 @@ def load(rows: list[dict]) -> int:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--agentdojo", help="the results JSON scripts/research_agentdojo.py wrote")
+    parser.add_argument("--tau3", help="the summary JSON scripts/research_tau3.py wrote")
     parser.add_argument("--on", default="2026-10-27", help="the day the Lab ran AgentDojo")
+    parser.add_argument("--tau3-on", default="2026-10-28", help="the day the Lab ran tau3")
     args = parser.parse_args()
-    print(load(rows_from(json.loads(open(args.agentdojo).read()) if args.agentdojo else None, args.on)), "rows")
+    found = rows_from(json.loads(open(args.agentdojo).read()) if args.agentdojo else None, args.on)
+    print(load(found + tau3_rows(json.loads(open(args.tau3).read()) if args.tau3 else None, args.tau3_on)), "rows")

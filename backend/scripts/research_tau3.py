@@ -3,7 +3,9 @@
 # its results into pass^1 to pass^n with bootstrap intervals over tasks, and the run's cost from its token counts.
 #   1. In a tau2-bench checkout:  uv sync --managed-python
 #   2. .venv/bin/tau2 run --domain retail --communicate-scorer substring --agent-llm anthropic/claude-haiku-5-5 --agent-llm-args '{}' \
-#        --user-llm anthropic/claude-haiku-5-5 --user-llm-args '{}' --num-trials 8 --num-tasks 30 --save-to <name>
+#        --user-llm anthropic/claude-haiku-5-5 --user-llm-args '{}' --num-trials 8 --task-ids <ids> --save-to <name>
+#      (<ids>: the first 30 retail tasks graded without nl_assertions, which tau judges with an OpenAI model it hard-codes;
+#      40 of the 114 retail tasks are, so the Lab's set is the deterministically graded ones)
 #      ('{}' because tau sends temperature 0 by default, which current Claude models refuse; model defaults also keep
 #      the trials of pass^k independent samples, as the spec asks; substring: original tau-bench's deterministic check of what
 #      the agent told the customer, where the default asks an OpenAI model to judge it)
@@ -44,6 +46,7 @@ def summarize(results: dict, model: str) -> dict:
         for message in sim.get("messages") or []:
             usage = message.get("usage") or {}
             tokens_in, tokens_out = tokens_in + usage.get("prompt_tokens", 0), tokens_out + usage.get("completion_tokens", 0)
+    errored = sum(1 for sim in results["simulations"] if "error" in str(sim.get("termination_reason", "")).lower())
     n = min(len(t) for t in by_task.values())
     complete = {task: sum(found[:n]) for task, found in by_task.items()}
     curve = {}
@@ -52,7 +55,7 @@ def summarize(results: dict, model: str) -> dict:
         low, high = interval(values)
         curve[f"pass_hat_{k}"] = {"value": sum(values) / len(values), "low": low, "high": high, "tasks": len(values)}
     price_in, price_out = PRICES[model]
-    return {"benchmark": "tau3-bench retail", "model": model, "tasks": len(complete), "trials": n, "curve": curve,
+    return {"benchmark": "tau3-bench retail", "model": model, "tasks": len(complete), "trials": n, "errored": errored, "curve": curve,
             "cost_usd": round((tokens_in * price_in + tokens_out * price_out) / 1_000_000, 4), "tokens": {"in": tokens_in, "out": tokens_out}}
 
 
