@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.api import ask as asking
-from app.api import ask_memory, connect_routes, conversations, documents, forget_routes, grant_views, grants, learn_routes, lists_query, memory_routes, ready_routes, search, studio_approvals, studio_routes, vault_routes, versions_views, views
+from app.api import ask_memory, connect_routes, conversations, documents, event_log_routes, forget_routes, grant_views, grants, learn_routes, lists_query, memory_routes, ready_routes, search, studio_approvals, studio_routes, vault_routes, versions_views, views
 from app.api.graph_map import graph_resource
 from app.api.lists import clusters_view, list_view, live_event, refusal_for, sensors_view, tenant_view
 from app.pipeline import capture_api, orchestrate
@@ -111,7 +111,7 @@ def create_api_app(lane, hq: dict, answerer=None, chatter=None) -> FastAPI:
         return None if resource in NULLABLE_OBJECTS else []
 
     studio_routes.register(app, lane, check, chatter)  # before the general ops route, so studioApply and studioSuggest win
-    for module in (vault_routes, ready_routes, grant_views, documents, forget_routes, memory_routes):  # the librarian, Check now, grants, uploads, forgetting, values
+    for module in (vault_routes, ready_routes, grant_views, documents, forget_routes, memory_routes, event_log_routes):  # the librarian, Check now, grants, uploads, forgetting, values, event logs
         module.register(app, lane, check)
     learn_routes.register(app, lane, check, chatter)  # counts, trends, Mark as wrong, Draft a fix (step 15)
 

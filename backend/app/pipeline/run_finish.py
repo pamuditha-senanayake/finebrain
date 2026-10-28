@@ -54,7 +54,7 @@ def act_and_finish(lane, run: RunState, decision: Decision | None) -> None:
     which the console shows live, so a human is told (reference doc section 8, K9)."""
     result = stages_act.act(run.action, run.verdict, decision, lane.seed["tenant_id"], tooling(lane, run), lane.new_id, lane.now)
     run.cause = lane.bus.publish("actions.executed", "action.executed", result, "worker", run.cause)
-    run.steps.append(make_step(lane, run.action.step_id, "tool", result.status, run.verdict.route, [result.action_id]))
+    run.steps.append(make_step(lane, run.action.step_id, "tool", result.status, run.verdict.route, [result.action_id], run.action.action_type))
     if result.status == "succeeded" and run.action.action_type == "issue_refund" and tool_runners.is_live(lane.tooling):  # in shadow no money moved
         govern_payments.note_refund(lane, run.action.arguments["payment_ref"], run.action.money.amount_minor, run.action.run_id)
     if result.status == "succeeded" and run.action.action_type == "escalate":
