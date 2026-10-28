@@ -13,7 +13,7 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app.research import experiment_store, freshness_lab, kinds, prereg, results, runner, security_lab
+from app.research import experiment_store, freshness_lab, kinds, prereg, results, runner, security_lab, skills_lab
 from app.research.contracts import Experiment, Paper
 
 # Config
@@ -155,6 +155,8 @@ def conditions_of(kind) -> list[dict]:
 
 def config_of(kind: str) -> dict:
     """What fixes the run beyond its grid, hashed into config_sha256: the answer prompt, or the rules prompt-only writes in."""
+    if kind == "skills":
+        return {"skill": skills_lab.SKILL, "bare_steps": skills_lab.BARE_STEPS}
     if kind == "security":
         return {"rules_prompt": security_lab.RULES, "conditions_meaning": {c: {k: v for k, v in rules.items() if k != "label"} for c, rules in security_lab.CONDITIONS.items()}}
     return {"prompt": freshness_lab.ANSWER_PROMPT, "top_k": freshness_lab.TOP_K}

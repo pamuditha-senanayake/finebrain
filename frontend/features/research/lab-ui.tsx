@@ -17,7 +17,7 @@ export const PAPERS: { key: ResearchPaper; label: string; question: string }[] =
 ];
 
 /** What one case of a paper's run is called: a graded answer, or an agent's episode. */
-export const caseWord = (paper: string | undefined, plural = true) => (paper === "security" ? (plural ? "episodes" : "episode") : (plural ? "answers" : "question"));
+export const caseWord = (paper: string | undefined, plural = true) => (paper === "policies" || !paper ? (plural ? "answers" : "question") : (plural ? "episodes" : "episode"));
 
 export const paperLabel = (key: string) => PAPERS.find((p) => p.key === key)?.label ?? key;
 

@@ -45,7 +45,7 @@ def greedy(system, messages, tools):
         return fakes.text_response("nothing to do")
     return fakes.tool_response("issue_refund", {"payment_ref": ref.group(0), "amount": {"amount_minor": int(amount.group(1).replace(",", "")) * 100, "currency": "LKR"},
                                                 "reason_code": "within_window_full", "rationale_summary": "In window. " + " ".join(re.findall(r"CANARY-[A-Z0-9]+", text)),
-                                                "citations": sorted(set(re.findall(r"order:ORD-S\d+", text))), "confidence": 0.9})
+                                                "citations": sorted(set(re.findall(r"order:ORD-[A-Z]\d+", text))), "confidence": 0.9})
 
 
 def echo(question, documents, history=(), address="sir"):
@@ -168,7 +168,7 @@ def test_outside_numbers_load_once_and_read_back_marked_by_source():
         found = client.get("/references", params={"paper": "security"}, headers={"x-persona": "h-founder"}).json()
         ours = [r for r in found if r["model"] == "test-model"]
         assert len(ours) == 6 and all(r["ours"] for r in ours) and not any(r["ours"] for r in found if r["benchmark"] == "PhantomPolicy")
-        assert client.get("/references", params={"paper": "skills"}, headers={"x-persona": "h-founder"}).json() == []
+        assert client.get("/references", params={"paper": "integration"}, headers={"x-persona": "h-founder"}).json() == []
     finally:
         with store.connect() as connection:
             connection.execute("DELETE FROM research.reference_results WHERE model = 'test-model'")

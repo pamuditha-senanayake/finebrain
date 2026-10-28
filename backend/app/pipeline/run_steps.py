@@ -2,7 +2,7 @@
 # Used by: orchestrate.py, temporal_flow.py, run_approvals.py (the S8 part). Uses: stages_orchestrate.py (S4 start), stages_*.py, retrieve_scope.py, contracts_*.py.
 from pydantic import BaseModel
 
-from app.pipeline import govern_payments, retrieve_case, retrieve_scope, stages_orchestrate_chat, stages_govern, stages_orchestrate, stages_reason, stages_retrieve
+from app.pipeline import activities, govern_payments, retrieve_case, retrieve_scope, stages_orchestrate_chat, stages_govern, stages_orchestrate, stages_reason, stages_retrieve
 from app.pipeline.observe import count, log_event
 from app.pipeline.retry import call_with_retry
 from app.pipeline.contracts_reason import ContextBundle, ContextQuery, ProposedAction
@@ -38,9 +38,10 @@ class RunState(BaseModel):
     approval: ApprovalState | None = None
 
 
-def make_step(lane, step_id: str, kind: str, decision: str, reason: str, refs: list[str]) -> RunStep:
-    """One line of the run's story, for the Agent running history screen."""
-    return RunStep(step_id=step_id, kind=kind, started_at=lane.now, duration_ms=0, decision=decision, reason=reason, refs=refs)
+def make_step(lane, step_id: str, kind: str, decision: str, reason: str, refs: list[str], action_type: str | None = None) -> RunStep:
+    """One line of the run's story, for the Agent running history screen, with the activity it stands for (P3)."""
+    return RunStep(step_id=step_id, kind=kind, started_at=lane.now, duration_ms=0, decision=decision, reason=reason, refs=refs,
+                   activity_id=activities.activity_of(kind, decision, action_type))
 
 
 def retrieve_with_retry(lane, query: ContextQuery, cause: Envelope):

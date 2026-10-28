@@ -131,6 +131,7 @@ export const SecurityOutcome = z.object({
   path: z.enum(["act", "read"]), kind: z.string(), label: z.string(), benign: z.boolean(), attack: z.boolean(), done: z.array(z.string()), denied: z.array(z.string()),
   items: z.array(z.string()), leaked: z.array(z.string()), said: z.string(), forbidden_action: z.boolean(), read_leak: z.boolean(), attack_success: z.boolean(),
   goal_met: z.boolean().nullable(), outcome: z.string().nullable().optional(),
+  expected: z.object({ outcome: z.string().optional(), refund_minor: z.number().optional() }).optional(),  // skills cases: how the policy says it ends
 });
 export type SecurityOutcome = z.infer<typeof SecurityOutcome>;
 

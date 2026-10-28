@@ -1,6 +1,6 @@
 # Research Lab: build plan
 
-27 October 2026. How we build `CB_Research_Tab_Build_Spec_v1.md` on Finebrain `main` (`a7bc601`). Approved. Stages 1 and 2 (steps 1 to 11) are done (see the Research Lab rows in `CB_System_Reference.md`, and `CB_Research_Lab_Stage1_Report.md` and `CB_Research_Lab_Stage2_Report.md`). Stage 1 now also runs a public benchmark, FiscalQA Pro (see `CB_Research_Lab_FiscalQA_Report.md`). Next: stage 3.
+27 October 2026. How we build `CB_Research_Tab_Build_Spec_v1.md` on Finebrain `main` (`a7bc601`). Approved. Stages 1 and 2 (steps 1 to 11) are done (see the Research Lab rows in `CB_System_Reference.md`, and `CB_Research_Lab_Stage1_Report.md` and `CB_Research_Lab_Stage2_Report.md`). Stage 1 now also runs a public benchmark, FiscalQA Pro (see `CB_Research_Lab_FiscalQA_Report.md`). Stage 3 (steps 12 to 15) is done (see `CB_Research_Lab_Stage3_Report.md`). Next: stage 4.
 
 ## 1. In short
 

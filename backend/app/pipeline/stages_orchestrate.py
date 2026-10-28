@@ -102,7 +102,8 @@ def refuse(lane, envelope: Envelope, task: TaskRequest, reason: str) -> None:
     """S4 cannot start the task: count it, log it, close it as escalated, and in a chat tell the customer a person will reply."""
     count(f"s4.not_started.{reason}")
     log_event("S4", "not_started", task_id=task.task_id, reason=reason)
-    step = RunStep(step_id="step_00", kind="judgment", started_at=lane.now, duration_ms=0, decision=reason, reason=f"S4 could not start: {reason}", refs=task.signal_ids)
+    step = RunStep(step_id="step_00", kind="judgment", started_at=lane.now, duration_ms=0, decision=reason, reason=f"S4 could not start: {reason}", refs=task.signal_ids,
+                   activity_id="not_started")
     run_id = lane.new_id("run")
     close_escalated(lane, envelope, task, run_id, step)
     tell_customer(lane, signal_of(lane, task.signal_ids[0]), run_id)

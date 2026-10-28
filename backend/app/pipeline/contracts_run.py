@@ -110,6 +110,7 @@ class RunStep(BaseModel):
     decision: str
     reason: str
     refs: list[str]
+    activity_id: str | None = None  # the skill alphabet's activity this step stands for (activities.py); None on steps recorded before it
 
 
 class TemplateFill(BaseModel):
