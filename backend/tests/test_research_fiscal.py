@@ -9,7 +9,7 @@ import uuid
 
 import pytest
 
-from app.research import experiment_store, grade_nuggets, packs, prereg, runner
+from app.research import experiment_store, grade_nuggets, lab_embed, packs, prereg, runner
 from app.research.contracts import Experiment, Hypothesis
 from app.research.pack_schemas import Nugget
 from tests.research_packs_world import zipped
@@ -97,3 +97,9 @@ def test_versions_end_on_their_own_dates_under_c1_and_linger_under_c0():
     assert labels[("C1", "q2005")] == labels[("C1", "q2015")] == "fresh"
     assert labels[("C0", "q2005")] == "fresh" and labels[("C0", "q2015")] == "mixed"  # the ended version still answers under C0
     assert experiments.get(experiment.id).notes["ingest"]["C1"]["closed_documents"] == 1
+
+
+def test_a_french_batch_stays_under_the_minute_limit():
+    text = "Le plafond est fixé à 1 370 € par foyer, sous réserve des dispositions de l'article 1414 du code général des impôts. " * 40
+    for group in lab_embed.batches([text] * 30):
+        assert sum(len(t) for t in group) / 3 <= lab_embed.EMBED_BATCH_TOKENS + len(text) / 3  # counted at 3 characters a token

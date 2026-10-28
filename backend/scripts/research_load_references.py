@@ -1,6 +1,7 @@
-# research_load_references.py: puts the security paper's outside numbers into research.reference_results, the same rows
-# again when run again (each row's id comes from what it is). PhantomPolicy's data has no public link yet, so its rows are the
-# paper's own table values; AgentDojo's rows are the Lab's run of the public banking suite (scripts/research_agentdojo.py).
+# research_load_references.py: puts the papers' outside numbers into research.reference_results, the same rows again when
+# run again (each row's id comes from what it is). PhantomPolicy's data has no public link yet, so its rows are the paper's
+# own table values; FiscalQA Pro's are its released report's; AgentDojo's are the Lab's run of the public banking suite
+# (scripts/research_agentdojo.py).
 #   uv run python scripts/research_load_references.py --agentdojo <results.json>
 import argparse
 import json
@@ -17,6 +18,16 @@ PHANTOM_ROWS = [  # (metric, value, model, note): risky cases where the agent to
     ("forbidden_action_rate", 122 / 300, "five models, GPT-5.4 to Claude Opus 4.6", "Policy in the prompt, 122 of 300"),
     ("forbidden_action_rate", 0.12, "five models, GPT-5.4 to Claude Opus 4.6", "Sentinel at the call, violations it missed (1 minus its recall)"),
 ]
+FISCAL = {"benchmark": "FiscalQA Pro", "source_title": "Temporal Misgrounding in Legal RAG, arXiv 2608.09393 (its released stats_clustered_report.md, Table 2)",
+          "source_url": "https://github.com/rosecymbler/fiscal-fr-bench", "peer_reviewed": False, "reported_on": "2026-08-05"}
+FISCAL_ROWS = [  # (metric, value, model, note): FiscalQA's strict score (every required nugget) on its 209 scored temporal questions; its
+    # no-retrieval condition (3.0%) is left out, being no retrieval at all
+    ("states_current", 0.027, "eleven models", "Current version only (B), pooled"),
+    ("states_current", 0.014, "Claude Sonnet 4.6", "Current version only (B)"),
+    ("states_current", 0.991, "eleven models", "Gold article in force (C-oracle), pooled"),
+    ("states_current", 0.983, "eleven models", "Their retriever in force (C-prod), pooled"),
+    ("states_current", 0.990, "Claude Sonnet 4.6", "Their retriever in force (C-prod)"),
+]
 AGENTDOJO = {"source_title": "Finebrain Lab run of AgentDojo, important_instructions attack", "source_url": "https://github.com/ethz-spylab/agentdojo", "peer_reviewed": False}  # the suite is published; this run is ours
 METRIC_OF = {"attack_success": "attack_success_rate", "utility": "task_success", "utility_attacked": "task_success_under_attack"}
 DEFENSE_WORDS = {"none": "No defense", "finebrain": "Finebrain's rule at the call"}
@@ -24,6 +35,7 @@ DEFENSE_WORDS = {"none": "No defense", "finebrain": "Finebrain's rule at the cal
 
 def rows_from(agentdojo: dict | None, reported_on: str) -> list[dict]:
     found = [{**PHANTOM, "metric_key": m, "value": v, "model": model, "note": note} for m, v, model, note in PHANTOM_ROWS]
+    found += [{**FISCAL, "metric_key": m, "value": v, "model": model, "note": note} for m, v, model, note in FISCAL_ROWS]
     for defense in ("none", "finebrain") if agentdojo else ():
         for key, metric in METRIC_OF.items():
             got = agentdojo[defense][key]
@@ -33,6 +45,7 @@ def rows_from(agentdojo: dict | None, reported_on: str) -> list[dict]:
 
 
 def load(rows: list[dict]) -> int:
+    """Each row's id comes from its benchmark, metric, model and the note's first words, so rows must differ in one of them."""
     with store.connect() as connection, connection.transaction():
         for r in rows:
             row_id = uuid.uuid5(uuid.NAMESPACE_URL, f"{r['benchmark']}|{r['metric_key']}|{r['model']}|{r['note'].split(',')[0]}")

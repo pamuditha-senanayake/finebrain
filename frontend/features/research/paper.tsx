@@ -118,8 +118,10 @@ function observed(text: string, isEffect: boolean): { value: string; detail: str
 }
 
 function ConditionChart({ data }: { data: LabResults }) {
-  const metric = data.hypotheses[0]?.metric ?? "stale_answer_rate";
-  const outside = chartLines((useReferences(data.experiment.paper).data ?? []).filter((r) => r.metricKey === metric));  // dashed: numbers from outside the Lab
+  const references = useReferences(data.experiment.paper).data ?? [];
+  const compared = references.find((r) => data.metrics.some((m) => m.key === r.metricKey))?.metricKey;  // a metric outside numbers exist for
+  const metric = compared ?? data.hypotheses[0]?.metric ?? "stale_answer_rate";
+  const outside = chartLines(references.filter((r) => r.metricKey === metric));  // dashed: numbers from outside the Lab
   const rows = data.metrics.filter((m) => m.key === metric).map((m) => ({
     name: data.conditions[m.condition] ?? m.condition, value: m.value * 100,
     err: [(m.value - (m.ci?.low ?? m.value)) * 100, ((m.ci?.high ?? m.value) - m.value) * 100],
