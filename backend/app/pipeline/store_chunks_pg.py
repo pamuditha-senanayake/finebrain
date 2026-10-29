@@ -38,7 +38,8 @@ CREATE INDEX IF NOT EXISTS chunks_scope_keys ON chunks USING gin (scope_keys);
 """
 TIME_FILTER = """kind = ANY(%(kinds)s)
     AND (valid_from IS NULL OR valid_from <= %(valid)s) AND (valid_to IS NULL OR valid_to > %(valid)s)
-    AND recorded_at <= %(recorded)s AND duplicate_of IS NULL"""  # a duplicate's words are answered by the one kept (step 13d)
+    AND recorded_at <= %(recorded)s AND duplicate_of IS NULL
+    AND COALESCE(body->>'off', 'false') <> 'true'"""  # a duplicate's words are answered by the one kept (step 13d); a switched-off document answers nothing
 # Inside the scope's domains (or general, or untagged), and about its entities (or about no entity at all). The entity part is
 # one test on scope_keys (a chunk's entities, or the tenant's general key), so its GIN index finds the slice without a full scan
 DOMAIN_FILTER = "(domain IS NULL OR domain = %(general)s OR domain = ANY(%(domains)s::text[]))"
@@ -117,6 +118,11 @@ class PostgresChunks(store_chunks_tiers.TierColumns):
 
     def delete(self, item_id: str) -> None:
         self.connection.execute("DELETE FROM chunks WHERE tenant_id = %s AND item_id = %s", (self.tenant_id, item_id))
+
+    def set_off(self, item_ids: list[str], off: bool) -> None:
+        """Switched off: kept, but no search finds it until it is switched on again."""
+        self.connection.execute("UPDATE chunks SET body = jsonb_set(body, '{off}', to_jsonb(%s::boolean)) WHERE tenant_id = %s AND item_id = ANY(%s)",
+                                (off, self.tenant_id, item_ids))
 
     def filters(self, kinds: list[str], valid, recorded, limit: int, scope: dict | None) -> dict:
         """The parameters every search shares: tenant, kinds, as-of times, limit and the scope."""

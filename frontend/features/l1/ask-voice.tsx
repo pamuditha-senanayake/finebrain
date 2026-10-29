@@ -50,8 +50,6 @@ export function AskVoice() {
   // Words spoken with "edit before sending" open the box, so they can be fixed before Enter
   const typing = typingOn || !!text;
   const [notice, setNotice] = useState("");
-  const [filed, setFiled] = useState("");
-  const onFiled = (message: string, ok: boolean) => (ok ? (setFiled(message), setNotice("")) : (setNotice(message), setFiled("")));
   const [setup, setSetup] = useState(false);
   const [picker, setPicker] = useState(false);
   const router = useRouter();
@@ -143,7 +141,8 @@ export function AskVoice() {
             )}
           </div>
           {stage === "small" && typing && (
-            <form style={{ marginTop: -orb.size * 0.1 }} className="flex w-full max-w-md items-center gap-1 rounded-full border bg-surface p-1.5 pl-5 animate-in fade-in slide-in-from-bottom-1" onSubmit={(e) => { e.preventDefault(); submitText(); }}>
+            <form style={{ marginTop: -orb.size * 0.1 }} className="flex w-full max-w-md items-center gap-1 rounded-full border bg-surface p-1.5 pl-1.5 animate-in fade-in slide-in-from-bottom-1" onSubmit={(e) => { e.preventDefault(); submitText(); }}>
+              <AskUpload />
               <input value={text} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") { setTyping(false); setDraft(""); } }} placeholder="Ask anything" aria-label="Question" autoFocus className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground" />
               <Button type="submit" size="icon-sm" className="rounded-full" disabled={!text.trim() || voice === "thinking"} aria-label="Ask"><Send /></Button>
               <Button type="button" size="icon-sm" variant="ghost" className="rounded-full text-muted-foreground" onClick={() => { setTyping(false); setDraft(""); }} aria-label="Close typing"><X /></Button>
@@ -172,7 +171,6 @@ export function AskVoice() {
             </div>
           )}
           {(notice || note) && <p className="mt-4 text-sm text-warn-fg">{notice || note}</p>}
-          {filed && <p className="mt-4 text-sm text-muted-foreground" role="status">{filed}</p>}
         </div>
         <div className="basis-0" style={{ flexGrow: stage === "small" ? 0 : 1, transition: MOVE }} />
       </div>
@@ -194,7 +192,7 @@ export function AskVoice() {
         )}
         {typing ? (
           <form className="flex w-full items-center gap-2 rounded-full border bg-surface p-1.5 pl-5" onSubmit={(e) => { e.preventDefault(); submitText(); }}>
-            <AskUpload onDone={onFiled} />
+            <AskUpload />
             <input value={text} onChange={(e) => setDraft(e.target.value)} placeholder={voice === "listening" ? "Listening…" : "Ask anything, or type /"} aria-label="Question" autoFocus className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground" />
             <Button type="submit" size="icon" className="rounded-full" disabled={!text.trim() || voice === "thinking"} aria-label="Ask"><Send /></Button>
             {supported && <Button type="button" size="icon" variant="ghost" className="rounded-full" onClick={() => setTyping(false)} aria-label="Use voice"><Mic /></Button>}
@@ -205,7 +203,7 @@ export function AskVoice() {
             <Button size="icon" className={cn("size-16 rounded-full shadow-lg shadow-primary/25", voice === "listening" && "animate-pulse")} onClick={tap} aria-label={voice === "listening" ? "Stop listening" : voice === "idle" ? "Talk" : "Stop"}>
               {voice !== "idle" ? <Square className="size-5" /> : <Mic className="size-6" />}
             </Button>
-            <AskUpload onDone={onFiled} />
+            <AskUpload />
           </>
         )}
       </div>

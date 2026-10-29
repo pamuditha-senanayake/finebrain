@@ -6,6 +6,7 @@ import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { BrandMark } from "@/components/brain/logo";
+import { AddDocumentDialog } from "@/features/l2/add-document";
 import { BeamScope } from "@/components/brain/motion";
 import { DeniedState, LoadingState } from "@/components/brain/primitives";
 import { canView, homeFor, useCurrentUser, type Area } from "@/lib/auth";
@@ -109,6 +110,7 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
       <CommandPalette />
       <NotificationsSheet />
       <AskOrb />
+      <AddDocumentDialog />
     </BeamScope>
   );
 }

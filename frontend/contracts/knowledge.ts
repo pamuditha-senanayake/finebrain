@@ -150,8 +150,33 @@ export const Document = z.object({
   /** Step 14: its place in a version chain, and the newer version that replaced it. */
   version: z.number().int().nullish(),
   replacedBy: z.string().nullish(),
+  /** What the intake recorded about it (kind, date, owner, client or project, attendees), and whether it is switched on. */
+  meta: z.record(z.string(), z.unknown()).nullish(),
+  on: z.boolean().nullish(),
 });
 export type Document = z.infer<typeof Document>;
+
+/** One document on its way in: the fields gathered so far and the questions still open (backend intake.py). */
+export const IntakeQuestion = z.object({
+  field: z.string(),
+  question: z.string(),
+  type: z.enum(["text", "date", "list", "choice"]),
+  options: z.record(z.string(), z.string()).nullish(),
+});
+export type IntakeQuestion = z.infer<typeof IntakeQuestion>;
+export const IntakeDraft = z.object({
+  intakeId: z.string(),
+  filename: z.string(),
+  fields: z.record(z.string(), z.unknown()),
+  questions: z.array(IntakeQuestion),
+  ready: z.boolean(),
+  status: z.enum(["asking", "filed"]),
+  documentId: z.string().nullish(),
+  preview: z.string(),
+});
+export type IntakeDraft = z.infer<typeof IntakeDraft>;
+export const IntakeRules = z.object({ policy: z.array(z.string()), steps: z.array(z.string()), kinds: z.record(z.string(), z.string()) });
+export type IntakeRules = z.infer<typeof IntakeRules>;
 
 export const FilingRule = z.object({
   id: z.string(),

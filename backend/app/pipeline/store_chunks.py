@@ -64,6 +64,13 @@ class MemoryChunks(MemoryTierColumns):
     def delete(self, item_id: str) -> None:
         self.items.pop(item_id, None)
 
+    def set_off(self, item_ids: list[str], off: bool) -> None:
+        """Switched off: kept, but no search finds it until it is switched on again."""
+        for item_id in item_ids:
+            if item_id in self.items:
+                item, vector = self.items[item_id]
+                self.items[item_id] = ({**item, "off": off}, vector)
+
     def retag(self, item_id: str, domain: str, entity_ids: list[str]) -> None:
         if item_id in self.items:
             item, vector = self.items[item_id]
@@ -75,7 +82,8 @@ class MemoryChunks(MemoryTierColumns):
     def live(self, kinds: list[str], valid, recorded, scope: dict | None) -> list[tuple[dict, list[float]]]:
         tiers = searched_tiers(valid, recorded)
         return [(item, vector) for item, vector in self.items.values()
-                if item["kind"] in kinds and item.get("tier", WARM) in tiers and not item.get("duplicate_of") and true_at(item, valid, recorded) and in_scope(item, scope)]
+                if item["kind"] in kinds and item.get("tier", WARM) in tiers and not item.get("duplicate_of") and not item.get("off")
+                and true_at(item, valid, recorded) and in_scope(item, scope)]
 
     def by_vector(self, embedding: list[float], kinds: list[str], valid, recorded, limit: int, scope: dict | None = None) -> list[dict]:
         """Nearest by cosine similarity (the vectors are already unit length), inside the scope. Hot items come first."""

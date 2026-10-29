@@ -1,11 +1,14 @@
 "use client";
 
-import { ChevronRight, FileText, Folder as FolderIcon, Search } from "lucide-react";
+import { ChevronRight, FilePlus2, FileText, Folder as FolderIcon, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { Document, Fact } from "@/contracts";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { openAddDocument } from "./add-document";
+import { useSwitchDocument } from "@/lib/api/upload";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useLookup } from "@/components/brain/names";
 import { SimpleTable } from "@/components/brain/simple-table";
@@ -50,7 +53,7 @@ export function LibraryView() {
 
   return (
     <div>
-      <PageHeader title="Library" description="Every document, filed into folders as it arrives." />
+      <PageHeader title="Library" description="Every document, filed into folders as it arrives." actions={<Button onClick={openAddDocument}><FilePlus2 /> Add document</Button>} />
       <QueryView query={documents}>
         {(docs) => {
           const counts = new Map<string, number>();
@@ -108,6 +111,7 @@ export function LibraryView() {
                             <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                               {searching ? `${folderOf(doc).name} · ` : ""}
                               {date(doc.uploadedAt, lookup.tz)}
+                              {doc.on === false ? " · Off" : ""}
                             </span>
                             {reason && <span className="mt-1 block truncate text-xs text-foreground/80">Says: {reason}</span>}
                           </span>
@@ -152,6 +156,7 @@ function DocumentSheet({ doc, facts, onClose, onFolder }: { doc: Document | null
               </SheetDescription>
               {doc.replacedBy && <Link href={`?doc=${doc.replacedBy}`} className="w-fit text-sm text-primary hover:underline" data-testid="newer-version">Newer version</Link>}
               {(doc.extractionStatus === "retired" || doc.extractionStatus === "erased") && <Status value={doc.extractionStatus} />}
+              {real && doc.extractionStatus === "done" && <InAnswers doc={doc} />}
             </SheetHeader>
             <div className="space-y-8 p-6">
               {real && doc.extractionStatus !== "erased" && doc.extractionStatus !== "pending" && <DocumentText id={doc.id} />}
@@ -199,6 +204,7 @@ function DocumentSheet({ doc, facts, onClose, onFolder }: { doc: Document | null
                     ["Kept for", `${Math.round(doc.retentionDays / 365)} years`],
                     ["Size", `${doc.sizeKb.toLocaleString()} KB`],
                     ["Area", lookup.cluster(doc.clusterId)],
+                    ...aboutRows(doc),
                   ]}
                 />
               </section>}
@@ -265,4 +271,27 @@ function DocumentText({ id }: { id: string }) {
       </div>
     </details>
   );
+}
+
+/** On or off for answers: off keeps the document, but neither Lisena nor any agent reads it until it is on again. */
+function InAnswers({ doc }: { doc: Document }) {
+  const toggle = useSwitchDocument();
+  const on = doc.on !== false;
+  return (
+    <div className="mt-2 flex items-start justify-between gap-4 rounded-xl border px-4 py-3">
+      <label htmlFor={`on-${doc.id}`} className="cursor-pointer">
+        <span className="block text-[15px] font-medium">Used in answers</span>
+        <span className="block text-xs text-muted-foreground">{on ? "Lisena and agents can read it." : "Off. Kept, but nothing reads it."}</span>
+      </label>
+      <Switch id={`on-${doc.id}`} className="mt-1" checked={on} disabled={toggle.isPending} onCheckedChange={(next) => toggle.mutate({ id: doc.id, on: next })} />
+    </div>
+  );
+}
+
+/** What the intake recorded: kind, date, owner, client or project, and who attended. */
+function aboutRows(doc: Document): [string, string][] {
+  const meta = doc.meta ?? {};
+  const text = (key: string) => (Array.isArray(meta[key]) ? (meta[key] as string[]).join(", ") : meta[key] ? String(meta[key]) : "");
+  const rows: [string, string][] = [["Kind", text("kind")], ["Dated", text("date")], ["Owner", text("owner")], ["About", text("about_name") || text("about")], ["Attended", text("attendees")], ["Parties", text("parties")]];
+  return rows.filter(([, value]) => value);
 }

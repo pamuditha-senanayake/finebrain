@@ -1,6 +1,7 @@
 # documents.py: uploads from the console (Lisena) and the Library list. An upload keeps the original file in S3,
 # writes a pending Library record, then goes through S1 and S2 like any signal, so personal data is masked before S11
-# files it as searchable knowledge. Used by: routes.py, lists.py (filing rules), tests/test_documents.py.
+# files it as searchable knowledge. The guided intake (intake.py) uses the same path, with its fields and a headed text.
+# Used by: routes.py, lists.py (filing rules), intake.py, tests/test_documents.py.
 # Uses: extract.py, stages_file.py, filing.py, capture_api.py.
 import uuid
 from datetime import datetime
@@ -38,6 +39,8 @@ class Document(g.UiModel):
     receipt: dict | None = None  # step 10: what removing it cleared, once it was retired or erased
     version: int | None = None  # step 14: its place in a version chain
     replaced_by: str | None = None  # step 14: the newer version that replaced it, while that one is filed
+    meta: dict | None = None  # what the intake recorded about it: kind, date, owner, client or project, attendees
+    on: bool = True  # false while switched off
 
 
 class FilingRule(g.UiModel):
@@ -72,6 +75,7 @@ def document_view(lane, record: dict) -> dict:
         uploaded_by=record["uploaded_by"], uploaded_at=str(record["uploaded_at"]), size_kb=max(1, record["size_bytes"] // 1024),
         personal_data=record["personal_data"], receipt=receipt_of(lane, record["document_id"]) if record["status"] == "retired" else None,
         version=record.get("version", 1), replaced_by=filing.replaced_by(lane.records, record),
+        meta=record.get("meta") or None, on=not record.get("off", False),
     ).ui()
 
 
@@ -97,24 +101,32 @@ def chunks_view(lane, document_id: str) -> list[dict]:
     return [{"id": body["item_id"], "text": body["text"].removeprefix(prefix)} for body in lane.chunks.of_document(document_id) if body["kind"] == "chunk"]
 
 
-def accept(lane, persona: str, filename: str, data: bytes, sensitivity: str, evidence_for: dict | None = None) -> dict:
+def keep_original(lane, folder: str, filename: str, data: bytes) -> str:
+    """The untouched file in raw storage, where it stays whatever happens to its text."""
+    original_uri = f"s3://brain/{lane.seed['tenant_id']}/documents/{folder}/{UNSAFE_FILENAME.sub('_', filename)}"
+    lane.object_store[original_uri] = data
+    return original_uri
+
+
+def accept(lane, persona: str, filename: str, data: bytes, sensitivity: str, evidence_for: dict | None = None,
+           text: str | None = None, title: str | None = None, meta: dict | None = None, original_uri: str | None = None) -> dict:
     """Store the original, record it as pending, and hand the text to S1. Raises HTTPException for a bad file.
-    evidence_for (step 16) says which evidence request it answers, so extraction looks for that fact."""
+    evidence_for (step 16) says which evidence request it answers, so extraction looks for that fact. The intake passes the
+    text it headed, the title answers cite, its fields, and the original it already stored."""
     if len(data) > LARGEST_UPLOAD:
         raise HTTPException(413, "too_large")
     if sensitivity not in UPLOAD_SENSITIVITIES:
         raise HTTPException(400, "unknown_sensitivity")
     try:
-        text = text_of(filename, data)
+        text = text if text is not None else text_of(filename, data)
     except UnreadableFile as error:
         raise HTTPException(415, str(error)) from None
     document_id = f"doc_{uuid.uuid4().hex[:12]}"
     safe_name = UNSAFE_FILENAME.sub("_", filename)
-    original_uri = f"s3://brain/{lane.seed['tenant_id']}/documents/{document_id}/{safe_name}"
-    lane.object_store[original_uri] = data
-    record = DocumentRecord(document_id=document_id, title=filename.rsplit(".", 1)[0].replace("_", " "), filename=safe_name, kind=kind_of(filename),
+    original_uri = original_uri or keep_original(lane, document_id, filename, data)
+    record = DocumentRecord(document_id=document_id, title=title or filename.rsplit(".", 1)[0].replace("_", " "), filename=safe_name, kind=kind_of(filename),
                             size_bytes=len(data), uploaded_by=persona, uploaded_at=lane.now, sensitivity=sensitivity, status="pending", original_uri=original_uri,
-                            evidence_for=evidence_for)
+                            evidence_for=evidence_for, meta=meta or {})
     lane.records.save("document", document_id, record)
     connector = lane.seed["connectors"][CONNECTOR_ID]
     raw = {"connector_id": CONNECTOR_ID, "grant_id": connector["grant_id"], "source_type": connector["source_type"], "external_id": document_id,

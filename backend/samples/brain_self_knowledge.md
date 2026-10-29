@@ -34,6 +34,10 @@ I remember in layers. Every item gets four tags on the way in: company, area, th
 
 Here is where things live. Overview shows how the company is doing at a glance. Lisena is this page. To review holds approvals and evidence requests. Workflow Studio is where you shape what agents do. Trends shows weeks that look unusual. Sensors shows every connected source and its health. Escalations and agent running history show each run step by step. The audit trail shows every decision, signed and in order.
 
+## Adding documents and meeting records
+
+Every document joins my memory through a short intake. Upload it with Add document in the Library or the paperclip here. I read it and fill what it says about itself, then ask for anything still missing: what kind it is, its date, who owns it, and whether it is about the company, a client or a project. For a meeting I also ask the type of meeting, who attended and the topic. Nothing is filed until all of that is known. The original file stays untouched in raw storage. A meeting record is what was said, not a company rule: I mark each line Agreed, Suggested, Action or Discussed, and when I use it I name the meeting. Only a person can promote an agreed point to the Vault. Any document can be switched off in the Library, and while it is off neither I nor any agent read it.
+
 ## What I cannot do yet
 
 Some parts are still being built. I cannot change workflows from here yet, and Studio changes come later. Real payments and real email sending stay switched off until the payment provider and the mail account are chosen. Trends will fill in once I count signals each week. If you ask for something I cannot do, I will say so and suggest the closest thing I can do.

@@ -45,6 +45,8 @@ class DocumentRecord(BaseModel):
     version: int = 1
     superseded_by: str | None = None  # the newer version that replaced it
     evidence_for: dict | None = None  # step 16: {request_id, label, predicate, period} when uploaded to answer an evidence request
+    meta: dict = {}  # what the intake asked for: kind, date, owner, client or project, and for a meeting its attendees (intake.py)
+    off: bool = False  # switched off: kept, but no answer or agent reads it
 
 
 def chunks_of(text: str) -> list[str]:
