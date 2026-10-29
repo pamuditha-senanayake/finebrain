@@ -3,7 +3,6 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { VoiceOrb } from "@/features/l1/voice-orb";
-import { openAddDocument, wantsUpload } from "@/features/l2/add-document";
 import { findPage, pagesFor } from "@/lib/ask-go";
 import { useCurrentUser } from "@/lib/auth";
 import { guideFor } from "@/lib/page-context";
@@ -37,8 +36,6 @@ export function AskOrb() {
   // "Go to the library", said or typed anywhere, opens that page; the page names also help fix misheard words
   useEffect(() => {
     setRoute((q) => {
-      // "Upload a meeting transcript" opens the guided intake wherever you are
-      if (wantsUpload(q)) return openAddDocument(), "Add a document";
       const page = findPage(q, user);
       if (page) router.push(page.href);
       return page?.label ?? null;

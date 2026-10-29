@@ -3,7 +3,7 @@
 // agent.ts: Lisena's voice, one for the whole app. It lives outside React, so going to another page never cuts a reply
 // off or drops the chat; the orb on every page and the Lisena page are two views of the same agent.
 // Used by: components/shell/ask-orb.tsx, ask-bubble.tsx, voice-settings.tsx, features/l1/ask-voice.tsx.
-// Uses: mic.ts, speaker.ts, turn.ts, lib/api/conversation.ts, lib/page-snapshot.ts.
+// Uses: mic.ts, speaker.ts, turn.ts, intake-chat.ts, lib/api/conversation.ts, lib/page-snapshot.ts.
 // One file on purpose: the turn, the recording and the playback must be shared by every step, so splitting would mean passing them around.
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
@@ -11,6 +11,7 @@ import type { AskAnswer } from "@/contracts";
 import type { VoiceState } from "@/features/l1/voice-orb";
 import { askNow, fixHeard } from "@/lib/api/conversation";
 import { snapshotPage } from "@/lib/page-snapshot";
+import { forgetIntake, intakeReply, intakeStart, takesOver, type ChatAnswer } from "./intake-chat";
 import { canRecord, openMic, recordQuestion, transcribe, type Recording } from "./mic";
 import { playCue, shortOf, speak, unlockAudio } from "./speaker";
 import { endTurn, failureNote, isOffline, OFFLINE, startTurn, stepSignal, type Turn, type TurnKeeper } from "./turn";
@@ -23,7 +24,7 @@ const SMALL_TALK_WORDS = 6;
 const MIC_BLOCKED = "The microphone is blocked, sir. Allow it in the browser, or type instead.";
 const FIX_TIME_LIMIT_MS = 3000; // fixing misheard words must stay quick; past this the words go on as heard
 
-export type Exchange = { id: number; q: string; a: AskAnswer | null };
+export type Exchange = { id: number; q: string; a: ChatAnswer | null };
 type Settings = { handsFree: boolean; editFirst: boolean; speakOut: boolean };
 type Live = { voice: VoiceState; heard: string; note: string; draft: string; items: Exchange[] };
 
@@ -140,11 +141,13 @@ export async function send(question: string, { speak: spoken = false, listenAfte
   const now = startTurn(turn);
   const id = ++seq;
   patch({ note: "", heard: q });
-  // Step 1: "go to the library" opens it; no model call
+  // Step 1: adding a document is a talk of its own (intake-chat.ts); every reply goes there until it is filed or stopped
+  if (takesOver(q)) return intakeTurn(id, q, () => intakeReply(q), now, spoken, listenAfter);
+  // Step 2: "go to the library" opens it; no model call
   const opened = route?.(q);
   if (opened) return addExchange({ id, q, a: { question: q, answer: `Opening ${opened}.`, citations: [], withheld: 0 } }), patch({ voice: "idle" });
   if (isOffline()) return patch({ note: OFFLINE, voice: "idle" });
-  // Step 2: ask, with what is on screen
+  // Step 3: ask, with what is on screen
   addExchange({ id, q, a: null });
   patch({ voice: "thinking" });
   let answer: AskAnswer;
@@ -158,11 +161,41 @@ export async function send(question: string, { speak: spoken = false, listenAfte
   // A newer question took over while this one waited; its answer is dropped, not shown or spoken
   if (!now.isCurrent()) return patch({ items: useVoice.getState().items.filter((x) => x.id !== id) });
   patch({ items: useVoice.getState().items.map((x) => (x.id === id ? { ...x, a: answer } : x)) });
-  // Step 3: speak it, then listen again when hands-free is on
+  // Step 4: speak it, then listen again when hands-free is on
   if (spoken && settings().speakOut) await say(shortOf(answer.answer).short, now);
   if (!now.isCurrent()) return;
   patch({ voice: "idle" });
   if (listenAfter && settings().handsFree && !settings().editFirst) void listen();
+}
+
+/** Attaching a file in the chat starts adding it; Lisena reads it and asks her first question. */
+export function attach(file: File) {
+  unlockAudio();
+  stopSpeaking();
+  return intakeTurn(++seq, `Attached ${file.name}`, () => intakeStart(file), startTurn(turn), true, false);
+}
+
+/** One intake exchange: show it thinking, put Lisena's words in, speak them, and keep listening when hands-free is on. */
+async function intakeTurn(id: number, q: string, reply: () => Promise<ChatAnswer>, now: Turn, spoken: boolean, listenAfter: boolean) {
+  addExchange({ id, q, a: null });
+  patch({ voice: "thinking", note: "" });
+  let a: ChatAnswer;
+  try {
+    a = await reply();
+  } catch (e) {
+    patch({ items: useVoice.getState().items.filter((x) => x.id !== id) });
+    const reason = e instanceof Error ? e.message : "";
+    const why = reason === "too_large" ? "That file is over 10 MB, sir." : reason.startsWith("unsupported_type") ? "I can read text, Markdown, CSV, PDF and Word files, sir." : reason === "intake_paused" ? "Adding documents is paused in Workflow Studio, sir." : reason === "not_found" ? "That upload has ended, sir. Attach the file again." : "";
+    if (reason === "not_found") forgetIntake();
+    if (now.isCurrent()) patch({ voice: "idle", note: why || failureNote(e, "I could not do that, sir. Please try again.") });
+    return;
+  }
+  if (!now.isCurrent()) return;
+  patch({ items: useVoice.getState().items.map((x) => (x.id === id ? { ...x, a } : x)) });
+  if (spoken && settings().speakOut) await say(a.answer, now);
+  if (!now.isCurrent()) return;
+  patch({ voice: "idle" });
+  if (listenAfter && settings().handsFree && !settings().editFirst && a.intake?.kind !== "attach" && a.intake?.kind !== "filed") void listen();
 }
 
 function addExchange(x: Exchange) {
@@ -176,6 +209,7 @@ function pageNow() {
 /** Starts a fresh chat on screen; the history keeps the old one. */
 export function clearChat() {
   stopAll();
+  forgetIntake();
   patch({ items: [], heard: "", note: "", draft: "" });
 }
 

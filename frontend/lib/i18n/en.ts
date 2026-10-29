@@ -24,6 +24,7 @@ export const en = {
   "nav.analytics": "Progress and analytics",
   "nav.trends": "Trends",
   "nav.audit": "Audit trail",
+  "nav.tasks": "Tasks",
   "nav.graph": "Knowledge graph",
   "nav.versioning": "Versions",
   "nav.library": "Library",

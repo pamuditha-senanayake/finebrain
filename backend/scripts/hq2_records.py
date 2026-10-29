@@ -122,7 +122,7 @@ def seed_policies(lane) -> int:
         wid = flow["_ref"]["id"]
         member = flow[STUDIO]["members"]
         wanted = [p for p in skill_policies.get(wid, []) if p not in member]
-        cluster = ACTIVITY_CLUSTER[wid.removeprefix("wf_")]  # each workflow sits in the cluster whose job it is
+        cluster = ACTIVITY_CLUSTER.get(wid.removeprefix("wf_"), flow[STUDIO]["clusterId"])  # each workflow sits in the cluster whose job it is; the brain's own stay put
         if wanted or flow[STUDIO]["clusterId"] != cluster:
             graph.put("workflow", wid, flow["_ref"]["version"] + 1, flow["_ref"]["commit_id"], {STUDIO: {**flow[STUDIO], "members": [*member, *wanted], "clusterId": cluster}})
             added += 1

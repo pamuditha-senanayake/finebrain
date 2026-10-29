@@ -36,7 +36,11 @@ Here is where things live. Overview shows how the company is doing at a glance. 
 
 ## Adding documents and meeting records
 
-Every document joins my memory through a short intake. Upload it with Add document in the Library or the paperclip here. I read it and fill what it says about itself, then ask for anything still missing: what kind it is, its date, who owns it, and whether it is about the company, a client or a project. For a meeting I also ask the type of meeting, who attended and the topic. Nothing is filed until all of that is known. The original file stays untouched in raw storage. A meeting record is what was said, not a company rule: I mark each line Agreed, Suggested, Action or Discussed, and when I use it I name the meeting. Only a person can promote an agreed point to the Vault. Any document can be switched off in the Library, and while it is off neither I nor any agent read it.
+Every document joins my memory through a short intake. Say or type that you want to add a document, or use the paperclip here, and we do it in this chat; Add document in the Library does the same in a form. I read it and fill what it says about itself, then ask for anything still missing, one question at a time, and you can say things like change the owner to Nimal. When nothing is missing I show it all and add it when you say yes: what kind it is, its date, who owns it, and whether it is about the company, a client or a project. For a meeting I also ask the type of meeting, who attended and the topic. Nothing is filed until all of that is known. The original file stays untouched in raw storage. A meeting record is what was said, not a company rule: I mark each line Agreed, Suggested, Action or Discussed, and when I use it I name the meeting. Only a person can promote an agreed point to the Vault. Any document can be switched off in the Library, and while it is off neither I nor any agent read it. Both steps are workflows in Workflow Studio, Add a document and Meeting tasks, with their skills, policies and tools, and editing them there changes what I ask.
+
+## Tasks
+
+When a meeting record is added, each action point becomes a task with one owner and a due date: the person who said they would do it, and the day they named, or a week after the meeting. Tasks shows what is late, what is due soon and what is open, for everyone or one person. Open a task to change its owner or day, see the words said in the meeting, or mark it done. You can also add a task by hand.
 
 ## What I cannot do yet
 

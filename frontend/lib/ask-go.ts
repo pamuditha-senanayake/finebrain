@@ -11,7 +11,7 @@ import { NAV, RESEARCH_NAV } from "@/lib/nav";
 const LEAD_IN = /^(?:(?:hey|hi|ok|okay|so|lisena|please|can you|could you|would you|will you|i want to|i'd like to|let's|lets)[\s,]+)*/i;
 const GO = /^(?:go to|go|open up|open|take me to|bring me to|navigate to|switch to|jump to|show the)\s+(?:the\s+|my\s+|our\s+)?(.+)$/i;
 const TAIL = /(?:\s+(?:page|screen|tab|section|please|for me|now|thanks|thank you))+$/i;
-const ALIASES: Record<string, string> = { approvals: "/l1/digest", approval: "/l1/digest", review: "/l1/digest", inbox: "/l1/digest", home: "/", overview: "/l1", chat: "/l1/ask", studio: "/studio", graph: "/l2/graph", vault: "/l2/vault", runs: "/l3/runs", agents: "/l3" };
+const ALIASES: Record<string, string> = { approvals: "/l1/digest", approval: "/l1/digest", review: "/l1/digest", inbox: "/l1/digest", home: "/", overview: "/l1", chat: "/l1/ask", tasks: "/l1/tasks", todo: "/l1/tasks", studio: "/studio", graph: "/l2/graph", vault: "/l2/vault", runs: "/l3/runs", agents: "/l3" };
 const CLOSE_ENOUGH = 0.6; // share of a page name's words that must match
 
 export type Destination = { label: string; href: string };

@@ -1,7 +1,8 @@
 # studio_seed.py: the first Workflow Studio view of Finebase HQ, built into the seed before the graph loads it, so
 # versions stay real: Studio metadata is not a change. One workflow per routing rule, with its skill, agent, policies
 # and a sensor per channel; tools are shared. From then on Studio and the pipeline read the same nodes.
-# Used by: hq.py (load_hq). Uses: studio_model.py (field names, steps), tools.py, stages_govern.py.
+# Used by: hq.py (load_hq). Uses: studio_model.py (field names, steps), tools.py, stages_govern.py, brain_workflows.py.
+from app.api import brain_workflows
 from app.api.graph_views import place_in_document
 from app.api.studio_model import STUDIO, step_line
 from app.pipeline.stages_govern import CAPABILITY_FOR_ACTION
@@ -68,4 +69,5 @@ def extend_seed(seed: dict, hq: dict) -> dict:
                     "clusterId": seed["cluster_id"], "dri": dri, "editors": [], "criticality": 3 if "issue_refund" in skill["allowed_tools"] else 2,
                     "members": [rule["skill_id"], rule["agent_id"], *governing, *sensor_ids], "story": None, "updatedAt": SEEDED_AT, "updatedBy": "system"}
         nodes.append(("workflow", wf_id, {STUDIO: workflow}))
+    nodes += brain_workflows.nodes(meta, dri, seed["tenant_id"], seed["cluster_id"], SEEDED_AT)  # Add a document, Meeting tasks
     return {**seed, "skills": list(skills.values()), "agents": agents, "refund_policy": policy, "studio_nodes": nodes}

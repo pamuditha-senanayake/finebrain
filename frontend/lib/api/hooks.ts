@@ -14,7 +14,7 @@ export function useTenantId() {
   return useUi((s) => s.tenantId);
 }
 
-function useResource<T>(path: string, schema: z.ZodType<T>, opts: Partial<UseQueryOptions<T>> = {}) {
+export function useResource<T>(path: string, schema: z.ZodType<T>, opts: Partial<UseQueryOptions<T>> = {}) {
   const tenantId = useTenantId();
   const resource = path.split("?")[0].split("/")[0];
   return useQuery<T>({

@@ -5,15 +5,16 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import type { AskAnswer } from "@/contracts";
 import { ShowMe } from "@/components/shell/show-me";
 import { Button } from "@/components/ui/button";
 import { date } from "@/lib/format";
 import { lookedInLabel } from "@/lib/looked-in";
 import { cn } from "@/lib/utils";
+import type { ChatAnswer } from "@/lib/voice/intake-chat";
 import { shortOf } from "@/lib/voice/speaker";
+import { IntakeCard } from "./intake-card";
 
-export type Turn = { q: string; a: AskAnswer };
+export type Turn = { q: string; a: ChatAnswer };
 
 /** Questions on the right, answers on the left. Only the newest answer has More and sources. No scrollbar shows. */
 export function AskChat({ turns, className, style }: { turns: Turn[]; className?: string; style?: CSSProperties }) {
@@ -38,7 +39,7 @@ export function AskChat({ turns, className, style }: { turns: Turn[]; className?
 }
 
 /** The newest answer: the short version first; the rest and the sources wait behind a click. */
-function NewestAnswer({ a }: { a: AskAnswer }) {
+function NewestAnswer({ a }: { a: ChatAnswer }) {
   const [more, setMore] = useState(false);
   const [sources, setSources] = useState(false);
   const { short, rest } = shortOf(a.answer);
@@ -46,10 +47,11 @@ function NewestAnswer({ a }: { a: AskAnswer }) {
 
   return (
     <div className="max-w-[92%] rounded-3xl rounded-bl-md border bg-card px-5 py-3 animate-in fade-in duration-500">
-      <p className="text-[15px] leading-relaxed" data-testid="ask-voice-answer">{more ? a.answer : short}</p>
+      <p className="text-[15px] leading-relaxed" data-testid="ask-voice-answer">{more || a.intake ? a.answer : short}</p>
+      {a.intake && <IntakeCard card={a.intake} />}
       <div className="-ml-2 mt-2 flex flex-wrap items-center gap-1">
         <ShowMe answer={a} className="mr-1" />
-        {rest && <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setMore(!more)} aria-expanded={more}>{more ? "Less" : "More"}</Button>}
+        {rest && !a.intake && <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setMore(!more)} aria-expanded={more}>{more ? "Less" : "More"}</Button>}
         {count > 0 && <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setSources(!sources)} aria-expanded={sources}>{sources ? "Hide sources" : `${count} ${count === 1 ? "source" : "sources"}`}</Button>}
       </div>
       {sources && (

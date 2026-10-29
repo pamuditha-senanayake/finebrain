@@ -170,11 +170,28 @@ export const IntakeDraft = z.object({
   fields: z.record(z.string(), z.unknown()),
   questions: z.array(IntakeQuestion),
   ready: z.boolean(),
-  status: z.enum(["asking", "filed"]),
+  status: z.enum(["asking", "filed", "stopped"]),
   documentId: z.string().nullish(),
   preview: z.string(),
+  /** Lisena's words for the chat, and the tasks a filed meeting made (A3). */
+  reply: z.string().nullish(),
+  tasks: z.array(z.lazy(() => Task)).nullish(),
 });
 export type IntakeDraft = z.infer<typeof IntakeDraft>;
+
+/** A3: one thing someone promised, with one owner and a due day (backend tasks.py). */
+export const Task = z.object({
+  id: z.string(),
+  title: z.string(),
+  owner: z.string(),
+  due: z.string(),
+  status: z.enum(["open", "done"]),
+  state: z.enum(["late", "soon", "open", "done"]),
+  source: z.object({ documentId: z.string(), title: z.string(), line: z.string() }).nullish(),
+  createdAt: z.string(),
+  doneAt: z.string().nullish(),
+});
+export type Task = z.infer<typeof Task>;
 export const IntakeRules = z.object({ policy: z.array(z.string()), steps: z.array(z.string()), kinds: z.record(z.string(), z.string()) });
 export type IntakeRules = z.infer<typeof IntakeRules>;
 

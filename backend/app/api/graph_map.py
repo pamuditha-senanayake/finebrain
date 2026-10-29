@@ -62,7 +62,7 @@ def policy_versions(lane, hq: dict, key: str) -> list[g.Policy]:
         closed = next((item["valid_to"] for item in mine if item["valid_to"]), None)
         shown.append(g.Policy(
             id=f"{key}_v{version}", key=key, tenant_id=lane.seed["tenant_id"], name=studio.get("name") or label.get("name", key), version=version, branch=node["_ref"]["branch"],
-            cluster_id=lane.seed["cluster_id"], statement=" ".join(item["text"] for item in mine), criticality=criticality,
+            cluster_id=lane.seed["cluster_id"], statement=" ".join(item["text"] for item in mine) or (studio.get("fields") or {}).get("statement", ""), criticality=criticality,  # a Studio-only policy keeps its words in Studio
             rule=latest_rule if version == node["_ref"]["version"] else {"kind": latest_rule["kind"], "params": {}},
             valid_from=min((str(item["valid_from"]) for item in mine), default=lane.now.isoformat()), valid_to=str(closed) if closed else None,
             recorded_at=min((str(item["recorded_at"]) for item in mine), default=lane.now.isoformat()),

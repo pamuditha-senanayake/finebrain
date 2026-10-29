@@ -78,7 +78,9 @@ def test_policy_versions_close_and_point_forward(client):
     assert current["supersededBy"] is None and current["validTo"] is None and "30 days" in current["statement"]
     assert current["rule"]["params"]["windowDays"] == 30 and current["criticality"] == 3
     assert current["dependents"] == [{"type": "skill", "id": "skill_refund_handling", "label": "Refund handling"}]
-    assert get(client, "policies")[1] == versions
+    assert [p for p in get(client, "policies")[1] if p["key"] == "policy_refund"] == versions
+    intake = next(p for p in get(client, "policies")[1] if p["key"] == "policy_document_intake")
+    assert intake["statement"].startswith("Nothing joins the knowledge base")  # the brain's own workflows bring their wording
 
 
 # --- Knowledge graph

@@ -109,7 +109,7 @@ def keep_original(lane, folder: str, filename: str, data: bytes) -> str:
 
 
 def accept(lane, persona: str, filename: str, data: bytes, sensitivity: str, evidence_for: dict | None = None,
-           text: str | None = None, title: str | None = None, meta: dict | None = None, original_uri: str | None = None) -> dict:
+           text: str | None = None, title: str | None = None, meta: dict | None = None, original_uri: str | None = None, document_id: str | None = None) -> dict:
     """Store the original, record it as pending, and hand the text to S1. Raises HTTPException for a bad file.
     evidence_for (step 16) says which evidence request it answers, so extraction looks for that fact. The intake passes the
     text it headed, the title answers cite, its fields, and the original it already stored."""
@@ -121,7 +121,7 @@ def accept(lane, persona: str, filename: str, data: bytes, sensitivity: str, evi
         text = text if text is not None else text_of(filename, data)
     except UnreadableFile as error:
         raise HTTPException(415, str(error)) from None
-    document_id = f"doc_{uuid.uuid4().hex[:12]}"
+    document_id = document_id or f"doc_{uuid.uuid4().hex[:12]}"
     safe_name = UNSAFE_FILENAME.sub("_", filename)
     original_uri = original_uri or keep_original(lane, document_id, filename, data)
     record = DocumentRecord(document_id=document_id, title=title or filename.rsplit(".", 1)[0].replace("_", " "), filename=safe_name, kind=kind_of(filename),

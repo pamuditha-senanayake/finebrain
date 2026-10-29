@@ -3,7 +3,6 @@
 import { ArrowUp, Maximize2, Mic, Square } from "lucide-react";
 import Link from "next/link";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
-import type { AskAnswer } from "@/contracts";
 import { Button } from "@/components/ui/button";
 import type { VoiceState } from "@/features/l1/voice-orb";
 import { date } from "@/lib/format";
@@ -11,7 +10,9 @@ import { lookedInLabel } from "@/lib/looked-in";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { setDraft, useVoice, useVoiceSettings, type Exchange } from "@/lib/voice/agent";
+import type { ChatAnswer } from "@/lib/voice/intake-chat";
 import { shortOf } from "@/lib/voice/speaker";
+import { IntakeCard } from "@/features/l1/intake-card";
 import { ShowMe } from "./show-me";
 import { VoiceSettings } from "./voice-settings";
 
@@ -68,10 +69,10 @@ export function AskBubble({ items, voice, note, suggestions, onSend, onMic, onCl
           </div>
         </Blob>
       )}
-      {items.map((x) => (
+      {items.map((x, i) => (
         <Fragment key={x.id}>
           <p className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-[color-mix(in_oklch,var(--primary)_12%,var(--card))] px-4 py-2 text-[15px] shadow-sm">{x.q}</p>
-          {x.a ? <AnswerBlob a={x.a} /> : <Blob><Thinking /></Blob>}
+          {x.a ? <AnswerBlob a={x.a} live={i === items.length - 1} /> : <Blob><Thinking /></Blob>}
         </Fragment>
       ))}
       {note && <p className="px-2 text-sm text-warn-fg">{note}</p>}
@@ -103,17 +104,18 @@ function Blob({ children }: { children: ReactNode }) {
 }
 
 /** The short answer first; the rest and the sources wait behind a click. */
-function AnswerBlob({ a }: { a: AskAnswer }) {
+function AnswerBlob({ a, live }: { a: ChatAnswer; live: boolean }) {
   const [more, setMore] = useState(false);
   const [sources, setSources] = useState(false);
   const { short, rest } = shortOf(a.answer);
   return (
     <Blob>
-      <p className="text-[15px] leading-relaxed" data-testid="ask-answer">{more ? a.answer : short}</p>
-      {(rest || a.citations.length > 0 || a.actions?.length) && (
+      <p className="text-[15px] leading-relaxed" data-testid="ask-answer">{more || a.intake ? a.answer : short}</p>
+      {a.intake && live && <IntakeCard card={a.intake} />}
+      {((rest && !a.intake) || a.citations.length > 0 || a.actions?.length) && (
         <div className="mt-2 flex flex-wrap items-center gap-1">
           <ShowMe answer={a} className="mr-1" />
-          {rest && <Button variant="ghost" size="sm" className="-ml-2 text-muted-foreground" onClick={() => setMore(!more)}>{more ? "Less" : "More"}</Button>}
+          {rest && !a.intake && <Button variant="ghost" size="sm" className="-ml-2 text-muted-foreground" onClick={() => setMore(!more)}>{more ? "Less" : "More"}</Button>}
           {a.citations.length > 0 && <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setSources(!sources)}>{sources ? "Hide sources" : `${a.citations.length} ${a.citations.length === 1 ? "source" : "sources"}`}</Button>}
         </div>
       )}

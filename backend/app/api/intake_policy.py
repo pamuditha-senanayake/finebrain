@@ -2,7 +2,7 @@
 # agent (Lisena) asks for what is missing. One source of truth: the schema, the policy, the skill steps and the questions
 # all live here, and the console shows them as they are. Used by: intake.py, tests/test_intake.py.
 import re
-from datetime import date
+from datetime import date, timedelta
 
 # Config
 KINDS = {
@@ -44,6 +44,10 @@ SKILL_STEPS = [
     "Keep the original in raw storage, file the text in memory under its client or project, and list it in the Library.",
     "For a meeting, mark each line Agreed, Suggested, Action or Discussed, so answers can say what was agreed.",
 ]
+DEFAULT_RULES = {  # which fields each kind needs; Studio's "Document details" policy can change these (brain_workflows.py)
+    "*": ["kind", "title", "date", "about", "owner"], "meeting": ["meeting_type", "attendees", "topic"], "contract": ["parties"], "client_or_project": ["about_name"]}
+MONTHS = {m: i for i, m in enumerate(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], start=1)}
+SPOKEN_DATE = re.compile(r"(?:(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?([a-z]{3})[a-z]*|([a-z]{3})[a-z]*\s+(\d{1,2})(?:st|nd|rd|th)?)(?:,?\s+(\d{4}))?", re.I)
 LINE_TAGS = [  # first match wins; a meeting line with none of these is Discussed
     ("Agreed", re.compile(r"\b(agreed|we agree|decided|decision|confirmed|signed off|approved)\b", re.I)),
     ("Action", re.compile(r"\b(action item|to ?do|will send|will share|will follow up|by (monday|tuesday|wednesday|thursday|friday|next week|tomorrow)|owner:)\b", re.I)),
@@ -51,15 +55,49 @@ LINE_TAGS = [  # first match wins; a meeting line with none of these is Discusse
 ]
 
 
-def required(fields: dict) -> list[str]:
+def required(fields: dict, rules: dict | None = None) -> list[str]:
     """The fields this document must have, in the order Lisena asks for them."""
-    kind, about = fields.get("kind"), fields.get("about")
-    needed = []
-    for name, spec in FIELDS.items():
-        rule = spec["for"]
-        if rule == "*" or rule == kind or (rule == "client_or_project" and about in ("client", "project")):
-            needed.append(name)
-    return needed
+    rules = rules or DEFAULT_RULES
+    wanted = set(rules.get("*", []) + rules.get(fields.get("kind") or "", []))
+    if fields.get("about") in ("client", "project"):
+        wanted |= set(rules.get("client_or_project", []))
+    return [name for name in FIELDS if name in wanted]
+
+
+def choice(spec: dict, text: str) -> str | None:
+    """A choice by its id or its words: "client", "A client", "it's a client meeting" all answer client."""
+    said = text.lower()
+    if said in spec["options"]:
+        return said
+    for option_id, label in spec["options"].items():
+        if said in (label.lower(), label.lower().removeprefix("a ").removeprefix("the ")):
+            return option_id
+    hits = [option_id for option_id, label in spec["options"].items() if re.search(rf"\b{re.escape(option_id)}\b", said) or label.lower() in said]
+    return hits[0] if len(hits) == 1 else None
+
+
+def spoken_date(text: str, today: date | None = None) -> str | None:
+    """2026-10-12, "12 October", "October 12, 2026", "today" or "yesterday"; None for anything else."""
+    today = today or date.today()
+    said = text.strip().lower()
+    try:
+        return date.fromisoformat(said[:10]).isoformat()
+    except ValueError:
+        pass
+    if "yesterday" in said:
+        return (today - timedelta(days=1)).isoformat()
+    if "today" in said:
+        return today.isoformat()
+    found = SPOKEN_DATE.search(said)
+    if not found:
+        return None
+    day, month = (found.group(1), found.group(2)) if found.group(1) else (found.group(4), found.group(3))
+    if month[:3] not in MONTHS:
+        return None
+    try:
+        return date(int(found.group(5) or today.year), MONTHS[month[:3]], int(day)).isoformat()
+    except ValueError:
+        return None
 
 
 def clean(name: str, value) -> object | None:
@@ -68,24 +106,21 @@ def clean(name: str, value) -> object | None:
     if spec is None or value is None:
         return None
     if spec["type"] == "list":
-        items = value if isinstance(value, list) else str(value).split(",")
-        names = [str(item).strip() for item in items if str(item).strip()]
+        items = value if isinstance(value, list) else re.split(r",|\band\b|&", str(value))
+        names = [str(item).strip(" .") for item in items if str(item).strip(" .")]
         return names or None
     text = str(value).strip()
     if spec["type"] == "choice":
-        return text if text in spec["options"] else None
+        return choice(spec, text)
     if spec["type"] == "date":
-        try:
-            return date.fromisoformat(text[:10]).isoformat()
-        except ValueError:
-            return None
+        return spoken_date(text)
     return text[:200] or None
 
 
-def missing(fields: dict) -> list[dict]:
+def missing(fields: dict, rules: dict | None = None) -> list[dict]:
     """One question per required field still empty: what Lisena asks next, first one first."""
     return [{"field": name, "question": FIELDS[name]["ask"], "type": FIELDS[name]["type"], "options": FIELDS[name].get("options")}
-            for name in required(fields) if fields.get(name) in (None, "", [])]
+            for name in required(fields, rules) if fields.get(name) in (None, "", [])]
 
 
 def filed_title(fields: dict) -> str:
