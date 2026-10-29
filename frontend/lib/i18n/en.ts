@@ -1,5 +1,5 @@
 export const en = {
-  "app.name": "Company Brain",
+  "app.name": "FineBrain",
   "tier.L1": "Command",
   "tier.L2": "Governance",
   "tier.L3": "Operations floor",

@@ -36,7 +36,7 @@ export const PAGE_GUIDES: PageGuide[] = [
   { key: "l3", match: /^\/l3/, title: "Operations", summary: "Fleet, runs, conversations and escalations.", tips: ["Open a run to see each step and its cost."], suggestions: ["What escalated today?", "Which agents are running?"], links: [] },
 ];
 
-const FALLBACK: PageGuide = { key: "home", match: /./, title: "Company Brain", summary: "The governed layer where AI agents run company operations under human control.", tips: ["Ask anything about the company, or open a page and ask about it."], suggestions: ["What is our refund window?", "When does the finebase.lk domain renew?", "What is the VAT registration status?"], links: [] };
+const FALLBACK: PageGuide = { key: "home", match: /./, title: "FineBrain", summary: "The governed layer where AI agents run company operations under human control.", tips: ["Ask anything about the company, or open a page and ask about it."], suggestions: ["What is our refund window?", "When does the finebase.lk domain renew?", "What is the VAT registration status?"], links: [] };
 
 export function guideFor(path: string): PageGuide {
   return PAGE_GUIDES.find((g) => g.match.test(path)) ?? FALLBACK;

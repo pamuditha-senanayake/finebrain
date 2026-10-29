@@ -3,7 +3,8 @@
 // sidebar.tsx: the left sidebar, like Claude's. Open, an icon beside the brand closes it; closed, nothing shows on the
 // left, and the icon in the top bar opens it, or slides it out over the page while hovered. Used by: app-shell.tsx.
 
-import { Brain, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { BrandMark, BrandName } from "@/components/brain/logo";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -82,11 +83,9 @@ export function Sidebar({ area, onNavigate, onToggle, pinned = true }: { area: A
           </Button>
         )}
         <Link href="/" className="flex min-w-0 items-center gap-2 px-1.5" onClick={onNavigate}>
-          <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
-            <Brain className="size-4" aria-hidden />
-          </span>
+          <BrandMark className="h-7" />
           <span className="leading-tight">
-            <span className="block text-sm font-semibold">{t("app.name")}</span>
+            <BrandName className="block text-[15px]" />
             <span className="block text-[11px] text-muted-foreground">
               {area === "research" ? t("tier.research") : `${area} · ${t(`tier.${area}`)}`}
             </span>

@@ -45,5 +45,5 @@ const studioPosts: Record<string, [z.ZodType, z.ZodType]> = {
 for (const [path, [req, res]] of Object.entries(studioPosts)) paths[`/api/t/{tenant}/${path}`] = { post: { parameters: [{ name: "tenant", in: "path", required: true, schema: { type: "string" } }, { name: "x-persona", in: "header", schema: { type: "string" } }], requestBody: { content: { "application/json": { schema: json(req) } } }, responses: { 200: { description: "OK", content: { "application/json": { schema: json(res) } } } } } };
 paths["/api/t/{tenant}/stream"] = { get: { summary: "Server Sent Events. Each message is a LiveEvent: { type, tenantId, at, resources[], summary }", responses: { 200: { description: "text/event-stream" } } } };
 
-writeFileSync("docs/openapi.json", JSON.stringify({ openapi: "3.1.0", info: { title: "Company Brain API", version: "0.1.0", description: "Generated from contracts/ by npm run openapi." }, paths }, null, 2));
+writeFileSync("docs/openapi.json", JSON.stringify({ openapi: "3.1.0", info: { title: "FineBrain API", version: "0.1.0", description: "Generated from contracts/ by npm run openapi." }, paths }, null, 2));
 console.log(`docs/openapi.json: ${Object.keys(paths).length} paths`);

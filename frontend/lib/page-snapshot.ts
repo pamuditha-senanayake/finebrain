@@ -7,7 +7,7 @@
 // Config
 const MOST_CHARS = 4000;
 const MOST_LINES = 160;
-const APP_NAME = " · Company Brain";
+const APP_NAME = " · FineBrain";
 
 export type PageSnapshot = { path: string; title: string; snapshot: string };
 

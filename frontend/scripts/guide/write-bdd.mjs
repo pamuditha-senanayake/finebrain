@@ -14,11 +14,11 @@ const START = {
 
 const lines = [];
 const w = (s = "") => lines.push(s);
-w("# Company Brain User Guide (BDD scenarios)");
+w("# FineBrain User Guide (BDD scenarios)");
 w();
-w("Every use case of the Company Brain console, written as Given, When, Then scenarios. The guide video plays these same scenarios on the real app (`video/guide/company_brain_user_guide.mp4`). The scenarios live in `frontend/scripts/guide/scenarios.mjs`; this file is generated from them by `node scripts/guide/write-bdd.mjs`.");
+w("Every use case of the FineBrain console, written as Given, When, Then scenarios. The guide video plays these same scenarios on the real app (`video/guide/company_brain_user_guide.mp4`). The scenarios live in `frontend/scripts/guide/scenarios.mjs`; this file is generated from them by `node scripts/guide/write-bdd.mjs`.");
 w();
-w("## What Company Brain is");
+w("## What FineBrain is");
 w();
 w("A governed layer where AI agents run company operations (customer care, refunds, billing, sales, scheduling, website changes, tax readiness) using company knowledge, under policies and security that people control.");
 w();
@@ -74,7 +74,7 @@ for (const ch of CHAPTERS) {
     w();
   }
 }
-w("## Why use Company Brain in an enterprise");
+w("## Why use FineBrain in an enterprise");
 w();
 w("| Benefit | What it means | Where you see it |");
 w("|---|---|---|");

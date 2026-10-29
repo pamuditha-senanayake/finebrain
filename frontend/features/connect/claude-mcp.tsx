@@ -11,7 +11,7 @@ import { useUi } from "@/lib/store";
 
 /**
  * The brain as an MCP server, so Claude (app, web or Claude Code) can ask it directly.
- * Claude signs in with the person's own Company Brain account, so it sees only what they may see.
+ * Claude signs in with the person's own FineBrain account, so it sees only what they may see.
  */
 export function ClaudeMcp() {
   const tenantId = useUi((s) => s.tenantId);
@@ -40,15 +40,15 @@ export function ClaudeMcp() {
           <TabsTrigger value="other">Other apps</TabsTrigger>
         </TabsList>
         <TabsContent value="app" className="pt-5">
-          <Steps items={["Settings, then Connectors", "Add custom connector", "Paste the URL", "Sign in with Company Brain"]} />
+          <Steps items={["Settings, then Connectors", "Add custom connector", "Paste the URL", "Sign in with FineBrain"]} />
         </TabsContent>
         <TabsContent value="code" className="space-y-4 pt-5">
           <CopyLine text={code} />
-          <Steps items={["Run this in a terminal", "Type /mcp in Claude Code", "Sign in with Company Brain"]} />
+          <Steps items={["Run this in a terminal", "Type /mcp in Claude Code", "Sign in with FineBrain"]} />
         </TabsContent>
         <TabsContent value="other" className="space-y-4 pt-5">
           <CopyLine text={json} block />
-          <Steps items={["Add this to the app's MCP config", "Restart the app", "Sign in with Company Brain"]} />
+          <Steps items={["Add this to the app's MCP config", "Restart the app", "Sign in with FineBrain"]} />
         </TabsContent>
       </Tabs>
 

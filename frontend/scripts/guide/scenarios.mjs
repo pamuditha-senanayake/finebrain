@@ -31,7 +31,7 @@ export const SCENARIOS = [
     id: "start-persona", chapter: "start", feature: "Getting started", title: "Pick who you are and open your home",
     persona: "h-founder", why: "Each person sees the tier that matches their job. Higher tiers can look down, never up.",
     steps: [
-      { kw: "Given", text: "I open Company Brain", go: "/", target: (p) => p.locator("main h1") },
+      { kw: "Given", text: "I open FineBrain", go: "/", target: (p) => p.locator("main h1") },
       { kw: "When", text: "I open the persona menu in the top right", target: (p) => p.getByTestId("role-switcher"), act: (p) => p.getByTestId("role-switcher").click() },
       { kw: "And", text: "I choose Ishara Fernando, Head of Customer Success", target: (p) => p.getByTestId("persona-h-hcs"), act: (p) => p.getByTestId("persona-h-hcs").click() },
       { kw: "Then", text: "I land on L1 Command, the leadership home", target: h1 },

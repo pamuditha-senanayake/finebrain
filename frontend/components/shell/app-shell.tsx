@@ -1,10 +1,11 @@
 "use client";
 
-import { Brain, Menu, PanelLeftOpen, Search } from "lucide-react";
+import { Menu, PanelLeftOpen, Search } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { BrandMark } from "@/components/brain/logo";
 import { BeamScope } from "@/components/brain/motion";
 import { DeniedState, LoadingState } from "@/components/brain/primitives";
 import { canView, homeFor, useCurrentUser, type Area } from "@/lib/auth";
@@ -69,8 +70,8 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
               {collapsed && (
                 // The brand while closed; hovering turns it into the sidebar icon, and a click opens the sidebar.
                 <button type="button" onClick={open} className="group relative grid size-8 place-items-center rounded-lg outline-none transition-colors hover:bg-accent focus-visible:ring-4 focus-visible:ring-ring/40 max-lg:hidden" aria-label="Open sidebar" title="Open sidebar" data-testid="sidebar-toggle">
-                  <span className="grid size-7 place-items-center rounded-lg bg-primary text-primary-foreground transition-opacity duration-200 group-hover:opacity-0 group-focus-visible:opacity-0">
-                    <Brain className="size-4" aria-hidden />
+                  <span className="grid size-7 place-items-center transition-opacity duration-200 group-hover:opacity-0 group-focus-visible:opacity-0">
+                    <BrandMark className="h-6" />
                   </span>
                   <PanelLeftOpen className="absolute size-4 text-muted-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />
                 </button>

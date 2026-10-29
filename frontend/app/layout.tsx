@@ -8,7 +8,7 @@ const geistSans = localFont({ src: "./fonts/geist-latin.woff2", variable: "--fon
 const geistMono = localFont({ src: "./fonts/geist-mono-latin.woff2", variable: "--font-geist-mono", weight: "100 900", display: "swap" });
 
 export const metadata: Metadata = {
-  title: { default: "Company Brain", template: "%s · Company Brain" },
+  title: { default: "FineBrain", template: "%s · FineBrain" },
   description: "Governed layer where AI agents run company operations under human control.",
 };
 
