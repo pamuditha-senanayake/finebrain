@@ -17,10 +17,12 @@ def connect(url: str = VALKEY_URL) -> valkey.Valkey:
 
 
 def valkey_is_up(url: str = VALKEY_URL) -> bool:
-    """True when Valkey answers, so tests can skip cleanly when Docker is down."""
+    """True when Valkey answers, so tests can skip cleanly when Docker is down.
+    A port that accepts but never replies (Docker hung) times out and counts as down, not a crash."""
     try:
-        return bool(connect(url).ping())
-    except valkey.ConnectionError:
+        probe = valkey.Valkey.from_url(url, socket_connect_timeout=2, socket_timeout=2)
+        return bool(probe.ping())
+    except valkey.ValkeyError:
         return False
 
 
