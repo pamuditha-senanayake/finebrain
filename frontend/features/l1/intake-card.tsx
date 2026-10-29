@@ -3,7 +3,7 @@
 // intake-card.tsx: the part of Lisena's reply you can click while adding a document in the chat. Everything here can
 // also be typed or said: a choice is its words, Add is "yes", Stop is "cancel", and any detail is "change the X to Y".
 // Used by: ask-chat.tsx, components/shell/ask-bubble.tsx. Uses: lib/voice/agent.ts, lib/voice/intake-chat.ts.
-import { Check, FileUp, ListTodo, Paperclip } from "lucide-react";
+import { Check, FileUp, ListTodo, Paperclip, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,7 @@ export function IntakeCard({ card }: { card: Card }) {
   return (
     <div className="mt-3 flex flex-wrap gap-2">
       <Button asChild size="sm" variant="outline" className="rounded-full"><Link href={`/l2/library?doc=${card.documentId}`}><FileUp /> Open in Library</Link></Button>
+      {card.spend && <Button asChild size="sm" variant="outline" className="rounded-full"><Link href="/l1/spending"><Wallet /> See spending</Link></Button>}
       {card.tasks > 0 && <Button asChild size="sm" variant="outline" className="rounded-full"><Link href="/l1/tasks"><ListTodo /> See {card.tasks === 1 ? "the task" : `${card.tasks} tasks`}</Link></Button>}
     </div>
   );

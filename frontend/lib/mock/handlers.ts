@@ -3,7 +3,7 @@ import { realTenants } from "@/lib/flags";
 import type { OpName } from "./ops";
 import { db, OpError, TENANTS } from "./db";
 import { analytics, ask, overview, researchSnapshots, search } from "./queries";
-import { intakeHandlers, taskHandlers } from "./intake";
+import { intakeHandlers, spendingHandlers, taskHandlers } from "./intake";
 import { listPage } from "./lists";
 import { generateSteps } from "./seed/build";
 import { chat, historyOf, reviewReply } from "./studio/chat";
@@ -225,6 +225,7 @@ export const handlers = [
   }),
   ...intakeHandlers,
   ...taskHandlers,
+  ...spendingHandlers,
   http.post("*/api/mock/reset", async () => {
     db.reset();
     return HttpResponse.json({ ok: true });

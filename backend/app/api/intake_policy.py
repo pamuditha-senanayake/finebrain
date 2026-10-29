@@ -12,10 +12,18 @@ KINDS = {
     "policy": "Company policy",
     "report": "Report",
     "spec": "Spec or plan",
+    "receipt": "Receipt or invoice",
     "other": "Other document",
 }
 ABOUT = {"company": "The company", "client": "A client", "project": "A project"}
 MEETING_TYPES = {"client": "Client meeting", "internal": "Internal meeting", "project": "Project meeting"}
+CURRENCIES = {"USD": "US dollars", "LKR": "Sri Lankan rupees", "EUR": "Euros", "GBP": "British pounds"}
+CATEGORIES = {"software": "Software and tools", "cloud": "Cloud and hosting", "people": "People and contractors", "office": "Office",
+              "travel": "Travel", "marketing": "Marketing", "fees": "Bank and legal fees", "other": "Other"}
+REPEATS = {"once": "Just once", "monthly": "Every month", "yearly": "Every year"}
+MONEY = re.compile(r"(?P<cur>\$|us\$|usd|lkr|rs\.?|€|eur|£|gbp)?\s*(?P<num>\d[\d,]*(?:\.\d{1,2})?)\s*(?P<after>usd|lkr|rupees|dollars|eur|euros|gbp|pounds)?", re.I)
+CURRENCY_WORDS = {"$": "USD", "us$": "USD", "usd": "USD", "dollars": "USD", "lkr": "LKR", "rs": "LKR", "rs.": "LKR", "rupees": "LKR",
+                  "€": "EUR", "eur": "EUR", "euros": "EUR", "£": "GBP", "gbp": "GBP", "pounds": "GBP"}
 # Each field: the question Lisena asks, how it is answered, and which kinds need it ("*" is every kind).
 FIELDS = {
     "kind": {"ask": "What kind of document is this?", "type": "choice", "options": KINDS, "for": "*"},
@@ -28,11 +36,17 @@ FIELDS = {
     "attendees": {"ask": "Who attended? Separate names with commas.", "type": "list", "for": "meeting"},
     "topic": {"ask": "What was the meeting about, in a few words?", "type": "text", "for": "meeting"},
     "parties": {"ask": "Who are the parties to it? Separate names with commas.", "type": "list", "for": "contract"},
+    "vendor": {"ask": "Who was it paid to?", "type": "text", "for": "receipt"},
+    "amount": {"ask": "How much was it, with the currency? For example, 49 dollars.", "type": "money", "for": "receipt"},
+    "currency": {"ask": "Which currency?", "type": "choice", "options": CURRENCIES, "for": "receipt"},
+    "category": {"ask": "What was it for?", "type": "choice", "options": CATEGORIES, "for": "receipt"},
+    "repeats": {"ask": "Does it repeat?", "type": "choice", "options": REPEATS, "for": "receipt"},
 }
 POLICY = [
     "Nothing joins the knowledge base until every required field is filled.",
     "Every document says what it is, its date, who owns it, and whether it is about the company, a client or a project.",
     "A meeting also says its type, who attended and its topic.",
+    "A receipt or invoice also says who was paid, how much, in which currency, what it was for, and whether it repeats.",
     "Meeting records are what was said, never company rules. Only a person can promote an agreed point to the Vault.",
     "The original file is kept untouched in raw storage. What is filed can be switched off at any time.",
 ]
@@ -45,7 +59,8 @@ SKILL_STEPS = [
     "For a meeting, mark each line Agreed, Suggested, Action or Discussed, so answers can say what was agreed.",
 ]
 DEFAULT_RULES = {  # which fields each kind needs; Studio's "Document details" policy can change these (brain_workflows.py)
-    "*": ["kind", "title", "date", "about", "owner"], "meeting": ["meeting_type", "attendees", "topic"], "contract": ["parties"], "client_or_project": ["about_name"]}
+    "*": ["kind", "title", "date", "about", "owner"], "meeting": ["meeting_type", "attendees", "topic"], "contract": ["parties"],
+    "receipt": ["vendor", "amount", "currency", "category", "repeats"], "client_or_project": ["about_name"]}
 MONTHS = {m: i for i, m in enumerate(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], start=1)}
 SPOKEN_DATE = re.compile(r"(?:(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?([a-z]{3})[a-z]*|([a-z]{3})[a-z]*\s+(\d{1,2})(?:st|nd|rd|th)?)(?:,?\s+(\d{4}))?", re.I)
 LINE_TAGS = [  # first match wins; a meeting line with none of these is Discussed
@@ -67,12 +82,10 @@ def required(fields: dict, rules: dict | None = None) -> list[str]:
 def choice(spec: dict, text: str) -> str | None:
     """A choice by its id or its words: "client", "A client", "it's a client meeting" all answer client."""
     said = text.lower()
-    if said in spec["options"]:
-        return said
     for option_id, label in spec["options"].items():
-        if said in (label.lower(), label.lower().removeprefix("a ").removeprefix("the ")):
+        if said in (option_id.lower(), label.lower(), label.lower().removeprefix("a ").removeprefix("the ")):
             return option_id
-    hits = [option_id for option_id, label in spec["options"].items() if re.search(rf"\b{re.escape(option_id)}\b", said) or label.lower() in said]
+    hits = [option_id for option_id, label in spec["options"].items() if re.search(rf"\b{re.escape(option_id.lower())}\b", said) or label.lower() in said]
     return hits[0] if len(hits) == 1 else None
 
 
@@ -100,6 +113,20 @@ def spoken_date(text: str, today: date | None = None) -> str | None:
         return None
 
 
+def money(text: str) -> tuple[float | None, str | None]:
+    """ "$49", "LKR 12,500.00", "49 dollars" -> (49.0, "USD"); the currency is None when the words do not say it."""
+    for found in MONEY.finditer(str(text)):
+        try:
+            amount = float(found.group("num").replace(",", ""))
+        except ValueError:
+            continue
+        if amount <= 0:
+            continue
+        said = (found.group("cur") or found.group("after") or "").lower()
+        return round(amount, 2), CURRENCY_WORDS.get(said)
+    return None, None
+
+
 def clean(name: str, value) -> object | None:
     """The value as stored, or None when it does not answer the field (an unknown choice, a bad date, an empty list)."""
     spec = FIELDS.get(name)
@@ -114,6 +141,8 @@ def clean(name: str, value) -> object | None:
         return choice(spec, text)
     if spec["type"] == "date":
         return spoken_date(text)
+    if spec["type"] == "money":
+        return money(text)[0]
     return text[:200] or None
 
 
@@ -126,7 +155,7 @@ def missing(fields: dict, rules: dict | None = None) -> list[dict]:
 def filed_title(fields: dict) -> str:
     """The name answers cite: "Meeting · Acme · 2026-10-12 · Kickoff", so a quote always says where it came from."""
     where = fields.get("about_name") or "Company"
-    label = "Meeting" if fields["kind"] == "meeting" else KINDS[fields["kind"]]
+    label = {"meeting": "Meeting", "receipt": "Receipt"}.get(fields["kind"], KINDS[fields["kind"]])
     topic = fields.get("topic") or fields["title"]
     return " · ".join([label, where, fields["date"], topic])
 
@@ -139,6 +168,8 @@ def header(fields: dict) -> str:
         lines.append("This is a record of what was said in a meeting, not a company rule.")
     if fields.get("parties"):
         lines.append(f"Parties: {', '.join(fields['parties'])}.")
+    if fields["kind"] == "receipt":
+        lines.append(f"Paid to {fields['vendor']}: {fields['currency']} {fields['amount']:,.2f} for {CATEGORIES[fields['category']].lower()}, {REPEATS[fields['repeats']].lower()}.")
     return "\n".join(lines)
 
 

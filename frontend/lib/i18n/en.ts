@@ -25,6 +25,7 @@ export const en = {
   "nav.trends": "Trends",
   "nav.audit": "Audit trail",
   "nav.tasks": "Tasks",
+  "nav.spending": "Spending",
   "nav.graph": "Knowledge graph",
   "nav.versioning": "Versions",
   "nav.library": "Library",

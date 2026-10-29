@@ -2,13 +2,23 @@
 # (A3: a meeting's Action lines become tasks with owners and due dates). Each is a workflow with its agent, skill, policies,
 # tools and sensor, seeded into the graph like the routing workflows. The code reads its rules back from the graph (the
 # required fields, the due days, whether the workflow is active), so an edit in Studio changes what Lisena does.
-# Used by: studio_seed.py (seeding), intake.py, tasks.py. Uses: intake_policy.py (the default rules), studio_seed.py (meta).
+# A4 adds "Spending": a filed receipt or invoice becomes a spend, checked against the monthly budget.
+# Used by: studio_seed.py (seeding), intake.py, tasks.py, spending.py. Uses: intake_policy.py (the default rules), studio_seed.py (meta).
 from app.api import intake_policy as policy
 
 # Config
-INTAKE, TASKS = "wf_document_intake", "wf_meeting_tasks"
+INTAKE, TASKS, SPENDING = "wf_document_intake", "wf_meeting_tasks", "wf_spending"
 INTAKE_POLICY, SECURITY_POLICY, TASK_POLICY = "policy_document_intake", "policy_upload_safety", "policy_task_followup"
+BUDGET_POLICY = "policy_spending_budget"
 DEFAULT_DUE_DAYS, DEFAULT_REMIND_DAYS = 7, 1
+DEFAULT_BUDGET = {"currency": "USD", "monthly": 300, "warn_percent": 80}
+BUDGET_RULES = [
+    "Every receipt or invoice added becomes one spend, dated by the receipt.",
+    "The month's spend is compared with the monthly budget, in the budget's currency.",
+    "At 80% of the budget the month shows as close; past 100% it shows as over.",
+    "Spends that repeat monthly or yearly are listed as subscriptions, with their cost per month.",
+    "Lisena reports totals and trends only. Tax and finance advice comes from your accountant.",
+]
 SECURITY = [
     "Personal data in a document is masked before it is filed.",
     "Only the person who started adding a document can answer its questions or file it.",
@@ -28,6 +38,8 @@ TOOLS = {  # id: (name, endpoint, side effect, capability)
     "switch_document": ("switch document", "app/api/intake.py", "write", "file_documents"),
     "create_task": ("create task", "app/api/tasks.py", "write", "manage_tasks"),
     "remind_owner": ("remind owner", "app/api/tasks.py", "notify", "manage_tasks"),
+    "record_spend": ("record spend", "app/api/spending.py", "write", "track_spending"),
+    "check_budget": ("check budget", "app/api/spending.py", "read", "track_spending"),
 }
 FLOWS = [
     {"id": INTAKE, "name": "Add a document", "criticality": 2,
@@ -49,6 +61,17 @@ FLOWS = [
          "Show tasks due soon with remind_owner until they are done."], ["create_task", "remind_owner"]),
      "policies": [(TASK_POLICY, "Task follow-up", "tasks", TASK_RULES, {"param.dueDays": DEFAULT_DUE_DAYS, "param.remindDays": DEFAULT_REMIND_DAYS})],
      "sensor": ("meetings", "Meeting filed", "event", ["meeting filed"], True)},
+    {"id": SPENDING, "name": "Spending", "criticality": 3,
+     "description": "A filed receipt or invoice becomes a spend; each month is checked against the budget, and repeats show as subscriptions.",
+     "agent": ("agent_bookkeeper", "Bookkeeper", "Logs what the company pays for and says when a month is close to or over budget.", ["track_spending"]),
+     "skill": ("skill_track_spending", "Track spending", "A receipt or invoice is filed", [
+         "Read the receipt's vendor, amount, currency, category and whether it repeats.",
+         "Record it with record_spend, linked to the receipt.",
+         "Total the month and compare it with the budget using check_budget.",
+         "Show the month as on track, close or over, and list the subscriptions."], ["record_spend", "check_budget"]),
+     "policies": [(BUDGET_POLICY, "Spending budget", "budget", BUDGET_RULES, {
+         "param.currency": DEFAULT_BUDGET["currency"], "param.monthlyBudget": DEFAULT_BUDGET["monthly"], "param.warnPercent": DEFAULT_BUDGET["warn_percent"]})],
+     "sensor": ("receipts", "Receipt filed", "event", ["receipt filed"], False)},
 ]
 
 
@@ -106,7 +129,7 @@ def intake_rules(lane) -> dict:
     if not f:
         return policy.DEFAULT_RULES
     return {"*": names(f.get("param.common")) or policy.DEFAULT_RULES["*"], "meeting": names(f.get("param.meeting")),
-            "contract": names(f.get("param.contract")), "client_or_project": ["about_name"]}
+            "contract": names(f.get("param.contract")), "receipt": names(f.get("param.receipt")) or policy.DEFAULT_RULES["receipt"], "client_or_project": ["about_name"]}
 
 
 def task_settings(lane) -> tuple[int, int]:
@@ -120,3 +143,18 @@ def task_settings(lane) -> tuple[int, int]:
             return default
 
     return number("param.dueDays", DEFAULT_DUE_DAYS), number("param.remindDays", DEFAULT_REMIND_DAYS)
+
+
+def budget(lane) -> dict:
+    """{currency, monthly, warn_percent} as the "Spending budget" policy says now; a bad number falls back to the default."""
+    f = studio_fields(lane, "policy", BUDGET_POLICY)
+
+    def number(key: str, default: float) -> float:
+        try:
+            return max(0.0, float(f.get(key, default)))
+        except (TypeError, ValueError):
+            return default
+
+    currency = str(f.get("param.currency") or DEFAULT_BUDGET["currency"]).upper()
+    return {"currency": currency if currency in policy.CURRENCIES else DEFAULT_BUDGET["currency"], "monthly": number("param.monthlyBudget", DEFAULT_BUDGET["monthly"]),
+            "warn_percent": number("param.warnPercent", DEFAULT_BUDGET["warn_percent"])}

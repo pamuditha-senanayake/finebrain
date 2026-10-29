@@ -14,14 +14,14 @@ import { apiPost, apiUpload } from "@/lib/api/client";
 const WANTS_UPLOAD = /\b(upload|add|file|import|put in|attach|save)\b.*\b(document|doc|file|transcript|meeting|minutes|record|contract|report|proposal|receipt|invoice)s?\b/i;
 const STOP = /^(cancel|stop|never ?mind|forget it)\b/i;
 const LABEL: Record<string, string> = { kind: "Kind", title: "Name", date: "Date", about: "About", about_name: "Client or project", owner: "Owner",
-  meeting_type: "Meeting", attendees: "Attended", topic: "Topic", parties: "Parties" };
+  meeting_type: "Meeting", attendees: "Attended", topic: "Topic", parties: "Parties", vendor: "Paid to", amount: "Amount", currency: "Currency", category: "For", repeats: "Repeats" };
 
 export type IntakeCard =
   | { kind: "attach" }
   | { kind: "question" }
   | { kind: "choices"; options: string[] }
   | { kind: "review"; rows: [string, string][] }
-  | { kind: "filed"; documentId: string; tasks: number };
+  | { kind: "filed"; documentId: string; tasks: number; spend: boolean };
 export type ChatAnswer = AskAnswer & { intake?: IntakeCard };
 
 /** The intake this chat is filling, if any. Kept for this tab, so a reload mid-way still sends the next reply to it. */
@@ -67,7 +67,7 @@ export function forgetIntake() {
 function fromDraft(q: string, draft: IntakeDraft): ChatAnswer {
   if (draft.status !== "asking") patch({ intakeId: null });
   const words = draft.reply ?? "";
-  if (draft.status === "filed" && draft.documentId) return answer(q, words, { kind: "filed", documentId: draft.documentId, tasks: draft.tasks?.length ?? 0 });
+  if (draft.status === "filed" && draft.documentId) return answer(q, words, { kind: "filed", documentId: draft.documentId, tasks: draft.tasks?.length ?? 0, spend: !!draft.spend });
   if (draft.status !== "asking") return answer(q, words);
   const next = draft.questions[0];
   if (next?.options) return answer(q, words, { kind: "choices", options: Object.values(next.options) });
@@ -77,13 +77,15 @@ function fromDraft(q: string, draft: IntakeDraft): ChatAnswer {
 
 // A choice shows its words, not its id ("Client meeting", not "client"); backend intake_policy.py holds the same lists
 const CHOICES: Record<string, Record<string, string>> = {
-  kind: { meeting: "Meeting record", contract: "Contract", proposal: "Proposal", policy: "Company policy", report: "Report", spec: "Spec or plan", other: "Other document" },
+  kind: { meeting: "Meeting record", contract: "Contract", proposal: "Proposal", policy: "Company policy", report: "Report", spec: "Spec or plan", receipt: "Receipt or invoice", other: "Other document" },
   about: { company: "The company", client: "A client", project: "A project" },
   meeting_type: { client: "Client meeting", internal: "Internal meeting", project: "Project meeting" },
+  category: { software: "Software and tools", cloud: "Cloud and hosting", people: "People and contractors", office: "Office", travel: "Travel", marketing: "Marketing", fees: "Bank and legal fees", other: "Other" },
+  repeats: { once: "Just once", monthly: "Every month", yearly: "Every year" },
 };
 
 function rows(fields: Record<string, unknown>): [string, string][] {
-  const shown = (key: string, value: unknown) => (Array.isArray(value) ? value.join(", ") : CHOICES[key]?.[String(value)] ?? String(value));
+  const shown = (key: string, value: unknown) => (Array.isArray(value) ? value.join(", ") : key === "amount" ? Number(value).toLocaleString(undefined, { minimumFractionDigits: 2 }) : CHOICES[key]?.[String(value)] ?? String(value));
   return Object.keys(LABEL).filter((key) => fields[key] !== undefined).map((key) => [LABEL[key], shown(key, fields[key])]);
 }
 

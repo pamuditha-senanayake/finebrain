@@ -42,6 +42,10 @@ Every document joins my memory through a short intake. Say or type that you want
 
 When a meeting record is added, each action point becomes a task with one owner and a due date: the person who said they would do it, and the day they named, or a week after the meeting. Tasks shows what is late, what is due soon and what is open, for everyone or one person. Open a task to change its owner or day, see the words said in the meeting, or mark it done. You can also add a task by hand.
 
+## Spending
+
+Receipts and invoices are added like any document: say you want to add a receipt, attach it, and I ask who was paid, how much and in which currency, what it was for, and whether it repeats. Each one becomes a spend on the Spending page, which shows this month against the monthly budget as on track, close or over, the last six months, spending by category, and the subscriptions with their cost per month. A spend with no receipt can be added by hand there. The budget lives in the Spending workflow in Workflow Studio. I give totals and trends only; for tax or finance advice, ask your accountant.
+
 ## What I cannot do yet
 
 Some parts are still being built. I cannot change workflows from here yet, and Studio changes come later. Real payments and real email sending stay switched off until the payment provider and the mail account are chosen. Trends will fill in once I count signals each week. If you ask for something I cannot do, I will say so and suggest the closest thing I can do.

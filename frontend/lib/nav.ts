@@ -15,6 +15,7 @@ import {
   Inbox,
   LayoutDashboard,
   ListTodo,
+  Wallet,
   Lock,
   Library,
   MessagesSquare,
@@ -57,6 +58,7 @@ export const NAV: NavArea[] = [
       // To review holds approvals and evidence requests as tabs.
       { href: "/l1/digest", label: "nav.digest", icon: Inbox, group: 0, also: ["/l1/approvals", "/l1/evidence"] },
       { href: "/l1/tasks", label: "nav.tasks", icon: ListTodo, group: 0 },
+      { href: "/l1/spending", label: "nav.spending", icon: Wallet, group: 0 },
       { href: "/l1/claude", label: "nav.claude", icon: Bot, group: 0 },
       // Workflow Studio is the main feature, so it gets a section of its own.
       { href: "/studio", label: "nav.studio", icon: Workflow, group: 1 },

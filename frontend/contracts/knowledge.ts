@@ -160,7 +160,7 @@ export type Document = z.infer<typeof Document>;
 export const IntakeQuestion = z.object({
   field: z.string(),
   question: z.string(),
-  type: z.enum(["text", "date", "list", "choice"]),
+  type: z.enum(["text", "date", "list", "choice", "money"]),
   options: z.record(z.string(), z.string()).nullish(),
 });
 export type IntakeQuestion = z.infer<typeof IntakeQuestion>;
@@ -176,6 +176,7 @@ export const IntakeDraft = z.object({
   /** Lisena's words for the chat, and the tasks a filed meeting made (A3). */
   reply: z.string().nullish(),
   tasks: z.array(z.lazy(() => Task)).nullish(),
+  spend: z.lazy(() => Spend).nullish(),
 });
 export type IntakeDraft = z.infer<typeof IntakeDraft>;
 
@@ -342,3 +343,26 @@ export const LibrarianItem = z.object({
   createdAt: IsoDate,
 });
 export type LibrarianItem = z.infer<typeof LibrarianItem>;
+
+/** A4: one thing the company paid for, from a filed receipt or added by hand (backend spending.py). */
+export const Spend = z.object({
+  id: z.string(),
+  vendor: z.string(),
+  amount: z.number(),
+  currency: z.string(),
+  category: z.string(),
+  categoryLabel: z.string(),
+  repeats: z.enum(["once", "monthly", "yearly"]),
+  paidOn: z.string(),
+  source: z.object({ documentId: z.string(), title: z.string() }).nullish(),
+});
+export type Spend = z.infer<typeof Spend>;
+export const SpendingSummary = z.object({
+  budget: z.object({ currency: z.string(), monthly: z.number(), warnPercent: z.number() }),
+  month: z.object({ month: z.string(), spent: z.number(), usedPercent: z.number(), state: z.enum(["ok", "close", "over"]), otherCurrencies: z.array(z.string()) }),
+  months: z.array(z.object({ month: z.string(), spent: z.number() })),
+  byCategory: z.array(z.object({ category: z.string(), label: z.string(), spent: z.number() })),
+  subscriptions: z.array(Spend.extend({ perMonth: z.number() })),
+  spends: z.array(Spend),
+});
+export type SpendingSummary = z.infer<typeof SpendingSummary>;

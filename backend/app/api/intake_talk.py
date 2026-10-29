@@ -11,10 +11,12 @@ LABELS = {  # the words people use for each field, for "change the X to Y"
     "kind": ["kind", "type of document", "document type"], "title": ["name", "title"], "date": ["date", "day"],
     "about": ["about"], "about_name": ["client", "project", "client name", "project name"], "owner": ["owner"],
     "meeting_type": ["meeting type", "type of meeting", "meeting"], "attendees": ["attendees", "people", "who attended", "attended"],
-    "topic": ["topic", "subject"], "parties": ["parties"],
+    "topic": ["topic", "subject"], "parties": ["parties"], "vendor": ["vendor", "payee", "paid to", "supplier"],
+    "amount": ["amount", "total", "price", "cost"], "currency": ["currency"], "category": ["category", "type of spend"], "repeats": ["repeats", "repeat", "frequency"],
 }
 SHOWN = {"kind": "Kind", "title": "Name", "date": "Date", "about": "About", "about_name": "Client or project", "owner": "Owner",
-         "meeting_type": "Meeting", "attendees": "Attended", "topic": "Topic", "parties": "Parties"}
+         "meeting_type": "Meeting", "attendees": "Attended", "topic": "Topic", "parties": "Parties", "vendor": "Paid to", "amount": "Amount",
+         "currency": "Currency", "category": "For", "repeats": "Repeats"}
 CHANGE = re.compile(r"^(?:please\s+)?(?:change|set|make|update|correct|fix|edit)\s+(?:the\s+)?(?P<label>[a-z ]+?)\s+(?:to|as|is|=)\s+(?P<value>.+)$", re.I)
 YES = re.compile(r"^(yes|yeah|yep|sure|ok(ay)?|confirm(ed)?|go ahead|do it|add it|file it|looks good|correct|that'?s right|save( it)?)\b", re.I)
 STOP = re.compile(r"^(cancel|stop|never ?mind|forget it|don'?t add|abort)\b", re.I)
@@ -33,22 +35,30 @@ def understand(text: str, asking: str | None) -> tuple[str, dict]:
         return "stop", {}
     if (found := CHANGE.match(said)) and (name := field_of(found.group("label"))):
         value = policy.clean(name, found.group("value"))
-        return ("change", {name: value}) if value is not None else ("unclear", {})
+        return ("change", with_currency(name, found.group("value"), {name: value})) if value is not None else ("unclear", {})
     if asking:
         answer = said
         while FILLER.match(answer):
             answer = FILLER.sub("", answer, count=1)
         value = policy.clean(asking, answer)
         if value is not None and not (YES.match(said) and policy.FIELDS[asking]["type"] != "text"):
-            return "answer", {asking: value}
+            return "answer", with_currency(asking, answer, {asking: value})
     if YES.match(said):
         return "yes", {}
     return "unclear", {}
 
 
+def with_currency(name: str, said: str, fields: dict) -> dict:
+    """ "49 dollars" answers the amount and the currency at once."""
+    currency = policy.money(said)[1] if name == "amount" else None
+    return {**fields, "currency": currency} if currency else fields
+
+
 def shown(name: str, value) -> str:
     if isinstance(value, list):
         return ", ".join(value)
+    if name == "amount":
+        return f"{value:,.2f}"
     return (policy.FIELDS[name].get("options") or {}).get(value, str(value))
 
 
@@ -74,6 +84,10 @@ def opening(fields: dict, questions: list[dict]) -> str:
         found.append(f"about {fields['about_name']}")
     if fields.get("topic"):
         found.append(f"on {fields['topic']}")
+    if fields.get("amount"):
+        found.append(f"for {fields.get('currency', '')} {fields['amount']:,.2f}".replace("for  ", "for "))
+    if fields.get("vendor"):
+        found.append(f"paid to {fields['vendor']}")
     said = f"I read it. It looks like {' '.join(found)}. " if found else "I read it. "
     return said + (ask(questions[0]) if questions else ready(fields))
 

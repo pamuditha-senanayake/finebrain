@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 const STEPS = ["File", "Details", "Check", "Filed"];
 const LABEL: Record<string, string> = {
   kind: "Kind", title: "Name", date: "Date", about: "About", about_name: "Client or project", owner: "Owner",
-  meeting_type: "Meeting", attendees: "Attended", topic: "Topic", parties: "Parties",
+  meeting_type: "Meeting", attendees: "Attended", topic: "Topic", parties: "Parties", vendor: "Paid to", amount: "Amount", currency: "Currency", category: "For", repeats: "Repeats",
 };
 // Spoken requests that open this dialog: "upload a meeting transcript", "add a document", "file these minutes"
 const WANTS_UPLOAD = /\b(upload|add|file|import|put in)\b.*\b(document|doc|file|transcript|meeting|minutes|record|contract|report|proposal)s?\b/i;
@@ -108,10 +108,15 @@ function questionFor(field: string, draft: IntakeDraft | null): IntakeQuestion |
   const open = draft?.questions.find((q) => q.field === field);
   if (open) return open;
   const known: Record<string, IntakeQuestion> = {
-    kind: { field: "kind", question: "What kind of document is this?", type: "choice", options: { meeting: "Meeting record", contract: "Contract", proposal: "Proposal", policy: "Company policy", report: "Report", spec: "Spec or plan", other: "Other document" } },
+    kind: { field: "kind", question: "What kind of document is this?", type: "choice", options: { meeting: "Meeting record", contract: "Contract", proposal: "Proposal", policy: "Company policy", report: "Report", spec: "Spec or plan", receipt: "Receipt or invoice", other: "Other document" } },
     about: { field: "about", question: "Is it about the company, a client or a project?", type: "choice", options: { company: "The company", client: "A client", project: "A project" } },
     meeting_type: { field: "meeting_type", question: "What kind of meeting was it?", type: "choice", options: { client: "Client meeting", internal: "Internal meeting", project: "Project meeting" } },
     title: { field: "title", question: "What should we call it?", type: "text" },
+    vendor: { field: "vendor", question: "Who was it paid to?", type: "text" },
+    amount: { field: "amount", question: "How much was it, with the currency? For example, 49 dollars.", type: "text" },
+    currency: { field: "currency", question: "Which currency?", type: "choice", options: { USD: "US dollars", LKR: "Sri Lankan rupees", EUR: "Euros", GBP: "British pounds" } },
+    category: { field: "category", question: "What was it for?", type: "choice", options: { software: "Software and tools", cloud: "Cloud and hosting", people: "People and contractors", office: "Office", travel: "Travel", marketing: "Marketing", fees: "Bank and legal fees", other: "Other" } },
+    repeats: { field: "repeats", question: "Does it repeat?", type: "choice", options: { once: "Just once", monthly: "Every month", yearly: "Every year" } },
     date: { field: "date", question: "What date is it from?", type: "date" },
     about_name: { field: "about_name", question: "Which client or project?", type: "text" },
     owner: { field: "owner", question: "Who owns it on our side?", type: "text" },
