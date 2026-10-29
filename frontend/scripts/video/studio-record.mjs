@@ -171,12 +171,12 @@ await go("/studio?wf=wf-refunds");
 await send("pause the refund agent");
 await shot("l3", [lastProposal().getByRole("button", { name: /Suggest to the DRI/ })]);
 
-// 23-24. Ask the Brain: one box, and it asks whether you mean this page or the whole system.
+// 23-24. Lisena: one box, and it asks whether you mean this page or the whole system.
 await as("h-founder");
 await go("/l1");
-await page.getByRole("button", { name: "Ask the Brain" }).click();
+await page.getByRole("button", { name: "Lisena" }).click();
 await page.waitForTimeout(600);
-const panel = page.getByRole("complementary", { name: "Ask the Brain" });
+const panel = page.getByRole("complementary", { name: "Lisena" });
 await panel.getByRole("textbox", { name: "Question" }).fill("What is our refund window?");
 await panel.getByRole("button", { name: "Ask", exact: true }).click();
 await settle(900);

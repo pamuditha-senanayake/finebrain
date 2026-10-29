@@ -21,6 +21,16 @@
       ],
       "port": 8000,
       "url": "http://localhost:8000"
+    },
+    {
+      "name": "backend-hq2",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "-e",
+        "require('child_process').spawn((process.env.HOME || process.env.USERPROFILE) + '/.local/bin/uv', ['run', 'fastapi', 'dev', 'app/main.py', '--port', '8001'], { cwd: 'backend', stdio: 'inherit', env: { ...process.env, HQ_TENANT_FILE: 'hq2_tenant.json', RESEARCH_LAB: 'disabled', HQ_USE_CLAUDE: 'off' } }).on('exit', (c) => process.exit(c ?? 1))"
+      ],
+      "port": 8001,
+      "url": "http://localhost:8001"
     }
   ]
 }

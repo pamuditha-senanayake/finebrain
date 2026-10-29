@@ -1,6 +1,7 @@
 # hq.py: builds the Finebase HQ pipeline the API serves: seed and people from samples, real infra where it answers,
 # real Claude and Voyage when keys are set, and a background loop that keeps the clock moving and every consumer running.
-# Used by: main.py. Uses: conn_inbound.py, orchestrate.py, adapters.py, llm.py, fakes.py, routes.py, ready_notices.py, nightly.py, distiller.py, temporal_ready.py, temporal_nightly.py. Reads env: HQ_REAL_PARTS, HQ_USE_CLAUDE.
+# Another tenant (Finebase HQ-2) is served by a second process with HQ_TENANT_FILE=hq2_tenant.json; its file names its own sample files.
+# Used by: main.py. Uses: conn_inbound.py, orchestrate.py, adapters.py, llm.py, fakes.py, routes.py, ready_notices.py, nightly.py, distiller.py, temporal_ready.py, temporal_nightly.py. Reads env: HQ_REAL_PARTS, HQ_USE_CLAUDE, HQ_VOICE_FIX.
 import json
 import os
 import threading
@@ -20,6 +21,9 @@ from app.pipeline.observe import log_event
 SAMPLES = Path(__file__).resolve().parents[2] / "samples"
 REAL_PARTS_SETTING = os.environ.get("HQ_REAL_PARTS", "auto")  # auto: every part that answers; none: all in memory; or a comma list
 USE_CLAUDE = os.environ.get("HQ_USE_CLAUDE", "on") != "off"
+VOICE_FIX = os.environ.get("HQ_VOICE_FIX", "on" if USE_CLAUDE else "off") != "off"  # Haiku fixing misheard words costs about $0.0003 a question, so it can stay on when the rest of Claude is off
+TENANT_FILE = os.environ.get("HQ_TENANT_FILE", "hq_tenant.json")  # HQ-2 sets hq2_tenant.json on its own port
+DEFAULT_TENANT = "finebase-hq"
 TICK_SECONDS = 0.2
 STUDIO_MAX_TOKENS = 3000  # a drafted story with six cases needs room
 EXTRACT_MAX_TOKENS = 4000  # one window of a document can state a few dozen facts
@@ -28,12 +32,14 @@ EXTRACT_MAX_TOKENS = 4000  # one window of a document can state a few dozen fact
 def load_hq() -> tuple[dict, dict]:
     """The golden seed with Finebase HQ's tenant id, people and clusters on top, the brain's knowledge about itself, the
     sample obligations readiness watches (step 16), and sample weekly counts for the spike check (step 15)."""
-    hq = json.loads((SAMPLES / "hq_tenant.json").read_text())
+    hq = json.loads((SAMPLES / TENANT_FILE).read_text())
+    files = hq.get("sample_files", {})  # a tenant besides HQ names its own files; HQ's stay the defaults
     golden = json.loads((SAMPLES / "golden_refund_run.json").read_text())
-    knowledge = golden["seed"]["knowledge"] + list(self_knowledge.items())
-    readiness = json.loads((SAMPLES / "hq_obligations.json").read_text())
-    learning = json.loads((SAMPLES / "hq_counts.json").read_text())
-    return extend_seed({**golden["seed"], **hq["seed_overrides"], "people": hq["people"], "knowledge": knowledge, "readiness": readiness,
+    world = json.loads((SAMPLES / files["world"]).read_text()) if "world" in files else {}  # connectors, skills, agents, policy and knowledge that replace the golden ones
+    knowledge = world.get("knowledge", golden["seed"]["knowledge"]) + list(self_knowledge.items())
+    readiness = json.loads((SAMPLES / files.get("obligations", "hq_obligations.json")).read_text())
+    learning = json.loads((SAMPLES / files.get("counts", "hq_counts.json")).read_text())
+    return extend_seed({**golden["seed"], **world, **hq["seed_overrides"], "people": hq["people"], "knowledge": knowledge, "readiness": readiness,
                         "sample_counts": learning, "timezone": hq["tenant"]["timezone"]}, hq), hq
 
 
@@ -48,6 +54,11 @@ def choose_parts() -> frozenset[str]:
     return parts | ({"voyage"} if USE_CLAUDE and os.environ.get("VOYAGE_API_KEY") else set())
 
 
+def topic_prefix(seed: dict) -> str:
+    """Finebase HQ keeps its plain topic names; any other tenant gets its own, so two tenants never read each other's messages."""
+    return "" if seed["tenant_id"] == DEFAULT_TENANT else f"{seed['tenant_id']}."
+
+
 def choose_models():
     """Real Claude for S2 (an upload's domain), S3, S6 and S7 when a key is set; otherwise a model that declines, so every case
     escalates to a person, and uploads are filed under general."""
@@ -57,8 +68,13 @@ def choose_models():
 
 
 def choose_answerer():
-    """Claude Sonnet for Ask the Brain when a key is set; None lists the closest documents instead."""
-    return llm.make_answerer() if USE_CLAUDE and os.environ.get("ANTHROPIC_API_KEY") else None
+    """Claude Haiku for Lisena when a key is set, because answers are short and spoken, so speed matters most; None lists the closest documents instead."""
+    return llm.make_answerer(model=llm.FAST_MODEL) if USE_CLAUDE and os.environ.get("ANTHROPIC_API_KEY") else None
+
+
+def choose_writer():
+    """Claude Haiku that fixes misheard words in a spoken question when a key is set; None keeps the words as heard."""
+    return llm.make_writer() if VOICE_FIX and os.environ.get("ANTHROPIC_API_KEY") else None
 
 
 def choose_chatter():
@@ -109,7 +125,7 @@ def build_hq_app():
     seed, hq = load_hq()
     parts = choose_parts()
     model, choose, grade, classify = choose_models()
-    make_adapters = real_adapters(parts) if parts else make_memory_adapters
+    make_adapters = real_adapters(parts, topic_prefix=topic_prefix(seed)) if parts else make_memory_adapters
     lane = orchestrate.build_lane(seed, model, None, datetime.now(timezone.utc),  # no stand-in gateway: refunds go to the shop's database
                                    make_adapters, choose, grade, new_id=unique_id,
                                    classify=classify, extract=choose_extractor(), resolve=choose_resolver())
@@ -126,4 +142,4 @@ def build_hq_app():
     threading.Thread(target=keep_running, args=(lane,), daemon=True).start()
     conn_call.note_roles(lane)  # connections saved before roles existed get theirs, so runs find the shop database by key
     conn_inbound.start(lane)  # live connections' customer messages come in through S1
-    return create_api_app(lane, hq, choose_answerer(), chatter)
+    return create_api_app(lane, hq, choose_answerer(), chatter, choose_writer())

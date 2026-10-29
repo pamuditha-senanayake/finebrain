@@ -1,6 +1,6 @@
 "use client";
 
-// Ask the Brain keeps one conversation per tenant and person, so the brain remembers what was said earlier,
+// Lisena keeps one conversation per tenant and person, so the brain remembers what was said earlier,
 // even after a reload. The panel and the voice page share it. Mock tenants send no id back, so nothing is kept.
 // Every chat stays on the backend; the history lists them, and after a long quiet the next question starts a new one.
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -48,17 +48,30 @@ function useConversationKey() {
 
 export type AskInput = { question: string; page?: { path: string; scope: "page" | "system"; title?: string; snapshot?: string }; signal?: AbortSignal };
 
-/** Asks inside the current conversation and keeps the id the brain sends back. */
+/** Asks inside the current conversation and keeps the id the brain sends back. Outside React, for the voice agent. */
+export async function askNow({ signal, ...input }: AskInput): Promise<C.AskAnswer> {
+  const ui = useUi.getState();
+  const key = `${ui.tenantId}:${ui.personaByTenant[ui.tenantId] ?? currentPersonaId()}`;
+  const conversationId = liveId(useConversations.getState(), key);
+  const answer = await apiPost("ask", { ...input, conversationId }, C.AskAnswer, signal);
+  if (answer.conversationId) useConversations.getState().set(key, answer.conversationId);
+  return answer;
+}
+
+/** A spoken question with misheard words fixed by Claude Haiku, against the company's names and these page names.
+ * Any failure (a demo tenant, Claude off, slow) gives back the words as heard, so voice never waits on it. */
+export async function fixHeard(text: string, pages: string[], recent: string[], signal?: AbortSignal): Promise<string> {
+  try {
+    const fixed = await apiPost("voice/fix", { text, pages, recent }, z.object({ text: z.string() }), signal);
+    return fixed.text.trim() || text;
+  } catch {
+    return text;
+  }
+}
+
+/** askNow as a mutation, for screens that want its pending state. */
 export function useAsk() {
-  const key = useConversationKey();
-  return useMutation({
-    mutationFn: async ({ signal, ...input }: AskInput) => {
-      const conversationId = liveId(useConversations.getState(), key);
-      const answer = await apiPost("ask", { ...input, conversationId }, C.AskAnswer, signal);
-      if (answer.conversationId) useConversations.getState().set(key, answer.conversationId);
-      return answer;
-    },
-  });
+  return useMutation({ mutationFn: askNow });
 }
 
 /** The conversation's earlier turns, read when the page opens or an old chat is picked, and a way to start over. */

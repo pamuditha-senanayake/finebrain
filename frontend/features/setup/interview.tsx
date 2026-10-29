@@ -40,7 +40,7 @@ const HINT: Partial<Record<Step["kind"], string>> = {
  * Teaches the brain about a new business, one question at a time:
  * the name and website, what it does, the tools in use, a connector for each, then any MCP servers.
  * Every connection becomes a sensor, and what it reads flows into knowledge.
- * `variant="ask"` runs inside Ask the Brain, where `onQuestion` speaks each question.
+ * `variant="ask"` runs inside Lisena, where `onQuestion` speaks each question.
  */
 export function Interview({ variant = "page", onQuestion, onExit }: { variant?: "page" | "ask"; onQuestion?: (q: string) => void; onExit?: () => void }) {
   const { profile, step: at, setProfile, setStep, connections, connect } = useConnect();

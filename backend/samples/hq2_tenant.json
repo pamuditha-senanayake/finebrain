@@ -1,0 +1,424 @@
+{
+ "_about": "Finebase HQ-2: the second live tenant, on its own port (HQ_TENANT_FILE=hq2_tenant.json). Everything in it is made up for demos. Made by scripts/hq2_world.py.",
+ "tenant": {
+  "id": "finebase-hq-2",
+  "name": "Finebase HQ-2",
+  "currency": "USD",
+  "timezone": "Asia/Colombo",
+  "locale": "en-US",
+  "brand": {
+   "primary": "#0f766e",
+   "mark": "H2"
+  }
+ },
+ "sample_files": {
+  "world": "hq2_world.json",
+  "obligations": "hq2_obligations.json",
+  "counts": "hq2_counts.json"
+ },
+ "seed_overrides": {
+  "tenant_id": "finebase-hq-2",
+  "env": "production",
+  "commons": [],
+  "filing_rules": [
+   {
+    "id": "fr_contracts",
+    "match": "contract|agreement|\\bmsa\\b|\\bnda\\b",
+    "type": "contract",
+    "sensitivity": "confidential",
+    "retention_days": 2555,
+    "is_sample": true
+   },
+   {
+    "id": "fr_invoices",
+    "match": "invoice|receipt|\\bbill\\b",
+    "type": "invoice",
+    "sensitivity": "confidential",
+    "retention_days": 2555,
+    "is_sample": true
+   },
+   {
+    "id": "fr_statements",
+    "match": "bank statement|statement",
+    "type": "statement",
+    "sensitivity": "restricted",
+    "retention_days": 2555,
+    "is_sample": true
+   },
+   {
+    "id": "fr_policies",
+    "match": "policy|terms|handbook|procedure",
+    "type": "policy",
+    "sensitivity": "internal",
+    "retention_days": 1825,
+    "is_sample": true
+   },
+   {
+    "id": "fr_pricing",
+    "match": "pric(e|ing)|rate card",
+    "type": "pricing",
+    "sensitivity": "internal",
+    "retention_days": 1095,
+    "is_sample": true
+   },
+   {
+    "id": "fr_reports",
+    "match": "report|export",
+    "type": "report",
+    "sensitivity": "internal",
+    "retention_days": 1095,
+    "is_sample": true
+   }
+  ]
+ },
+ "people": {
+  "h-pamuditha": {
+   "tier": "L1",
+   "roles": [
+    "founder",
+    "dri",
+    "leader",
+    "head_of_cs"
+   ],
+   "delegate": null,
+   "name": "Pamuditha Senanayake",
+   "title": "Founder",
+   "color": "#4338ca",
+   "address": "sir"
+  },
+  "h-udayanga": {
+   "tier": "L2",
+   "roles": [
+    "steward"
+   ],
+   "delegate": "h-pamuditha",
+   "name": "Udayanga Weerakoon",
+   "title": "Steward",
+   "color": "#0f766e"
+  },
+  "h-imashi": {
+   "tier": "L2",
+   "roles": [
+    "steward"
+   ],
+   "delegate": "h-pamuditha",
+   "name": "Imashi Dissanayake",
+   "title": "Steward",
+   "color": "#b45309"
+  },
+  "h-ruwan": {
+   "tier": "L2",
+   "roles": [
+    "steward",
+    "project_lead"
+   ],
+   "delegate": "h-pamuditha",
+   "name": "Ruwan Jayasuriya",
+   "title": "Project lead",
+   "color": "#be123c"
+  },
+  "h-kavindu": {
+   "tier": "L3",
+   "roles": [
+    "operator"
+   ],
+   "delegate": "h-ruwan",
+   "name": "Kavindu Perera",
+   "title": "Developer",
+   "color": "#0369a1"
+  },
+  "h-sachini": {
+   "tier": "L3",
+   "roles": [
+    "operator"
+   ],
+   "delegate": "h-ruwan",
+   "name": "Sachini Fernando",
+   "title": "Designer",
+   "color": "#7e22ce"
+  },
+  "h-tharushi": {
+   "tier": "L3",
+   "roles": [
+    "operator",
+    "finance"
+   ],
+   "delegate": "h-pamuditha",
+   "name": "Tharushi Silva",
+   "title": "Operations and finance",
+   "color": "#047857"
+  }
+ },
+ "clusters": [
+  {
+   "id": "client_delivery",
+   "name": "Client delivery",
+   "description": "Client updates, meetings, questions and payments (A1, A2, A5).",
+   "dri": "h-pamuditha"
+  },
+  {
+   "id": "team_tasks",
+   "name": "Team and tasks",
+   "description": "Verbal tasks, owners and member progress (A3).",
+   "dri": "h-ruwan"
+  },
+  {
+   "id": "finance_spend",
+   "name": "Finance and spend",
+   "description": "Blaze plan, tools, subscriptions, US LLC banking and tax (A4, A8, A10).",
+   "dri": "h-pamuditha"
+  },
+  {
+   "id": "grants_docs",
+   "name": "Grants and documents",
+   "description": "Grants, research applications, hackathon decks and the Google Docs (A6, A7, A9).",
+   "dri": "h-imashi"
+  }
+ ],
+ "sensors": {
+  "conn_slack": {
+   "name": "Slack",
+   "kind": "chat",
+   "cluster": "client_delivery",
+   "events": [
+    "message.posted"
+   ],
+   "subscribers": [
+    "agent_update_drafter",
+    "agent_client_qa"
+   ],
+   "personal_data": true
+  },
+  "conn_whatsapp": {
+   "name": "WhatsApp",
+   "kind": "chat",
+   "cluster": "client_delivery",
+   "events": [
+    "message.received"
+   ],
+   "subscribers": [
+    "agent_update_drafter",
+    "agent_client_qa"
+   ],
+   "personal_data": true
+  },
+  "conn_gmail": {
+   "name": "Gmail",
+   "kind": "inbox",
+   "cluster": "client_delivery",
+   "events": [
+    "email.received"
+   ],
+   "subscribers": [
+    "agent_update_drafter"
+   ],
+   "personal_data": true
+  },
+  "conn_meet": {
+   "name": "Zoom and Meet transcripts",
+   "kind": "calendar",
+   "cluster": "client_delivery",
+   "events": [
+    "transcript.ready"
+   ],
+   "subscribers": [
+    "agent_task_tracker",
+    "agent_docs_writer"
+   ],
+   "personal_data": true
+  },
+  "conn_notion": {
+   "name": "Notion board",
+   "kind": "crm",
+   "cluster": "team_tasks",
+   "events": [
+    "card.changed"
+   ],
+   "subscribers": [
+    "agent_spend_watcher"
+   ],
+   "personal_data": false
+  },
+  "conn_github": {
+   "name": "GitHub",
+   "kind": "repository",
+   "cluster": "team_tasks",
+   "events": [
+    "pull_request.merged"
+   ],
+   "subscribers": [
+    "agent_client_qa",
+    "agent_task_tracker"
+   ],
+   "personal_data": false
+  },
+  "conn_stripe": {
+   "name": "Stripe",
+   "kind": "payments",
+   "cluster": "finance_spend",
+   "events": [
+    "invoice.paid",
+    "payment.failed"
+   ],
+   "subscribers": [
+    "agent_client_qa",
+    "agent_task_tracker"
+   ],
+   "personal_data": false
+  },
+  "conn_wise": {
+   "name": "Wise",
+   "kind": "payments",
+   "cluster": "finance_spend",
+   "events": [
+    "transfer.sent"
+   ],
+   "subscribers": [
+    "agent_spend_watcher"
+   ],
+   "personal_data": false
+  },
+  "conn_mercury": {
+   "name": "Mercury",
+   "kind": "payments",
+   "cluster": "finance_spend",
+   "events": [
+    "transaction.posted"
+   ],
+   "subscribers": [
+    "agent_spend_watcher"
+   ],
+   "personal_data": false
+  },
+  "conn_blaze": {
+   "name": "Blaze plan billing",
+   "kind": "inbox",
+   "cluster": "finance_spend",
+   "events": [
+    "invoice.received"
+   ],
+   "subscribers": [
+    "agent_update_drafter"
+   ],
+   "personal_data": false
+  },
+  "conn_gdocs": {
+   "name": "Google Docs",
+   "kind": "documents",
+   "cluster": "grants_docs",
+   "events": [
+    "document.changed"
+   ],
+   "subscribers": [
+    "agent_task_tracker",
+    "agent_docs_writer"
+   ],
+   "personal_data": false
+  },
+  "conn_gdrive": {
+   "name": "Google Drive",
+   "kind": "documents",
+   "cluster": "grants_docs",
+   "events": [
+    "file.added"
+   ],
+   "subscribers": [
+    "agent_task_tracker",
+    "agent_docs_writer"
+   ],
+   "personal_data": false
+  },
+  "conn_upload_console": {
+   "name": "Console uploads",
+   "kind": "documents",
+   "cluster": "grants_docs",
+   "events": [
+    "document.uploaded"
+   ],
+   "subscribers": [],
+   "personal_data": false
+  }
+ },
+ "graph_labels": {
+  "agents": {
+   "agent_update_drafter": {
+    "name": "Update drafter",
+    "description": "Turns a meeting or a client message into a draft update for a steward to approve (A1, A2).",
+    "kind": "worker",
+    "dri": "h-pamuditha"
+   },
+   "agent_task_tracker": {
+    "name": "Task tracker",
+    "description": "Turns a transcript into tasks with owners, and reminds owners (A3).",
+    "kind": "worker",
+    "dri": "h-pamuditha"
+   },
+   "agent_spend_watcher": {
+    "name": "Spend watcher",
+    "description": "Reads bills and subscriptions against the budget and raises an alert (A4).",
+    "kind": "worker",
+    "dri": "h-pamuditha"
+   },
+   "agent_docs_writer": {
+    "name": "Docs writer",
+    "description": "Drafts grant applications, hackathon decks and updates to the Google Docs from what the team has built (A6, A7, A9).",
+    "kind": "worker",
+    "dri": "h-pamuditha"
+   },
+   "agent_client_qa": {
+    "name": "Client questions",
+    "description": "Answers clarification and payment questions from the documents (A5).",
+    "kind": "worker",
+    "dri": "h-pamuditha"
+   }
+  },
+  "policies": {
+   "policy_client_comms": {
+    "name": "Client communication policy",
+    "dri": "h-pamuditha",
+    "skills": [
+     "skill_client_update"
+    ]
+   },
+   "policy_refund": {
+    "name": "Client refund and credit policy",
+    "dri": "h-pamuditha",
+    "skills": [
+     "skill_client_questions"
+    ]
+   },
+   "policy_spend": {
+    "name": "Spend and subscription policy",
+    "dri": "h-pamuditha",
+    "skills": [
+     "skill_spend_check"
+    ]
+   },
+   "policy_tasks": {
+    "name": "Task ownership policy",
+    "dri": "h-pamuditha",
+    "skills": [
+     "skill_meeting_to_tasks",
+     "skill_member_progress"
+    ]
+   },
+   "policy_payments": {
+    "name": "Payment terms policy",
+    "dri": "h-pamuditha",
+    "skills": [
+     "skill_client_questions"
+    ]
+   },
+   "policy_data": {
+    "name": "Recording and data handling policy",
+    "dri": "h-pamuditha",
+    "skills": [
+     "skill_client_update",
+     "skill_meeting_to_tasks",
+     "skill_grant_docs"
+    ]
+   }
+  },
+  "skill_dri": "h-pamuditha"
+ }
+}

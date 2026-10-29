@@ -8,8 +8,8 @@ from app.api.graph_views import agents_view, place_in_document, policies_of_skil
 from app.api.overview_views import brain_map, overview
 
 # Config
-COLUMNS = ["agent", "skill", "tool", "policy", "document", "fact"]  # left to right on the map
-COLUMN_GAP, ROW_GAP = 240, 120
+COLUMNS = ["sensor", "agent", "skill", "tool", "policy", "document", "fact"]  # left to right on the map
+COLUMN_GAP, ROW_GAP, SUB_GAP, ROWS_PER_COLUMN = 240, 120, 170, 8  # a long type wraps into more columns, so many documents stay a block, not a line
 OPEN = {"capability": None, "roles": []}
 
 
@@ -109,16 +109,26 @@ def graph_view(lane, hq: dict) -> dict:
         key = policy["_ref"]["id"]
         nodes.append((f"policy:{key}", "policy", labels["policies"].get(key, {}).get("name", key), key, "internal"))
         edges += [(f"policy:{key}", f"skill:{skill_id}", "governs") for skill_id in labels["policies"].get(key, {}).get("skills", [])]
-    documents = {}
-    for item in lane.graph.latest("knowledge"):
+    documents, platform_of = {}, {}
+    for item in sorted(lane.graph.latest("knowledge"), key=lambda i: (i.get("platform") or "", i["source"]["document_id"])):  # a platform's documents sit together
         if item["kind"] == "fact":
             nodes.append((f"fact:{item['item_id']}", "fact", item["text"][:48], item["item_id"], item["sensitivity"]))
             continue
         doc = item["source"]["document_id"]
+        if item.get("platform"):
+            platform_of[doc] = item["platform"]
         documents.setdefault(doc, (PurePosixPath(item["source"]["uri"]).stem.replace("_", " "), item["sensitivity"]))
         if policy_key := (item.get("version_ref") or {}).get("id"):
             edges.append((f"document:{doc}", f"policy:{policy_key}", "evidences"))
     nodes += [(f"document:{doc}", "document", name, doc, sensitivity) for doc, (name, sensitivity) in documents.items()]
+    for fact in lane.graph.latest("fact"):  # verified facts, with the document each one rests on
+        nodes.append((f"fact:{fact['item_id']}", "fact", fact["text"][:48], fact["item_id"], fact["sensitivity"]))
+        if fact["source"]["document_id"] in documents:
+            edges.append((f"document:{fact['source']['document_id']}", f"fact:{fact['item_id']}", "evidences"))
+    for conn, about in hq.get("sensors", {}).items():  # every connected platform, feeding the agents that watch it and the documents it brought in
+        nodes.append((f"sensor:{conn}", "sensor", about["name"], conn, "internal"))
+        edges += [(f"sensor:{conn}", f"agent:{agent_id}", "feeds") for agent_id in about["subscribers"]]
+        edges += [(f"sensor:{conn}", f"document:{doc}", "feeds") for doc, platform in platform_of.items() if f"conn_{platform}" == conn]
     return g.Graph(nodes=placed(nodes, lane.seed["cluster_id"]), edges=[
         g.GraphEdge(id=f"{source}>{target}", source=source, target=target, kind=kind, requires_capability=None)
         for source, target, kind in dict.fromkeys(edges)  # one edge per pair, in first-seen order
@@ -126,11 +136,15 @@ def graph_view(lane, hq: dict) -> dict:
 
 
 def placed(nodes: list[tuple[str, str, str, str, str]], cluster_id: str) -> list[g.GraphNode]:
-    """A steady layout: one column per node type, rows in order."""
+    """A steady layout: one block per node type, left to right; a long type wraps into more columns of ROWS_PER_COLUMN."""
+    totals = {kind: sum(1 for n in nodes if n[1] == kind) for kind in COLUMNS}
+    starts, at = {}, 0
+    for kind in COLUMNS:
+        starts[kind], at = at, at + COLUMN_GAP + SUB_GAP * max(0, -(-totals[kind] // ROWS_PER_COLUMN) - 1)
     rows: dict[str, int] = {}
     shown = []
     for node_id, node_type, label, ref, sensitivity in nodes:
         row = rows[node_type] = rows.get(node_type, -1) + 1
         shown.append(g.GraphNode(id=node_id, type=node_type, label=label, ref_id=ref, cluster_id=cluster_id, sensitivity=sensitivity, requires=OPEN,
-                                 x=COLUMNS.index(node_type) * COLUMN_GAP, y=row * ROW_GAP))
+                                 x=starts[node_type] + (row // ROWS_PER_COLUMN) * SUB_GAP, y=(row % ROWS_PER_COLUMN) * ROW_GAP))
     return shown

@@ -16,6 +16,7 @@ import { ForgetCard, ReceiptList } from "./forget-card";
 import { date } from "@/lib/format";
 import { FOLDERS, folderOf, searchDocuments } from "@/lib/library";
 import { cn } from "@/lib/utils";
+import { realTenants } from "@/lib/flags";
 
 const SHOWN = 60;
 
@@ -134,7 +135,7 @@ function DocumentSheet({ doc, facts, onClose, onFolder }: { doc: Document | null
   const lookup = useLookup();
   const folder = doc ? folderOf(doc) : null;
   const [removing, setRemoving] = useState(false);
-  const real = useTenantId() === "finebase-hq";
+  const real = realTenants.has(useTenantId());
   const removable = real && !!doc && (doc.extractionStatus === "done" || doc.extractionStatus === "retired");
   return (
     <Sheet open={!!doc} onOpenChange={(o) => !o && onClose()}>

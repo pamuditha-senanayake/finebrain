@@ -43,7 +43,7 @@ The backend must serve:
 | `GET /api/tenants` | Tenants the user may open |
 | `GET /api/t/{tenant}/{resource}` | One per hook in `lib/api/hooks.ts`, for example `agents`, `runs?agentId=`, `approvals/{id}`, `overview` |
 | `POST /api/t/{tenant}/ops/{operation}` | Domain operations, for example `takeover`, `skillify`, `runChecks`, `decide`, `uploadEvidence`. The reference behaviour is `lib/mock/ops.ts`, and the unit tests in `tests/unit/flows.test.ts` describe it. |
-| `POST /api/t/{tenant}/ask` | Ask the Brain, answers only from facts the asker may see. Optional `page: { path, scope }` where `scope` is `page` (about the screen the asker is on) or `system` (everything they can access) |
+| `POST /api/t/{tenant}/ask` | Lisena, answers only from facts the asker may see. Optional `page: { path, scope }` where `scope` is `page` (about the screen the asker is on) or `system` (everything they can access) |
 | `GET /api/t/{tenant}/studio/{resource}` | Workflow Studio reads: `map`, `workflows`, `workflows/{id}`, `workflows/{id}/health`, `tools`, `revisions?target=` or `?workflow=`, `pending` |
 | `POST /api/t/{tenant}/studio/chat`, `POST /api/t/{tenant}/studio/review` | Studio assistant. Replies are reads only. Changes happen through `ops/studioApply` (the DRI confirms) or `ops/studioSuggest` (anyone passes a reviewed proposal to the DRI). Reference behaviour: `lib/mock/studio/` |
 | `GET /api/t/{tenant}/stream` | Server Sent Events, each message a `LiveEvent` JSON object |
@@ -79,7 +79,7 @@ See `.env.example` for the full list. No secrets ever go in `NEXT_PUBLIC_*` vari
 | `features/` | Screen components per tier. `features/research` is the removable console; lint forbids product code from importing it. |
 | `components/ui` | shadcn/ui |
 | `components/brain` | Product components: data table, criticality and status chips, change request views, motion primitives |
-| `components/shell` | Global shell: navigation, environment banner, command palette, notifications, Ask the Brain, role switcher |
+| `components/shell` | Global shell: navigation, environment banner, command palette, notifications, Lisena, role switcher |
 | `contracts/` | zod contracts, the single source of truth for every shape |
 | `lib/api` | Typed API client and TanStack Query hooks |
 | `lib/mock` | Seed generator, mock database, domain operations, MSW handlers |

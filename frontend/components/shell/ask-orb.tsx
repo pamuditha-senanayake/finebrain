@@ -1,29 +1,24 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import type { AskAnswer } from "@/contracts";
-import { VoiceOrb, type VoiceState } from "@/features/l1/voice-orb";
-import { useAsk } from "@/lib/api/conversation";
-import { findPage } from "@/lib/ask-go";
+import { useEffect } from "react";
+import { VoiceOrb } from "@/features/l1/voice-orb";
+import { findPage, pagesFor } from "@/lib/ask-go";
 import { useCurrentUser } from "@/lib/auth";
 import { guideFor } from "@/lib/page-context";
-import { snapshotPage } from "@/lib/page-snapshot";
 import { useUi } from "@/lib/store";
-import { canRecord, openMic, recordQuestion, transcribe } from "@/lib/voice/mic";
-import { playCue, shortOf, speak, unlockAudio } from "@/lib/voice/speaker";
-import { endTurn, failureNote, isOffline, OFFLINE, startTurn, stepSignal } from "@/lib/voice/turn";
+import { level, listen, send, setRoute, stopListening, tap, useVoice } from "@/lib/voice/agent";
+import { cn } from "@/lib/utils";
 import { AskBubble } from "./ask-bubble";
+import { useTalkKey } from "./voice-settings";
 
-export type Exchange = { id: number; q: string; a: AskAnswer | null };
-
-/** How many exchanges the bubble keeps; older ones scroll up, and the full history is on the Ask the Brain page. */
-const KEEP = 20;
+// Config
+const HOLD_MS = 250; // holding the talk key this long starts listening; a shorter tap toggles listening instead
 
 /**
- * Ask the Brain, floating on every page as a glowing orb. Click it or press ⌘J (Ctrl+J) and a bubble opens above it.
- * Every question carries what is on screen, so "what does this mean?" just works. Answers come back as short bubbles;
- * the full history is on the Ask the Brain page. It steps aside on that page and in Workflow Studio.
+ * Lisena, floating on every page as a glowing orb. Click it or press ⌘J (Ctrl+J) and a bubble opens above it.
+ * Hold Option (Alt) on any page to talk. The voice lives in lib/voice/agent.ts, so a reply keeps going across pages,
+ * and the orb pulses while Lisena listens, thinks or speaks with the bubble closed. It steps aside on the Lisena page.
  */
 export function AskOrb() {
   const open = useUi((s) => s.askOpen);
@@ -31,19 +26,23 @@ export function AskOrb() {
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useCurrentUser();
-  const ask = useAsk();
-  const [voice, setVoice] = useState<VoiceState>("idle");
-  const [items, setItems] = useState<Exchange[]>([]);
-  const [note, setNote] = useState("");
-  const level = useRef(0);
-  const seq = useRef(0);
-  const recording = useRef<{ stop: () => void } | null>(null);
-  const playback = useRef<{ stop: () => void } | null>(null);
-  // The running question; a new one cancels it, so a late answer is never spoken.
-  const turn = useRef<AbortController | null>(null);
-  const hidden = pathname.startsWith("/studio") || pathname.startsWith("/l1/ask");
+  const voice = useVoice((s) => s.voice);
+  const items = useVoice((s) => s.items);
+  const note = useVoice((s) => s.note);
+  const talkKey = useTalkKey();
+  const busy = voice !== "idle";
+  const hidden = pathname.startsWith("/l1/ask") || (pathname.startsWith("/studio") && !busy);
 
-  // ⌘J or Ctrl+J opens and closes it from anywhere; Esc closes it.
+  // "Go to the library", said or typed anywhere, opens that page; the page names also help fix misheard words
+  useEffect(() => {
+    setRoute((q) => {
+      const page = findPage(q, user);
+      if (page) router.push(page.href);
+      return page?.label ?? null;
+    }, pagesFor(user).map((page) => page.label));
+  }, [router, user]);
+
+  // ⌘J or Ctrl+J opens and closes the bubble; Esc closes it
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") {
@@ -55,117 +54,65 @@ export function AskOrb() {
     return () => window.removeEventListener("keydown", onKey);
   }, [setOpen]);
 
-  // Closing stops any listening or speaking.
-  useEffect(() => {
-    if (open) return;
-    endTurn(turn);
-    recording.current?.stop();
-    playback.current?.stop();
-  }, [open]);
+  usePushToTalk();
 
-  async function send(question: string, spoken: boolean) {
-    const q = question.trim();
-    if (!q) return;
-    unlockAudio();
-    const now = startTurn(turn);
-    const id = ++seq.current;
-    setNote("");
-    // "Go to the library" goes there at once; no model call.
-    const page = findPage(q, user);
-    if (page) {
-      const answer: AskAnswer = { question: q, answer: `Opening ${page.label}.`, citations: [], withheld: 0 };
-      setItems((list) => [...list.slice(1 - KEEP), { id, q, a: answer }]);
-      router.push(page.href);
-      setTimeout(() => setOpen(false), 500);
-      return;
-    }
-    playback.current?.stop();
-    if (isOffline()) return setNote(OFFLINE);
-    setItems((list) => [...list.slice(1 - KEEP), { id, q, a: null }]);
-    setVoice("thinking");
-    let answer: AskAnswer;
-    try {
-      answer = await ask.mutateAsync({ question: q, page: { ...snapshotPage(), scope: "page" }, signal: stepSignal(now) });
-      // A newer question took over while this one waited; its answer is dropped, not shown or spoken.
-      if (!now.isCurrent()) throw new Error("replaced");
-      setItems((list) => list.map((x) => (x.id === id ? { ...x, a: answer } : x)));
-    } catch (e) {
-      setItems((list) => list.filter((x) => x.id !== id));
-      if (!now.isCurrent()) return;
-      setNote(failureNote(e, "The brain could not answer, sir. Please try again."));
-      setVoice("idle");
-      return;
-    }
-    if (!spoken) return setVoice("idle");
-    try {
-      setVoice("speaking");
-      const p = await speak(shortOf(answer.answer).short, level, stepSignal(now));
-      playback.current = p;
-      await p.done;
-    } catch {
-      // The answer is on screen; a reply that cannot be spoken is not an error worth showing.
-    } finally {
-      // A newer turn owns the voice and the orb now; leave both to it.
-      if (now.isCurrent()) {
-        playback.current = null;
-        setVoice("idle");
-      }
-    }
-  }
-
-  /** Talk instead of typing: records one question, ElevenLabs turns it into words, and the reply is spoken. */
-  async function listen() {
-    if (voice === "listening") return recording.current?.stop();
-    unlockAudio();
-    playback.current?.stop();
-    if (isOffline()) return setNote(OFFLINE);
-    const now = startTurn(turn);
-    if (!canRecord()) return setNote("Voice is not available in this browser, sir. Please type.");
-    setNote("");
-    setVoice("listening");
-    const mic = await openMic(level);
-    if (!mic) {
-      setNote("The microphone is blocked, sir. Allow it in the browser.");
-      return setVoice("idle");
-    }
-    const take = recordQuestion(mic, level);
-    recording.current = take;
-    const audio = await take.done;
-    recording.current = null;
-    if (!audio) {
-      setNote("I did not hear anything, sir.");
-      return setVoice("idle");
-    }
-    setVoice("thinking");
-    playCue();
-    try {
-      const words = await transcribe(audio, stepSignal(now));
-      if (!now.isCurrent()) return;
-      if (!words) throw new Error("no words");
-      void send(words, true);
-    } catch (e) {
-      if (!now.isCurrent()) return;
-      setNote(failureNote(e, "I could not make that out, sir. Please try again."));
-      setVoice("idle");
-    }
-  }
-
-  if (hidden) return null;
   return (
     <div data-ask-ignore>
-      {open && (
-        <AskBubble items={items} voice={voice} note={note} suggestions={guideFor(pathname).suggestions.slice(0, 2)} onSend={(q) => void send(q, false)} onMic={() => void listen()} onClose={() => setOpen(false)} />
+      {open && !hidden && (
+        <AskBubble items={items} voice={voice} note={note} suggestions={guideFor(pathname).suggestions.slice(0, 2)} onSend={(q) => void send(q)} onMic={tap} onClose={() => setOpen(false)} />
       )}
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        aria-label="Ask the Brain"
-        aria-expanded={open}
-        title="Ask the Brain (⌘J)"
-        className="fixed bottom-4 right-4 z-40 grid size-16 place-items-center rounded-full outline-none transition-transform hover:scale-105 focus-visible:ring-4 focus-visible:ring-ring/40 sm:bottom-6 sm:right-6"
-      >
-        <VoiceOrb state={voice} level={level} size={52} />
-      </button>
+      {!hidden && (
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-label={busy ? `Lisena, ${voice}` : "Lisena"}
+          aria-expanded={open}
+          title={`Lisena (⌘J). Hold ${talkKey} to talk.`}
+          className="fixed bottom-4 right-4 z-40 grid size-16 place-items-center rounded-full outline-none transition-transform hover:scale-105 focus-visible:ring-4 focus-visible:ring-ring/40 sm:bottom-6 sm:right-6"
+        >
+          {/* With the bubble closed, a soft ring pulses while she is busy, so the conversation is never lost from view */}
+          {busy && !open && <span aria-hidden className={cn("absolute inset-1 rounded-full bg-primary/30", voice === "listening" ? "animate-ping" : "animate-pulse")} />}
+          <VoiceOrb state={voice} level={level} size={52} />
+        </button>
+      )}
     </div>
   );
+}
+
+/** Hold Option (Alt) to talk, let go to send. A quick tap starts listening until a pause. Option with another key is left alone. */
+function usePushToTalk() {
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let holding = false;
+    const cancel = () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+    };
+    const onDown = (e: KeyboardEvent) => {
+      if (e.key !== "Alt") return cancel(); // Alt+Tab or a shortcut: not a talk
+      if (e.repeat || e.metaKey || e.ctrlKey || e.shiftKey || timer || holding) return;
+      timer = setTimeout(() => ((timer = null), (holding = true), void listen(true)), HOLD_MS);
+    };
+    const onUp = (e: KeyboardEvent) => {
+      if (e.key !== "Alt") return;
+      e.preventDefault(); // stops Windows browsers focusing their menu bar on a lone Alt
+      if (holding) {
+        holding = false;
+        return stopListening();
+      }
+      if (!timer) return;
+      cancel();
+      tap();
+    };
+    const onBlur = () => {
+      cancel();
+      if (!holding) return;
+      holding = false;
+      stopListening();
+    };
+    window.addEventListener("keydown", onDown);
+    window.addEventListener("keyup", onUp);
+    window.addEventListener("blur", onBlur);
+    return () => (window.removeEventListener("keydown", onDown), window.removeEventListener("keyup", onUp), window.removeEventListener("blur", onBlur));
+  }, []);
 }

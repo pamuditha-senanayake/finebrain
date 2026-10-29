@@ -11,13 +11,14 @@ import { useLookup } from "@/components/brain/names";
 import { KeyValue } from "@/components/brain/primitives";
 import { useOp, useTenantId } from "@/lib/api/hooks";
 import { UPLOAD_TYPES, useUploadEvidence } from "@/lib/api/upload";
+import { realTenants } from "@/lib/flags";
 
 /** What can be done about one request: upload a document, or grant a data source instead. Used by evidence.tsx. */
 export function RequestActions({ req }: { req: EvidenceRequest }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [grantOpen, setGrantOpen] = useState(false);
   const upload = useOp<{ requestId: string; fileName: string; sizeKb: number }>("uploadEvidence", { success: "Evidence filed" });
-  const real = useTenantId() === "finebase-hq"; // HQ files the real file; its facts are then reviewed in the Vault
+  const real = realTenants.has(useTenantId()); // HQ files the real file; its facts are then reviewed in the Vault
   const uploadFile = useUploadEvidence();
   if (req.status === "awaiting_grant_approval") {
     return (

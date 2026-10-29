@@ -1,4 +1,4 @@
-# documents.py: uploads from the console (Ask the Brain) and the Library list. An upload keeps the original file in S3,
+# documents.py: uploads from the console (Lisena) and the Library list. An upload keeps the original file in S3,
 # writes a pending Library record, then goes through S1 and S2 like any signal, so personal data is masked before S11
 # files it as searchable knowledge. Used by: routes.py, lists.py (filing rules), tests/test_documents.py.
 # Uses: extract.py, stages_file.py, filing.py, capture_api.py.
@@ -58,7 +58,7 @@ def receipt_of(lane, document_id: str) -> dict | None:
 def erased_view(lane, tombstone: dict) -> dict:
     """An erased document leaves a row with no content: no title, no file name, only the receipt."""
     return Document(
-        id=tombstone["document_id"], tenant_id=lane.seed["tenant_id"], cluster_id=lane.seed["cluster_id"], title="Removed", source="Ask the Brain upload",
+        id=tombstone["document_id"], tenant_id=lane.seed["tenant_id"], cluster_id=lane.seed["cluster_id"], title="Removed", source="Lisena upload",
         type="file", sensitivity="internal", extraction_status="erased", linked_facts=[], retention_days=0, filing_rule="uploads",
         uploaded_by=tombstone["erased_by"], uploaded_at=str(tombstone["erased_at"]), size_kb=0, personal_data=False, receipt=receipt_of(lane, tombstone["document_id"]),
     ).ui()
@@ -66,7 +66,7 @@ def erased_view(lane, tombstone: dict) -> dict:
 
 def document_view(lane, record: dict) -> dict:
     return Document(
-        id=record["document_id"], tenant_id=lane.seed["tenant_id"], cluster_id=lane.seed["cluster_id"], title=record["title"], source="Ask the Brain upload",
+        id=record["document_id"], tenant_id=lane.seed["tenant_id"], cluster_id=lane.seed["cluster_id"], title=record["title"], source="Lisena upload",
         type=record.get("doc_type") or record["kind"].lstrip(".") or "file", sensitivity=record["sensitivity"], extraction_status=record["status"],
         linked_facts=[], retention_days=record.get("retention_days", filing.FALLBACK_RULE["retention_days"]), filing_rule=record.get("filing_rule", "uploads"),
         uploaded_by=record["uploaded_by"], uploaded_at=str(record["uploaded_at"]), size_kb=max(1, record["size_bytes"] // 1024),

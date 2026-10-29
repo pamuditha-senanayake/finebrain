@@ -1,0 +1,74 @@
+{
+ "_about": "Finebase HQ-2: 11 made-up weekly counts ending on the week of 26 October.",
+ "weeks_ending": "2026-10-26",
+ "series": [
+  {
+   "metric": "Requests",
+   "segment": "Client update, Slack",
+   "weeks": [
+    5,
+    6,
+    5,
+    7,
+    6,
+    8,
+    7,
+    6,
+    8,
+    9,
+    7
+   ]
+  },
+  {
+   "metric": "Requests",
+   "segment": "Client update, WhatsApp",
+   "weeks": [
+    3,
+    4,
+    3,
+    3,
+    4,
+    5,
+    4,
+    5,
+    4,
+    5,
+    6
+   ]
+  },
+  {
+   "metric": "Requests",
+   "segment": "Client questions, chat",
+   "weeks": [
+    2,
+    1,
+    2,
+    3,
+    2,
+    2,
+    3,
+    2,
+    3,
+    3,
+    4
+   ]
+  },
+  {
+   "metric": "Escalations",
+   "segment": "Task tracker, transcripts",
+   "weeks": [
+    1,
+    0,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    2,
+    1,
+    3
+   ]
+  }
+ ]
+}

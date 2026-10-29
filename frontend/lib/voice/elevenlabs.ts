@@ -4,8 +4,8 @@ import "server-only";
 
 const API = "https://api.elevenlabs.io/v1";
 
-/** George, a calm narrator voice available on every account. Override with ELEVENLABS_VOICE_ID. */
-const DEFAULT_VOICE = "JBFqnCBsd6RMkjVDRZzb";
+/** Sarah, a calm female voice available on every account, to match Lisena. Override with ELEVENLABS_VOICE_ID. */
+const DEFAULT_VOICE = "EXAVITQu4vr4xnSDxMaL";
 
 /** Answers are spoken short; anything longer is cut, which also caps the cost of one reply. */
 export const MAX_SPOKEN_CHARS = 600;
@@ -20,7 +20,7 @@ const LISTEN_MODEL = "scribe_v2";
 const LISTEN_LANGUAGE = "en";
 
 /** Our own words Scribe would otherwise hear as common ones. Kept under 100 so short clips are not billed as 20 seconds. */
-const KEY_TERMS = ["Finebase", "finebrain", "APIT", "EPF", "ETF", "VAT", "Vault", "Commons", "Distiller"];
+const KEY_TERMS = ["Lisena", "Finebase", "finebrain", "APIT", "EPF", "ETF", "VAT", "Vault", "Commons", "Distiller"];
 
 export class VoiceError extends Error {
   constructor(message: string, readonly status: number) {

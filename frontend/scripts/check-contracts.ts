@@ -85,7 +85,7 @@ async function main() {
   console.log(`${reply.success && reviewed.ok ? "ok  " : "FAIL"} studio/review${reply.success ? "" : ` ${reply.error.issues[0]?.path.join(".")}: ${reply.error.issues[0]?.message}`}`);
   results.push(reply.success && reviewed.ok);
 
-  // Ask the Brain is a POST
+  // Lisena is a POST
   const asked = await fetch(`${API}/api/t/${TENANT}/ask`, { method: "POST", headers: { "x-persona": PERSONA, "content-type": "application/json" }, body: JSON.stringify({ question: "What is the refund window?", page: { path: "/l1/ask", scope: "system" } }) });
   const answer = C.AskAnswer.safeParse(await asked.json());
   console.log(`${answer.success && asked.ok ? "ok  " : "FAIL"} ask${answer.success ? "" : ` ${answer.error.issues[0]?.path.join(".")}: ${answer.error.issues[0]?.message}`}`);

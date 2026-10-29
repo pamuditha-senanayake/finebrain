@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { config } from "@/lib/flags";
+import { apiBaseFor, config } from "@/lib/flags";
 import { currentPersonaId, useUi } from "@/lib/store";
 import { mocksReady } from "./mocks-ready";
 
@@ -27,7 +27,8 @@ async function parse<T>(res: Response, schema: z.ZodType<T>, path: string): Prom
 }
 
 export function tenantPath(path: string) {
-  return `${config.apiBaseUrl}/api/t/${useUi.getState().tenantId}/${path}`;
+  const tenantId = useUi.getState().tenantId;
+  return `${apiBaseFor(tenantId)}/api/t/${tenantId}/${path}`;
 }
 
 export async function apiGet<T>(path: string, schema: z.ZodType<T>, signal?: AbortSignal): Promise<T> {

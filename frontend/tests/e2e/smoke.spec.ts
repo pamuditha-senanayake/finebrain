@@ -30,12 +30,12 @@ test("command palette opens, searches entities and navigates", async ({ page }) 
   expect(errors, errors.join("\n")).toEqual([]);
 });
 
-test("Ask the Brain answers with citations and valid time", async ({ page }) => {
+test("Lisena answers with citations and valid time", async ({ page }) => {
   await setPersona(page, "h-founder");
   await page.goto("/l1");
   // The glowing orb opens a bubble; ⌘J does the same. The question carries what is on screen.
-  await page.getByRole("button", { name: "Ask the Brain" }).click();
-  const bubble = page.getByRole("dialog", { name: "Ask the Brain" });
+  await page.getByRole("button", { name: "Lisena" }).click();
+  const bubble = page.getByRole("dialog", { name: "Lisena" });
   await bubble.getByRole("textbox", { name: "Question" }).fill("What is our refund window?");
   await bubble.getByRole("button", { name: "Ask", exact: true }).click();
   await expect(page.getByTestId("ask-answer")).toContainText("30 days");

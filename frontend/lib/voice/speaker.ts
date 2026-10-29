@@ -8,14 +8,16 @@ import { fetchSpeech, joined, meter, toBuffer } from "./pcm";
 // Config
 const BYTES_PER_SECOND = 48000; // 24 kHz 16-bit mono, as pcm.ts plays it
 const SPOKEN_CHARS_PER_SECOND = 16; // a little faster than the voice really speaks, so the length guess errs towards waiting
-const FIRST_PIECE_BYTES = 24000; // never start with less than 0.5 s in hand
+const FIRST_PIECE_BYTES = 14400; // start with 0.3 s in hand: sooner sound, still enough to cover the next chunk
 const MIN_CHUNK_BYTES = 9600; // about 0.2 s of speech per queued piece after that
-const CUES = ["Let me check.", "One moment."]; // said the moment a spoken question ends, so the wait feels shorter
+// Said the moment a spoken question is understood, so the wait feels shorter. Never the same one twice in a row.
+const CUES = ["Let me check.", "One moment.", "Looking into it.", "Sure, one second.", "Let me look.", "On it.", "Checking now."];
 
 let context: AudioContext | null = null;
 let cues: AudioBuffer[] = [];
 let cuesAsked = false;
 let cuePlaying: AudioBufferSourceNode | null = null;
+let lastCue = -1;
 
 /** Call inside a tap or click, before any await. Safe to call many times. */
 export function unlockAudio() {
@@ -125,12 +127,14 @@ async function prepareCues() {
   }
 }
 
-/** Says a short "Let me check" the moment a spoken question ends. Silent when the cues are not ready yet. */
+/** Says a short cue like "Let me check", picked at random but never the last one. Silent when the cues are not ready yet. */
 export function playCue() {
   if (!context || cues.length === 0) return;
   stopCue();
+  const pick = cues.length < 2 ? 0 : (lastCue + 1 + Math.floor(Math.random() * (cues.length - 1))) % cues.length;
+  lastCue = pick;
   const source = context.createBufferSource();
-  source.buffer = cues[Math.floor(Math.random() * cues.length)];
+  source.buffer = cues[pick];
   source.connect(context.destination);
   source.start();
   cuePlaying = source;

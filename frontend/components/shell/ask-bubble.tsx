@@ -10,9 +10,10 @@ import { date } from "@/lib/format";
 import { lookedInLabel } from "@/lib/looked-in";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { setDraft, useVoice, useVoiceSettings, type Exchange } from "@/lib/voice/agent";
 import { shortOf } from "@/lib/voice/speaker";
 import { ShowMe } from "./show-me";
-import type { Exchange } from "./ask-orb";
+import { VoiceSettings } from "./voice-settings";
 
 type Props = {
   items: Exchange[];
@@ -24,14 +25,18 @@ type Props = {
   onClose: () => void;
 };
 
-/** The chat beside the orb: a greeting or the recent exchanges (scroll up for older ones) above, and a one-line composer next to the orb. */
+/** The chat beside the orb: a greeting or the recent exchanges (scroll up for older ones) above, and a one-line composer next to the orb.
+ * The box shares the agent's draft, so with "edit before sending" what you say lands here to fix before Enter. */
 export function AskBubble({ items, voice, note, suggestions, onSend, onMic, onClose }: Props) {
-  const [q, setQ] = useState("");
+  const q = useVoice((s) => s.draft);
+  const editFirst = useVoiceSettings((s) => s.editFirst);
   const input = useRef<HTMLInputElement>(null);
   const feed = useRef<HTMLDivElement>(null);
+  // Focus on open, and again when spoken words land in the box, so Enter sends them
+  const empty = q === "";
   useEffect(() => {
     input.current?.focus();
-  }, []);
+  }, [empty]);
   // Keep the newest message in view; older ones scroll away above.
   useEffect(() => {
     feed.current?.scrollTo({ top: feed.current.scrollHeight, behavior: "smooth" });
@@ -40,14 +45,18 @@ export function AskBubble({ items, voice, note, suggestions, onSend, onMic, onCl
 
   function submit(text: string) {
     if (!text.trim() || busy) return;
-    setQ("");
+    setDraft("");
     onSend(text);
   }
 
   return (
-    <div role="dialog" aria-label="Ask the Brain" data-ask-ignore className="fixed bottom-4 right-4 isolate z-40 flex max-h-[calc(100dvh-6rem)] w-[min(345px,calc(100vw-2rem))] flex-col gap-3 duration-200 animate-in fade-in slide-in-from-bottom-2 sm:bottom-6 sm:right-6">
+    <div role="dialog" aria-label="Lisena" data-ask-ignore className="fixed bottom-4 right-4 isolate z-40 flex max-h-[calc(100dvh-6rem)] w-[min(345px,calc(100vw-2rem))] flex-col gap-3 duration-200 animate-in fade-in slide-in-from-bottom-2 sm:bottom-6 sm:right-6">
       {/* Blurs the page behind the chat out to the screen's right edge, fading only on the other sides, so no box shows. */}
       <div aria-hidden className="pointer-events-none absolute -bottom-6 -left-14 -right-6 -top-4 -z-10 bg-background/30 backdrop-blur-md" style={BLUR_EDGES} />
+      <div className="flex shrink-0 justify-end gap-1">
+        <VoiceSettings className="rounded-full bg-card text-muted-foreground shadow-sm" />
+        <Link href="/l1/ask" onClick={onClose} className="grid size-8 shrink-0 place-items-center rounded-full bg-card text-muted-foreground shadow-sm hover:bg-accent hover:text-foreground" aria-label="Open full chat" title="Open full chat"><Maximize2 className="size-4" /></Link>
+      </div>
       <div ref={feed} className="scrollbar-thin flex min-h-0 flex-col gap-3 overflow-y-auto pr-1" aria-live="polite">
       {items.length === 0 && (
         <Blob>
@@ -70,11 +79,10 @@ export function AskBubble({ items, voice, note, suggestions, onSend, onMic, onCl
       {/* The composer shares a row with the orb; the empty square on the right is where the orb sits. */}
       <div className="flex h-16 shrink-0 items-center gap-2">
       <form className="flex min-w-0 flex-1 items-center gap-1 rounded-full border bg-card p-1.5 pl-4 shadow-xl" onSubmit={(e) => { e.preventDefault(); submit(q); }}>
-        <input ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about this page…" aria-label="Question" className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground" />
-        <Button type="button" size="icon-sm" variant="ghost" className={cn("rounded-full", voice === "listening" && "text-primary")} onClick={onMic} aria-label={voice === "listening" ? "Stop listening" : "Talk"}>
+        <input ref={input} value={q} onChange={(e) => setDraft(e.target.value)} placeholder={voice === "listening" ? "Listening…" : "Ask about this page…"} aria-label="Question" className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground" />
+        <Button type="button" size="icon-sm" variant="ghost" className={cn("rounded-full", voice === "listening" && "text-primary")} onClick={onMic} aria-label={voice === "listening" ? "Stop listening" : editFirst ? "Speak into the box" : "Talk to Lisena"} title={editFirst ? "Speak into the box, then edit and send" : "Talk; the answer is spoken"}>
           {voice === "listening" ? <Square /> : <Mic />}
         </Button>
-        <Link href="/l1/ask" onClick={onClose} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Open chat" title="Open chat"><Maximize2 className="size-4" /></Link>
         <Button type="submit" size="icon-sm" className="rounded-full" disabled={!q.trim() || busy} aria-label="Ask"><ArrowUp /></Button>
       </form>
       <div className="w-16 shrink-0" aria-hidden />

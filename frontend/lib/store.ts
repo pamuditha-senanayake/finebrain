@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { Env } from "@/contracts";
 
-export const DEFAULT_PERSONA: Record<string, string> = { "demo-fbl": "h-founder", scale: "sh-0", "finebase-hq": "h-pamuditha" };
+export const DEFAULT_PERSONA: Record<string, string> = { "demo-fbl": "h-founder", scale: "sh-0", "finebase-hq": "h-pamuditha", "finebase-hq-2": "h-pamuditha" };
 
 type UiState = {
   tenantId: string;

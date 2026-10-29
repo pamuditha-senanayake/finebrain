@@ -1,4 +1,4 @@
-# ask_memory.py: Ask the Brain conversations. Each turn is appended to the record of its conversation, so the brain can
+# ask_memory.py: Lisena conversations. Each turn is appended to the record of its conversation, so the brain can
 # use what was said earlier, and the console can show it again after a reload. Only the person who started it may read it.
 # Used by: ask.py, routes.py. Uses: the lane's append-only records (memory or Postgres).
 from datetime import datetime

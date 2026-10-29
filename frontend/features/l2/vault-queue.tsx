@@ -12,6 +12,7 @@ import { useOp, useTenantId } from "@/lib/api/hooks";
 import { useCurrentUser } from "@/lib/auth";
 import { date } from "@/lib/format";
 import { LibrarianActions } from "./librarian-actions";
+import { realTenants } from "@/lib/flags";
 
 const KIND = {
   unverified: { label: "To verify", tone: "warn" },
@@ -75,7 +76,7 @@ function Proposal({ proposal }: { proposal: NonNullable<LibrarianItem["proposal"
 
 /** Finebase HQ settles items for real; the demo tenants keep their mock librarian, which drafts a change request. */
 function Actions({ item }: { item: LibrarianItem }) {
-  const real = useTenantId() === "finebase-hq";
+  const real = realTenants.has(useTenantId());
   const router = useRouter();
   const { user } = useCurrentUser();
   const propose = useOp<{ itemId: string }>("librarianPropose", { success: "Proposal drafted as one change request" });

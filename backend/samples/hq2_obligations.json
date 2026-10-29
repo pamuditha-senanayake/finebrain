@@ -1,0 +1,196 @@
+{
+ "_about": "Finebase HQ-2: sample obligations (A4, A6, A8, A10). Dates and evidence are made up.",
+ "obligations": [
+  {
+   "id": "ob_blaze_review",
+   "title": "Monthly spend review",
+   "jurisdiction": "Internal",
+   "category": "internal",
+   "dri": "h-pamuditha",
+   "due": {
+    "every": "month",
+    "day": 5
+   },
+   "prepare_days": 5,
+   "note": "Spend policy: review Blaze and subscriptions on the 5th.",
+   "items": [
+    {
+     "key": "cloud",
+     "label": "Blaze plan bill",
+     "predicate": "cloud_spend",
+     "grant": {
+      "source": "Blaze billing emails",
+      "scope": "Read the monthly bill, nothing else",
+      "retention_days": 90,
+      "agents": [
+       "agent_client_qa"
+      ],
+      "revoke": "Revoke any time on the Evidence page. Access ends by itself after 90 days."
+     }
+    },
+    {
+     "key": "subs",
+     "label": "Tools and subscriptions total",
+     "predicate": "subscription_total"
+    }
+   ]
+  },
+  {
+   "id": "ob_de_annual",
+   "title": "Delaware annual report and franchise tax",
+   "jurisdiction": "Delaware, USA",
+   "category": "statutory",
+   "dri": "h-pamuditha",
+   "due": {
+    "every": "year",
+    "month": 3,
+    "day": 1
+   },
+   "prepare_days": 30,
+   "note": "Due 1 March each year (A8).",
+   "items": [
+    {
+     "key": "report",
+     "label": "Annual report",
+     "predicate": "de_annual_report"
+    },
+    {
+     "key": "tax",
+     "label": "Franchise tax receipt",
+     "predicate": "franchise_tax_paid"
+    }
+   ]
+  },
+  {
+   "id": "ob_5472",
+   "title": "Form 5472 and pro-forma 1120",
+   "jurisdiction": "United States",
+   "category": "tax",
+   "dri": "h-pamuditha",
+   "due": {
+    "every": "year",
+    "month": 4,
+    "day": 15
+   },
+   "prepare_days": 60,
+   "note": "Due 15 April; a missing form costs USD 25,000 (A10).",
+   "items": [
+    {
+     "key": "statements",
+     "label": "Bank statements for the year",
+     "predicate": "bank_statements_year",
+     "grant": {
+      "source": "Mercury statements",
+      "scope": "Read the yearly statements, nothing else",
+      "retention_days": 90,
+      "agents": [
+       "agent_client_qa"
+      ],
+      "revoke": "Revoke any time on the Evidence page. Access ends by itself after 90 days."
+     }
+    },
+    {
+     "key": "form",
+     "label": "Filed form",
+     "predicate": "form_5472_filed"
+    }
+   ]
+  },
+  {
+   "id": "ob_contractors",
+   "title": "Contractor payments",
+   "jurisdiction": "Internal",
+   "category": "internal",
+   "dri": "h-tharushi",
+   "due": {
+    "every": "month",
+    "day": 28
+   },
+   "prepare_days": 5,
+   "note": "Contractors are paid from Wise on the 28th.",
+   "items": [
+    {
+     "key": "total",
+     "label": "Payment total",
+     "predicate": "contractor_payments_total"
+    }
+   ]
+  },
+  {
+   "id": "ob_grant_orf",
+   "title": "Open Research Fund application",
+   "jurisdiction": "Grant (sample)",
+   "category": "grant",
+   "dri": "h-imashi",
+   "due": {
+    "every": "year",
+    "month": 11,
+    "day": 30
+   },
+   "prepare_days": 45,
+   "note": "Autumn call closes 30 November (A6).",
+   "items": [
+    {
+     "key": "summary",
+     "label": "Two page summary",
+     "predicate": "grant_summary"
+    },
+    {
+     "key": "budget",
+     "label": "Budget",
+     "predicate": "grant_budget"
+    },
+    {
+     "key": "letter",
+     "label": "Partner school letter",
+     "predicate": "partner_letter"
+    }
+   ]
+  }
+ ],
+ "rules": [
+  {
+   "id": "rr_spend",
+   "target": "Spend and subscriptions",
+   "requires": "Each bill proven by a verified fact for that month",
+   "check_every": "Hourly",
+   "escalation_days": [
+    7,
+    3,
+    1
+   ]
+  },
+  {
+   "id": "rr_filings",
+   "target": "US LLC filings",
+   "requires": "Each item proven before the due day",
+   "check_every": "Hourly",
+   "escalation_days": [
+    60,
+    30,
+    14,
+    7
+   ]
+  }
+ ],
+ "risks": [
+  {
+   "id": "risk_5472",
+   "title": "Form 5472 is filed late",
+   "likelihood": "low",
+   "impact": "high",
+   "owner": "h-pamuditha",
+   "mitigation": "Readiness asks for the bank statements 60 days before.",
+   "linked_obligation": "ob_5472"
+  },
+  {
+   "id": "risk_blaze",
+   "title": "Blaze spend runs past the budget",
+   "likelihood": "high",
+   "impact": "medium",
+   "owner": "h-tharushi",
+   "mitigation": "The spend watcher raises an alert at 20 percent over.",
+   "linked_obligation": "ob_blaze_review"
+  }
+ ]
+}

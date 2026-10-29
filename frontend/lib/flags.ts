@@ -19,4 +19,8 @@ export const config = {
 
 /** Tenants served by the real backend. Their requests skip the mocks and their live updates come over SSE.
  *  The demo tenants (demo-fbl, Scale Demo) stay on mock data. */
-export const realTenants = new Set(["finebase-hq"]);
+export const realTenants = new Set(["finebase-hq", "finebase-hq-2"]);
+
+/** Which backend serves each real tenant. One backend process serves one tenant; HQ-2 runs beside HQ on its own port. */
+const tenantBase: Record<string, string> = { "finebase-hq-2": process.env.NEXT_PUBLIC_API_BASE_URL_HQ2 ?? "http://localhost:8001" };
+export const apiBaseFor = (tenantId: string): string => tenantBase[tenantId] ?? config.apiBaseUrl;

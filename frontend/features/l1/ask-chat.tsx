@@ -1,6 +1,6 @@
 "use client";
 
-// ask-chat.tsx: the chat on Ask the Brain, old messages first and the newest last, above the orb.
+// ask-chat.tsx: the chat on Lisena, old messages first and the newest last, above the orb.
 // Used by: ask-voice.tsx.
 
 import Link from "next/link";

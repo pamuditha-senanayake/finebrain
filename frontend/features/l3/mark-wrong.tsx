@@ -11,6 +11,7 @@ import { Section } from "@/components/brain/primitives";
 import { useOp, useTenantId } from "@/lib/api/hooks";
 import { useCurrentUser } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
+import { realTenants } from "@/lib/flags";
 
 /** Accountability: anyone who sees a wrong outcome records it here. The note stays on the run and the agent. */
 export function MarkWrong({ run }: { run: Run }) {
@@ -57,7 +58,7 @@ export function MarkWrong({ run }: { run: Run }) {
 /** Skillify (Finebase HQ): Claude drafts one skill or policy change that would have prevented this. The workflow's DRI approves it. */
 function DraftFix({ run }: { run: Run }) {
   const { user } = useCurrentUser();
-  const real = useTenantId() === "finebase-hq";
+  const real = realTenants.has(useTenantId());
   const draft = useOp<{ runId: string }>("draftFix", { success: "Fix drafted. It waits for the owner's approval." });
   if (run.fixApprovalId) {
     return (

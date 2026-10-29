@@ -1,6 +1,6 @@
 # routes.py: the console API for Finebase HQ: GET /api/t/{tenant}/{resource}, POST ops/decide, the live stream, and
 # capture. Screens not built yet answer [] (lists) or 501 (single objects); they never fall back to demo data.
-# Used by: hq.py, tests/test_api.py. Uses: ask.py, connect_routes.py, documents.py, graph_map.py, studio_routes.py, vault_routes.py, ready_routes.py, learn_routes.py, memory_routes.py, versions_views.py, lists.py, views.py, capture_api.py, ui_stream.py, orchestrate.py.
+# Used by: hq.py, tests/test_api.py. Uses: ask.py, voice_fix.py, connect_routes.py, documents.py, graph_map.py, studio_routes.py, vault_routes.py, ready_routes.py, learn_routes.py, memory_routes.py, versions_views.py, lists.py, views.py, capture_api.py, ui_stream.py, orchestrate.py.
 import os
 
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.api import ask as asking
-from app.api import access_views, ask_memory, connect_routes, conversations, documents, event_log_routes, forget_routes, grant_views, grants, learn_routes, lists_query, memory_routes, ready_routes, search, studio_approvals, studio_routes, vault_routes, versions_views, views
+from app.api import access_views, ask_memory, connect_routes, conversations, documents, event_log_routes, forget_routes, grant_views, grants, learn_routes, lists_query, memory_routes, ready_routes, search, studio_approvals, studio_routes, vault_routes, versions_views, views, voice_fix
 from app.api.graph_map import graph_resource
 from app.api.lists import clusters_view, list_view, live_event, refusal_for, sensors_view, tenant_view
 from app.pipeline import capture_api, orchestrate
@@ -24,7 +24,7 @@ NULLABLE_OBJECTS = {"digest"}
 
 # --- The app
 
-def create_api_app(lane, hq: dict, answerer=None, chatter=None) -> FastAPI:
+def create_api_app(lane, hq: dict, answerer=None, chatter=None, writer=None) -> FastAPI:
     app = FastAPI(title="finebrain API")
     app.add_middleware(CORSMiddleware, allow_origins=CONSOLE_ORIGINS, allow_methods=["*"], allow_headers=["*"])
     capture_api.register(app, lane)
@@ -37,6 +37,7 @@ def create_api_app(lane, hq: dict, answerer=None, chatter=None) -> FastAPI:
         if persona is not None and persona not in lane.seed["people"]:
             raise HTTPException(401, "unknown_persona")
 
+    voice_fix.register(app, lane, hq, check, writer)  # spoken questions are corrected before they are asked
     connect_routes.register(app, lane, check, chatter, hq["tenant"]["name"])  # before the general GET, so connections and their brief win
     @app.exception_handler(HTTPException)
     async def as_error(request: Request, error: HTTPException) -> JSONResponse:

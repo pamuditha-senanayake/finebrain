@@ -116,15 +116,15 @@ def test_the_page_on_screen_goes_with_the_question():
     page = {"path": "/l2/policies", "scope": "page", "title": "Policy registry", "snapshot": "Refund policy v3 · C3 · fresh"}
     post_ask(client, "what is this?", page=page)
     assert "page_view" in answerer.calls[0]["ids"]
-    post_ask(client, "hello", page={"path": "/l1/ask", "scope": "system"})
+    post_ask(client, "What is on this page?", page={"path": "/l1/ask", "scope": "system"})
     assert "page_view" not in answerer.calls[1]["ids"]
 
 
 def test_each_person_is_addressed_their_way():
     answerer = Recorder()
     client, _ = build(answerer)
-    post_ask(client, "hi")
-    post_ask(client, "hi", persona="h-udayanga")
+    post_ask(client, QUESTION)
+    post_ask(client, QUESTION, persona="h-udayanga")
     assert [call["address"] for call in answerer.calls] == ["sir", "Udayanga"]
 
 

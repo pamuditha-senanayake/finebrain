@@ -5,7 +5,7 @@
 
 // Config
 const SPEAKING_LEVEL = 0.04; // loudness that counts as speech; low, because noise suppression makes quiet voices quieter
-const SILENCE_AFTER_SPEECH_MS = 1500; // this much quiet after speaking ends the question; long enough for a thinking pause
+const SILENCE_AFTER_SPEECH_MS = 1100; // this much quiet after speaking ends the question; past a breath, so the last word is not cut off
 const WAIT_FOR_SPEECH_MS = 7000; // give up if nothing is said
 const LONGEST_QUESTION_MS = 20000;
 
@@ -46,8 +46,8 @@ export async function openMic(level: Level): Promise<Mic | null> {
 
 export type Recording = { stop: () => void; done: Promise<Blob | null> };
 
-/** Records until the person stops talking. Resolves null when nothing was said. */
-export function recordQuestion(mic: Mic, level: Level): Recording {
+/** Records until the person stops talking, or with `untilStopped` (a held key) until stop(). Resolves null when nothing was said. */
+export function recordQuestion(mic: Mic, level: Level, untilStopped = false): Recording {
   const chunks: Blob[] = [];
   const recorder = new MediaRecorder(mic.stream);
   recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
@@ -60,7 +60,7 @@ export function recordQuestion(mic: Mic, level: Level): Recording {
       spoke = true;
       loudAt = now;
     }
-    const finished = spoke ? now - loudAt > SILENCE_AFTER_SPEECH_MS : now - startedAt > WAIT_FOR_SPEECH_MS;
+    const finished = !untilStopped && (spoke ? now - loudAt > SILENCE_AFTER_SPEECH_MS : now - startedAt > WAIT_FOR_SPEECH_MS);
     if (finished || now - startedAt > LONGEST_QUESTION_MS) stop();
   }, 100);
   const done = new Promise<Blob | null>((resolve) => {

@@ -50,10 +50,10 @@ export const SCENARIOS = [
     ],
   },
   {
-    id: "start-ask", chapter: "start", feature: "Getting started", title: "Ask the Brain a question",
+    id: "start-ask", chapter: "start", feature: "Getting started", title: "Lisena a question",
     persona: "h-hcs", why: "Answers come only from facts you may see, each with its source and when it is true.",
     steps: [
-      { kw: "When", text: "I click Ask the Brain", go: "/l1", target: role("Ask the Brain"), act: (p) => p.getByRole("button", { name: "Ask the Brain" }).click() },
+      { kw: "When", text: "I click Lisena", go: "/l1", target: role("Lisena"), act: (p) => p.getByRole("button", { name: "Lisena" }).click() },
       { kw: "And", text: "I ask “What is our refund window?”", target: role("What is our refund window?"), act: (p) => p.getByRole("button", { name: "What is our refund window?" }).click() },
       { kw: "Then", text: "I get a plain answer with numbered citations", target: (p) => p.getByTestId("ask-answer") },
       { kw: "And", text: "each citation shows when the fact is true in the world", target: (p) => p.getByText(/true from/).first(), after: (p) => p.keyboard.press("Escape") },

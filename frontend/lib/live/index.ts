@@ -1,6 +1,6 @@
 "use client";
 
-import { config, flags, realTenants } from "@/lib/flags";
+import { apiBaseFor, config, flags, realTenants } from "@/lib/flags";
 
 export type LiveEvent = { type: string; tenantId: string; at: string; resources: string[]; summary: string };
 export type LiveSource = { subscribe: (tenantId: string, onEvent: (e: LiveEvent) => void) => () => void };
@@ -30,7 +30,7 @@ const mockSource: LiveSource = {
 /** SSE source for the real backend: GET /api/t/{tenant}/stream emits LiveEvent JSON per message. */
 const sseSource: LiveSource = {
   subscribe(tenantId, onEvent) {
-    const es = new EventSource(`${config.apiBaseUrl}/api/t/${tenantId}/stream`);
+    const es = new EventSource(`${apiBaseFor(tenantId)}/api/t/${tenantId}/stream`);
     es.onmessage = (m) => {
       try {
         onEvent(JSON.parse(m.data) as LiveEvent);

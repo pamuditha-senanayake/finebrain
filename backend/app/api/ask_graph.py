@@ -1,4 +1,4 @@
-# ask_graph.py: what Ask the Brain knows about how the work is organized, straight from the graph Workflow Studio writes:
+# ask_graph.py: what Lisena knows about how the work is organized, straight from the graph Workflow Studio writes:
 # each workflow (an activity) with its status, owner agent and that agent's rights, its skill and tools, its policies and
 # the connections it listens to. One item per question, so "who handles refunds?" or "what may the landing assistant do?"
 # is answered from the live graph, never from memory. Used by: ask.py. Uses: studio_state.py, studio_activity.py.

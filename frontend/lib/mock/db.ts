@@ -13,6 +13,7 @@ export const TENANTS = [
   { id: "demo-fbl", name: "demo-fbl", isScaleDemo: false },
   { id: "scale", name: "Scale Demo", isScaleDemo: true },
   { id: "finebase-hq", name: "Finebase HQ", isScaleDemo: false }, // real backend, never built from mock data
+  { id: "finebase-hq-2", name: "Finebase HQ-2", isScaleDemo: false }, // a second real backend (port 8001), seeded by backend/scripts/seed_hq2.py
 ];
 
 function readJournal(): JournalEntry[] {

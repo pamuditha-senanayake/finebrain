@@ -210,7 +210,7 @@ export const handlers = [
       const d = db.tenant(str(params.tenant));
       const file = (await request.formData()).get("file") as File | null;
       if (!file) throw new OpError("No file", 400);
-      const doc = { id: `doc-up-${Date.now().toString(36)}`, tenantId: d.tenant.id, clusterId: d.clusters[0]?.id ?? "", title: file.name.replace(/\.[^.]+$/, ""), source: "Ask the Brain upload", type: file.name.split(".").pop() ?? "file", sensitivity: "internal" as const, extractionStatus: "done" as const, linkedFacts: [], retentionDays: 365, filingRule: "uploads", uploadedBy: request.headers.get("x-persona") ?? "", uploadedAt: new Date(db.now()).toISOString(), sizeKb: Math.max(1, Math.round(file.size / 1024)), personalData: false };
+      const doc = { id: `doc-up-${Date.now().toString(36)}`, tenantId: d.tenant.id, clusterId: d.clusters[0]?.id ?? "", title: file.name.replace(/\.[^.]+$/, ""), source: "Lisena upload", type: file.name.split(".").pop() ?? "file", sensitivity: "internal" as const, extractionStatus: "done" as const, linkedFacts: [], retentionDays: 365, filingRule: "uploads", uploadedBy: request.headers.get("x-persona") ?? "", uploadedAt: new Date(db.now()).toISOString(), sizeKb: Math.max(1, Math.round(file.size / 1024)), personalData: false };
       d.documents.unshift(doc);
       return HttpResponse.json(doc, { status: 202 });
     } catch (e) {

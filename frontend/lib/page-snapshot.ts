@@ -1,6 +1,6 @@
 "use client";
 
-// What the person sees right now, as plain text for Ask the Brain. It runs only when a question is sent, reads the
+// What the person sees right now, as plain text for Lisena. It runs only when a question is sent, reads the
 // rendered page (so it works on every screen without per-page code), and keeps it short: selected text first, then any
 // open dialog, then the main area, with blank and repeated lines dropped. Mark parts to skip with data-ask-ignore.
 

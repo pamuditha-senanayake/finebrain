@@ -1,0 +1,24 @@
+<mxfile host="drawio">
+<diagram id="s4s7" name="S4 to S7 connections">
+<mxGraphModel dx="1200" dy="700" grid="1" gridSize="10" page="1" pageWidth="1400" pageHeight="600">
+<root>
+<mxCell id="0"/>
+<mxCell id="1" parent="0"/>
+<mxCell id="t" value="&lt;b&gt;S4 to S7: who talks to whom&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;S4 has no contract to S5. S6 asks S5 for context.&lt;/font&gt;" style="text;html=1;fontSize=20;align=left;" vertex="1" parent="1"><mxGeometry x="40" y="10" width="800" height="50" as="geometry"/></mxCell>
+<mxCell id="s3" value="&lt;b&gt;S3 Route&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=14;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1"><mxGeometry x="40" y="200" width="140" height="70" as="geometry"/></mxCell>
+<mxCell id="s4" value="&lt;b&gt;S4 Orchestrate&lt;/b&gt;&lt;br&gt;start the run" style="rounded=1;whiteSpace=wrap;html=1;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1"><mxGeometry x="260" y="200" width="160" height="70" as="geometry"/></mxCell>
+<mxCell id="s6" value="&lt;b&gt;S6 Reason&lt;/b&gt;&lt;br&gt;plan and propose" style="rounded=1;whiteSpace=wrap;html=1;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1"><mxGeometry x="540" y="200" width="160" height="70" as="geometry"/></mxCell>
+<mxCell id="s5" value="&lt;b&gt;S5 Retrieve&lt;/b&gt;&lt;br&gt;access-filtered context" style="rounded=1;whiteSpace=wrap;html=1;fontSize=14;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1"><mxGeometry x="540" y="360" width="160" height="70" as="geometry"/></mxCell>
+<mxCell id="s7" value="&lt;b&gt;S7 Govern&lt;/b&gt;&lt;br&gt;access, policy, gates" style="rounded=1;whiteSpace=wrap;html=1;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1"><mxGeometry x="820" y="200" width="160" height="70" as="geometry"/></mxCell>
+<mxCell id="s8" value="&lt;b&gt;S8 Decide&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=14;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1"><mxGeometry x="1100" y="200" width="140" height="70" as="geometry"/></mxCell>
+<mxCell id="e1" value="K3 TaskRequest" style="endArrow=classic;html=1;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="s3" target="s4"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="e2" value="runs S6 inside the run (Temporal)&lt;br&gt;K3" style="endArrow=classic;html=1;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="s4" target="s6"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="e3" value="K4 ContextQuery" style="endArrow=classic;html=1;strokeWidth=2;fontSize=12;strokeColor=#d79b00;exitX=0.25;exitY=1;entryX=0.25;entryY=0;" edge="1" parent="1" source="s6" target="s5"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="e4" value="K4 ContextBundle" style="endArrow=classic;html=1;strokeWidth=2;fontSize=12;strokeColor=#d79b00;exitX=0.75;exitY=0;entryX=0.75;entryY=1;" edge="1" parent="1" source="s5" target="s6"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="e5" value="K5 ProposedAction" style="endArrow=classic;html=1;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="s6" target="s7"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="e6" value="K7 GovernanceVerdict" style="endArrow=classic;html=1;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="s7" target="s8"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="e7" value="no direct contract" style="endArrow=none;dashed=1;html=1;strokeColor=#b85450;fontColor=#b85450;fontSize=12;" edge="1" parent="1" source="s4" target="s5"><mxGeometry relative="1" as="geometry"/></mxCell>
+</root>
+</mxGraphModel>
+</diagram>
+</mxfile>

@@ -1,6 +1,6 @@
 "use client";
 
-// Uploading a document from Ask the Brain. The brain reads it, masks personal data, files it in the Library and makes
+// Uploading a document from Lisena. The brain reads it, masks personal data, files it in the Library and makes
 // it searchable, so the next question can be answered from it.
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as C from "@/contracts";

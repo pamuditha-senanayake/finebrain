@@ -1,0 +1,2462 @@
+{
+ "_about": "Finebase HQ-2: the world its API starts from, replacing the golden refund world. Made by scripts/hq2_world.py; do not edit by hand.",
+ "cluster_id": "client_delivery",
+ "env": "production",
+ "connectors": {
+  "_about": "Finebase HQ-2: test-only secrets. Every platform is one connection; real secrets live in Secrets Manager.",
+  "conn_upload_console": {
+   "grant_id": "grant_upload_all",
+   "grant_active": true,
+   "source_type": "upload",
+   "secret": "test-only-secret-upload"
+  },
+  "conn_slack": {
+   "grant_id": "grant_slack_read",
+   "grant_active": true,
+   "source_type": "chat",
+   "secret": "test-only-secret-slack"
+  },
+  "conn_whatsapp": {
+   "grant_id": "grant_whatsapp_read",
+   "grant_active": true,
+   "source_type": "chat",
+   "secret": "test-only-secret-whatsapp"
+  },
+  "conn_gmail": {
+   "grant_id": "grant_gmail_read",
+   "grant_active": true,
+   "source_type": "email",
+   "secret": "test-only-secret-gmail"
+  },
+  "conn_meet": {
+   "grant_id": "grant_meet_read",
+   "grant_active": true,
+   "source_type": "upload",
+   "secret": "test-only-secret-meet"
+  },
+  "conn_notion": {
+   "grant_id": "grant_notion_read",
+   "grant_active": false,
+   "source_type": "poll",
+   "secret": "test-only-secret-notion"
+  },
+  "conn_github": {
+   "grant_id": "grant_github_read",
+   "grant_active": true,
+   "source_type": "webhook",
+   "secret": "test-only-secret-github"
+  },
+  "conn_stripe": {
+   "grant_id": "grant_stripe_read",
+   "grant_active": true,
+   "source_type": "webhook",
+   "secret": "test-only-secret-stripe"
+  },
+  "conn_wise": {
+   "grant_id": "grant_wise_read",
+   "grant_active": true,
+   "source_type": "poll",
+   "secret": "test-only-secret-wise"
+  },
+  "conn_mercury": {
+   "grant_id": "grant_mercury_read",
+   "grant_active": true,
+   "source_type": "poll",
+   "secret": "test-only-secret-mercury"
+  },
+  "conn_blaze": {
+   "grant_id": "grant_blaze_read",
+   "grant_active": true,
+   "source_type": "email",
+   "secret": "test-only-secret-blaze"
+  },
+  "conn_gdocs": {
+   "grant_id": "grant_gdocs_read",
+   "grant_active": true,
+   "source_type": "upload",
+   "secret": "test-only-secret-gdocs"
+  },
+  "conn_gdrive": {
+   "grant_id": "grant_gdrive_read",
+   "grant_active": true,
+   "source_type": "upload",
+   "secret": "test-only-secret-gdrive"
+  }
+ },
+ "resolver_rules": [
+  {
+   "rule_id": "rr_client_update",
+   "description": "A client asks for an update, or a week passes without one",
+   "activity_id": "act_client_update",
+   "kinds": [
+    "customer_message",
+    "billing_event",
+    "document_arrived"
+   ],
+   "channels": [
+    "chat",
+    "email"
+   ],
+   "required_entities": [],
+   "keywords": [
+    "update",
+    "status",
+    "progress",
+    "video"
+   ],
+   "skill_id": "skill_client_update",
+   "agent_id": "agent_update_drafter",
+   "base_criticality": 2,
+   "due_hours": 4,
+   "priority": 3
+  },
+  {
+   "rule_id": "rr_meeting_followup",
+   "description": "A meeting transcript arrives",
+   "activity_id": "act_meeting_followup",
+   "kinds": [
+    "customer_message",
+    "billing_event",
+    "document_arrived"
+   ],
+   "channels": [
+    "upload"
+   ],
+   "required_entities": [],
+   "keywords": [
+    "transcript",
+    "meeting",
+    "tasks"
+   ],
+   "skill_id": "skill_meeting_to_tasks",
+   "agent_id": "agent_task_tracker",
+   "base_criticality": 2,
+   "due_hours": 4,
+   "priority": 3
+  },
+  {
+   "rule_id": "rr_spend_check",
+   "description": "A bill, an invoice or a bank transaction arrives",
+   "activity_id": "act_spend_check",
+   "kinds": [
+    "customer_message",
+    "billing_event",
+    "document_arrived"
+   ],
+   "channels": [
+    "poll"
+   ],
+   "required_entities": [],
+   "keywords": [
+    "blaze",
+    "subscription",
+    "spend",
+    "budget"
+   ],
+   "skill_id": "skill_spend_check",
+   "agent_id": "agent_spend_watcher",
+   "base_criticality": 1,
+   "due_hours": 4,
+   "priority": 3
+  },
+  {
+   "rule_id": "rr_client_question",
+   "description": "A client asks about an invoice, a payment or what was agreed",
+   "activity_id": "act_client_question",
+   "kinds": [
+    "customer_message",
+    "billing_event",
+    "document_arrived"
+   ],
+   "channels": [
+    "chat",
+    "webhook"
+   ],
+   "required_entities": [],
+   "keywords": [
+    "invoice",
+    "payment",
+    "pay",
+    "refund",
+    "owe"
+   ],
+   "skill_id": "skill_client_questions",
+   "agent_id": "agent_client_qa",
+   "base_criticality": 2,
+   "due_hours": 4,
+   "priority": 3
+  },
+  {
+   "rule_id": "rr_member_progress",
+   "description": "A task has had no progress for 3 days",
+   "activity_id": "act_member_progress",
+   "kinds": [
+    "customer_message",
+    "billing_event",
+    "document_arrived"
+   ],
+   "channels": [
+    "webhook"
+   ],
+   "required_entities": [],
+   "keywords": [
+    "progress",
+    "merged",
+    "pull",
+    "blocked"
+   ],
+   "skill_id": "skill_member_progress",
+   "agent_id": "agent_task_tracker",
+   "base_criticality": 2,
+   "due_hours": 4,
+   "priority": 3
+  },
+  {
+   "rule_id": "rr_grant_docs",
+   "description": "A grant call, a deck or a Google Doc needs work",
+   "activity_id": "act_grant_docs",
+   "kinds": [
+    "customer_message",
+    "billing_event",
+    "document_arrived"
+   ],
+   "channels": [
+    "upload"
+   ],
+   "required_entities": [],
+   "keywords": [
+    "grant",
+    "application",
+    "deck",
+    "hackathon",
+    "docs"
+   ],
+   "skill_id": "skill_grant_docs",
+   "agent_id": "agent_docs_writer",
+   "base_criticality": 1,
+   "due_hours": 4,
+   "priority": 3
+  }
+ ],
+ "skills": [
+  {
+   "id": "skill_client_update",
+   "version": 1,
+   "commit_id": "cmt_hq2_skill_client_update",
+   "name": "Client update",
+   "allowed_tools": [
+    "reply_customer",
+    "escalate"
+   ],
+   "steps": [
+    "Read the project's last update and what changed since in the meeting transcript, Slack or WhatsApp.",
+    "Draft a short written update, with a line on what is next.",
+    "Propose reply_customer with the draft in the client's own channel. A steward approves it before it is sent.",
+    "If the client asked for something the project lead has not agreed, use escalate."
+   ]
+  },
+  {
+   "id": "skill_meeting_to_tasks",
+   "version": 1,
+   "commit_id": "cmt_hq2_skill_meeting_to_tasks",
+   "name": "Transcript to tasks",
+   "allowed_tools": [
+    "reply_customer",
+    "escalate"
+   ],
+   "steps": [
+    "Read the transcript and list every task said out loud, with its owner and due date.",
+    "Check the open tasks so that nothing is listed twice.",
+    "Propose reply_customer to post the task list to the team channel and remind the owners.",
+    "If a task has no clear owner, use escalate to the project lead."
+   ]
+  },
+  {
+   "id": "skill_spend_check",
+   "version": 1,
+   "commit_id": "cmt_hq2_skill_spend_check",
+   "name": "Spend check",
+   "allowed_tools": [
+    "escalate"
+   ],
+   "steps": [
+    "Read this month's bills and subscriptions and last month's spend.",
+    "Compare with the budget in the spend policy.",
+    "If spend is more than 20 percent over budget, or a new subscription is above USD 50, use escalate with the figures."
+   ]
+  },
+  {
+   "id": "skill_client_questions",
+   "version": 1,
+   "commit_id": "cmt_hq2_skill_client_questions",
+   "name": "Client questions",
+   "allowed_tools": [
+    "reply_customer",
+    "escalate"
+   ],
+   "steps": [
+    "Find the agreement, invoice or payment the client asks about in the documents.",
+    "Answer from the payment terms and the refund policy, citing them.",
+    "If the documents do not answer, use escalate."
+   ]
+  },
+  {
+   "id": "skill_member_progress",
+   "version": 1,
+   "commit_id": "cmt_hq2_skill_member_progress",
+   "name": "Member progress check",
+   "allowed_tools": [
+    "reply_customer",
+    "escalate"
+   ],
+   "steps": [
+    "Read the merged work and the task list for each member.",
+    "Find tasks with no progress for 3 days, or work merged that was never posted.",
+    "Propose reply_customer to ask the owner for a short progress note in the team channel.",
+    "If the same task stays quiet after the reminder, use escalate to the project lead."
+   ]
+  },
+  {
+   "id": "skill_grant_docs",
+   "version": 1,
+   "commit_id": "cmt_hq2_skill_grant_docs",
+   "name": "Grant and document draft",
+   "allowed_tools": [
+    "escalate"
+   ],
+   "steps": [
+    "Read the call, the last draft and what the team has built since.",
+    "List what is missing against the call: summary, budget, letters, open results plan.",
+    "Use escalate to hand the missing list and the draft to the owner of the application."
+   ]
+  }
+ ],
+ "agents": {
+  "agent_update_drafter": {
+   "type": "agent",
+   "id": "agent_update_drafter",
+   "capabilities": [
+    "kb.read",
+    "reply.draft"
+   ],
+   "tier": "L3"
+  },
+  "agent_task_tracker": {
+   "type": "agent",
+   "id": "agent_task_tracker",
+   "capabilities": [
+    "kb.read",
+    "reply.draft"
+   ],
+   "tier": "L3"
+  },
+  "agent_spend_watcher": {
+   "type": "agent",
+   "id": "agent_spend_watcher",
+   "capabilities": [
+    "kb.read"
+   ],
+   "tier": "L3"
+  },
+  "agent_docs_writer": {
+   "type": "agent",
+   "id": "agent_docs_writer",
+   "capabilities": [
+    "kb.read"
+   ],
+   "tier": "L3"
+  },
+  "agent_client_qa": {
+   "type": "agent",
+   "id": "agent_client_qa",
+   "capabilities": [
+    "kb.read",
+    "reply.draft"
+   ],
+   "tier": "L3"
+  }
+ },
+ "refund_policy": {
+  "policy_ref": {
+   "id": "policy_refund",
+   "version": 2,
+   "branch": "main",
+   "commit_id": "cmt_hq2_policy_refund_2"
+  },
+  "window_days": 14,
+  "auto_limit": {
+   "amount_minor": 50000,
+   "currency": "USD"
+  },
+  "escalation": {
+   "criticality": 3,
+   "approvers": {
+    "tier": "L1",
+    "count": 1,
+    "roles": [
+     "head_of_cs"
+    ]
+   }
+  }
+ },
+ "payments": {
+  "pay_FB_20260808_0001": {
+   "amount_minor": 480000,
+   "paid_at": "2026-08-08T00:00:00+05:30"
+  },
+  "pay_FB_20260908_0001": {
+   "amount_minor": 480000,
+   "paid_at": "2026-09-08T00:00:00+05:30"
+  },
+  "pay_FB_20261008_0001": {
+   "amount_minor": 480000,
+   "paid_at": "2026-10-08T00:00:00+05:30"
+  },
+  "pay_FB_20260803_0002": {
+   "amount_minor": 310000,
+   "paid_at": "2026-08-03T00:00:00+05:30"
+  },
+  "pay_FB_20260911_0002": {
+   "amount_minor": 620000,
+   "paid_at": "2026-09-11T00:00:00+05:30"
+  },
+  "pay_FB_20261011_0002": {
+   "amount_minor": 620000,
+   "paid_at": "2026-10-11T00:00:00+05:30"
+  },
+  "pay_FB_20260817_0003": {
+   "amount_minor": 270000,
+   "paid_at": "2026-08-17T00:00:00+05:30"
+  },
+  "pay_FB_20260914_0003": {
+   "amount_minor": 540000,
+   "paid_at": "2026-09-14T00:00:00+05:30"
+  },
+  "pay_FB_20261014_0003": {
+   "amount_minor": 540000,
+   "paid_at": "2026-10-14T00:00:00+05:30"
+  },
+  "pay_FB_20260901_0004": {
+   "amount_minor": 195000,
+   "paid_at": "2026-09-01T00:00:00+05:30"
+  },
+  "pay_FB_20261017_0004": {
+   "amount_minor": 390000,
+   "paid_at": "2026-10-17T00:00:00+05:30"
+  },
+  "pay_FB_20260914_0005": {
+   "amount_minor": 355000,
+   "paid_at": "2026-09-14T00:00:00+05:30"
+  },
+  "pay_FB_20261020_0005": {
+   "amount_minor": 710000,
+   "paid_at": "2026-10-20T00:00:00+05:30"
+  },
+  "pay_FB_20261005_0006": {
+   "amount_minor": 215000,
+   "paid_at": "2026-10-05T00:00:00+05:30"
+  }
+ },
+ "knowledge": [
+  {
+   "item_id": "policy_client_comms_v1_s1",
+   "kind": "policy",
+   "text": "The project lead sends client updates when they judge the work is ready to show.",
+   "source": {
+    "document_id": "doc_policy_client_comms_v1",
+    "uri": "gdocs://finebase-labs/Client_communication_policy_v1.txt",
+    "span": "0:80"
+   },
+   "valid_from": "2026-07-01T09:00:00+05:30",
+   "valid_to": "2026-09-15T09:00:00+05:30",
+   "recorded_at": "2026-07-01T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_client_comms",
+    "version": 1,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_client_comms_1"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "policy_client_comms_v1_s2",
+   "kind": "policy",
+   "text": "A client who asks for an update is answered the same working day.",
+   "source": {
+    "document_id": "doc_policy_client_comms_v1",
+    "uri": "gdocs://finebase-labs/Client_communication_policy_v1.txt",
+    "span": "81:146"
+   },
+   "valid_from": "2026-07-01T09:00:00+05:30",
+   "valid_to": "2026-09-15T09:00:00+05:30",
+   "recorded_at": "2026-07-01T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_client_comms",
+    "version": 1,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_client_comms_1"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "policy_client_comms_v2_s1",
+   "kind": "policy",
+   "text": "A steward approves every message to a client before it is sent, whether it is a weekly update, a video or a reply.",
+   "source": {
+    "document_id": "doc_policy_client_comms_v2",
+    "uri": "gdocs://finebase-labs/Client_communication_policy_v2.txt",
+    "span": "0:114"
+   },
+   "valid_from": "2026-09-15T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-09-15T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_client_comms",
+    "version": 2,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_client_comms_2"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "policy_client_comms_v2_s2",
+   "kind": "policy",
+   "text": "A weekly update goes to each active client by Friday 17:00 Colombo time, in the client's own channel.",
+   "source": {
+    "document_id": "doc_policy_client_comms_v2",
+    "uri": "gdocs://finebase-labs/Client_communication_policy_v2.txt",
+    "span": "115:216"
+   },
+   "valid_from": "2026-09-15T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-09-15T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_client_comms",
+    "version": 2,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_client_comms_2"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "policy_client_comms_v2_s3",
+   "kind": "policy",
+   "text": "A client who asks for an update is answered within 4 working hours, and the answer names what changed since the last update.",
+   "source": {
+    "document_id": "doc_policy_client_comms_v2",
+    "uri": "gdocs://finebase-labs/Client_communication_policy_v2.txt",
+    "span": "217:341"
+   },
+   "valid_from": "2026-09-15T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-09-15T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_client_comms",
+    "version": 2,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_client_comms_2"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "policy_refund_v1_s1",
+   "kind": "policy",
+   "text": "A client may ask for a refund within 7 days of paying an invoice.",
+   "source": {
+    "document_id": "doc_policy_refund_v1",
+    "uri": "gdocs://finebase-labs/Client_refund_and_credit_policy_v1.txt",
+    "span": "0:65"
+   },
+   "valid_from": "2026-07-01T09:00:00+05:30",
+   "valid_to": "2026-09-01T09:00:00+05:30",
+   "recorded_at": "2026-07-01T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_refund",
+    "version": 1,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_refund_1"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "policy_refund_v1_s2",
+   "kind": "policy",
+   "text": "Refunds up to USD 200 inside the window are approved automatically.",
+   "source": {
+    "document_id": "doc_policy_refund_v1",
+    "uri": "gdocs://finebase-labs/Client_refund_and_credit_policy_v1.txt",
+    "span": "66:133"
+   },
+   "valid_from": "2026-07-01T09:00:00+05:30",
+   "valid_to": "2026-09-01T09:00:00+05:30",
+   "recorded_at": "2026-07-01T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_refund",
+    "version": 1,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_refund_1"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "policy_refund_v2_s1",
+   "kind": "policy",
+   "text": "A client may ask for a refund within 14 days of paying an invoice.",
+   "source": {
+    "document_id": "doc_policy_refund_v2",
+    "uri": "gdocs://finebase-labs/Client_refund_and_credit_policy_v2.txt",
+    "span": "0:66"
+   },
+   "valid_from": "2026-09-01T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-09-01T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_refund",
+    "version": 2,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_refund_2"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "policy_refund_v2_s2",
+   "kind": "policy",
+   "text": "Refunds up to USD 500 inside the window are approved automatically.",
+   "source": {
+    "document_id": "doc_policy_refund_v2",
+    "uri": "gdocs://finebase-labs/Client_refund_and_credit_policy_v2.txt",
+    "span": "67:134"
+   },
+   "valid_from": "2026-09-01T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-09-01T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_refund",
+    "version": 2,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_refund_2"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "policy_refund_v2_s3",
+   "kind": "policy",
+   "text": "Refunds above USD 500, or requests after 14 days, need approval from the founder.",
+   "source": {
+    "document_id": "doc_policy_refund_v2",
+    "uri": "gdocs://finebase-labs/Client_refund_and_credit_policy_v2.txt",
+    "span": "135:216"
+   },
+   "valid_from": "2026-09-01T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-09-01T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_refund",
+    "version": 2,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_refund_2"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "policy_spend_v1_s1",
+   "kind": "policy",
+   "text": "Monthly cloud spend (Blaze plan) has a budget of USD 700 and tools and subscriptions a budget of USD 500.",
+   "source": {
+    "document_id": "doc_policy_spend_v1",
+    "uri": "gdocs://finebase-labs/Spend_and_subscription_policy_v1.txt",
+    "span": "0:105"
+   },
+   "valid_from": "2026-07-01T09:00:00+05:30",
+   "valid_to": "2026-10-01T09:00:00+05:30",
+   "recorded_at": "2026-07-01T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_spend",
+    "version": 1,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_spend_1"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "policy_spend_v2_s1",
+   "kind": "policy",
+   "text": "Monthly cloud spend (Blaze plan) has a budget of USD 900 and tools and subscriptions a budget of USD 600.",
+   "source": {
+    "document_id": "doc_policy_spend_v2",
+    "uri": "gdocs://finebase-labs/Spend_and_subscription_policy_v2.txt",
+    "span": "0:105"
+   },
+   "valid_from": "2026-10-01T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-01T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_spend",
+    "version": 2,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_spend_2"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "policy_spend_v2_s2",
+   "kind": "policy",
+   "text": "Any new tool or subscription above USD 50 a month needs the founder's approval before it is bought.",
+   "source": {
+    "document_id": "doc_policy_spend_v2",
+    "uri": "gdocs://finebase-labs/Spend_and_subscription_policy_v2.txt",
+    "span": "106:205"
+   },
+   "valid_from": "2026-10-01T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-01T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_spend",
+    "version": 2,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_spend_2"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "policy_spend_v2_s3",
+   "kind": "policy",
+   "text": "Spend is reviewed on the 5th of each month. Spend more than 20 percent over budget raises an alert to the founder.",
+   "source": {
+    "document_id": "doc_policy_spend_v2",
+    "uri": "gdocs://finebase-labs/Spend_and_subscription_policy_v2.txt",
+    "span": "206:320"
+   },
+   "valid_from": "2026-10-01T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-01T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_spend",
+    "version": 2,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_spend_2"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "policy_tasks_v1_s1",
+   "kind": "policy",
+   "text": "Every task agreed in a meeting has one owner and a due date, written down within 24 hours of the meeting.",
+   "source": {
+    "document_id": "doc_policy_tasks_v1",
+    "uri": "gdocs://finebase-labs/Task_ownership_policy_v1.txt",
+    "span": "0:105"
+   },
+   "valid_from": "2026-08-01T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-08-01T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_tasks",
+    "version": 1,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_tasks_1"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "policy_tasks_v1_s2",
+   "kind": "policy",
+   "text": "The owner gets a reminder the day before the task is due. A task with no progress for 3 days is raised with the project lead.",
+   "source": {
+    "document_id": "doc_policy_tasks_v1",
+    "uri": "gdocs://finebase-labs/Task_ownership_policy_v1.txt",
+    "span": "106:231"
+   },
+   "valid_from": "2026-08-01T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-08-01T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_tasks",
+    "version": 1,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_tasks_1"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "policy_payments_v1_s1",
+   "kind": "policy",
+   "text": "Invoices are issued through Stripe and are due 15 days after issue. A project starts after the first 50 percent is paid.",
+   "source": {
+    "document_id": "doc_policy_payments_v1",
+    "uri": "gdocs://finebase-labs/Payment_terms_policy_v1.txt",
+    "span": "0:120"
+   },
+   "valid_from": "2026-07-01T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-07-01T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_payments",
+    "version": 1,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_payments_1"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "policy_payments_v1_s2",
+   "kind": "policy",
+   "text": "Clients outside the US may pay by bank transfer to Wise or Mercury. Contractors are paid from Wise on the 28th of each month.",
+   "source": {
+    "document_id": "doc_policy_payments_v1",
+    "uri": "gdocs://finebase-labs/Payment_terms_policy_v1.txt",
+    "span": "121:246"
+   },
+   "valid_from": "2026-07-01T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-07-01T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_payments",
+    "version": 1,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_payments_1"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "policy_data_v1_s1",
+   "kind": "policy",
+   "text": "Meeting recordings and transcripts are kept 180 days, then deleted. Clients are told at the start of a recorded meeting.",
+   "source": {
+    "document_id": "doc_policy_data_v1",
+    "uri": "gdocs://finebase-labs/Recording_and_data_handling_policy_v1.txt",
+    "span": "0:120"
+   },
+   "valid_from": "2026-08-01T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-08-01T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_data",
+    "version": 1,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_data_1"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "policy_data_v1_s2",
+   "kind": "policy",
+   "text": "Client personal data is masked before an agent reads it. Only a steward can see the original.",
+   "source": {
+    "document_id": "doc_policy_data_v1",
+    "uri": "gdocs://finebase-labs/Recording_and_data_handling_policy_v1.txt",
+    "span": "121:214"
+   },
+   "valid_from": "2026-08-01T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-08-01T09:00:00+05:30",
+   "verified_by": "h-pamuditha",
+   "version_ref": {
+    "id": "policy_data",
+    "version": 1,
+    "branch": "main",
+    "commit_id": "cmt_hq2_policy_data_1"
+   },
+   "score": 0.9,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "gdocs"
+  },
+  {
+   "item_id": "doc_meet_lanka_1013_c1",
+   "kind": "chunk",
+   "text": "Lanka Print weekly meeting 13 Oct: Ruwan: Last week we shipped the order list. This week the client wants filters on the tracking page, by status and by date. Kavindu, can you take the filters?",
+   "source": {
+    "document_id": "doc_meet_lanka_1013",
+    "uri": "meet://finebase-labs/Lanka_Print_weekly_meeting_13_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-13T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-13T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "meet",
+   "title": "Lanka Print weekly meeting 13 Oct"
+  },
+  {
+   "item_id": "doc_meet_lanka_1013_c2",
+   "kind": "chunk",
+   "text": "Lanka Print weekly meeting 13 Oct: Kavindu: Yes, I will build the filters and push them to staging by Thursday. Sachini will send the new status icons by Wednesday evening.",
+   "source": {
+    "document_id": "doc_meet_lanka_1013",
+    "uri": "meet://finebase-labs/Lanka_Print_weekly_meeting_13_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-13T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-13T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "meet",
+   "title": "Lanka Print weekly meeting 13 Oct"
+  },
+  {
+   "item_id": "doc_meet_lanka_1013_c3",
+   "kind": "chunk",
+   "text": "Lanka Print weekly meeting 13 Oct: Client (Nadeesha): Good. We also need the delivery report as a PDF before the 24th for our board. Ruwan: We will confirm that by Friday and send a short update after the meeting.",
+   "source": {
+    "document_id": "doc_meet_lanka_1013",
+    "uri": "meet://finebase-labs/Lanka_Print_weekly_meeting_13_Oct.txt",
+    "span": "chunk:3"
+   },
+   "valid_from": "2026-10-13T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-13T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "meet",
+   "title": "Lanka Print weekly meeting 13 Oct"
+  },
+  {
+   "item_id": "doc_meet_ocean_1015_c1",
+   "kind": "chunk",
+   "text": "Ocean Foods sync 15 Oct: Client (Dilan): The ordering screen is slow on older phones. Kavindu: We measured it, the menu images are too large. I will compress them and send a new build on Monday.",
+   "source": {
+    "document_id": "doc_meet_ocean_1015",
+    "uri": "meet://finebase-labs/Ocean_Foods_sync_15_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-15T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-15T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "meet",
+   "title": "Ocean Foods sync 15 Oct"
+  },
+  {
+   "item_id": "doc_meet_ocean_1015_c2",
+   "kind": "chunk",
+   "text": "Ocean Foods sync 15 Oct: Imashi: Dilan, you asked about the second payment. It is due on the 20th, an invoice goes out Friday. Dilan: Fine, we will pay by bank transfer, is that ok? Ruwan: Yes, to the Wise details on the invoice.",
+   "source": {
+    "document_id": "doc_meet_ocean_1015",
+    "uri": "meet://finebase-labs/Ocean_Foods_sync_15_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-15T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-15T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "meet",
+   "title": "Ocean Foods sync 15 Oct"
+  },
+  {
+   "item_id": "doc_meet_ocean_1015_c3",
+   "kind": "chunk",
+   "text": "Ocean Foods sync 15 Oct: Decision: launch date moves from 30 October to 6 November because of the image fix and the app store review.",
+   "source": {
+    "document_id": "doc_meet_ocean_1015",
+    "uri": "meet://finebase-labs/Ocean_Foods_sync_15_Oct.txt",
+    "span": "chunk:3"
+   },
+   "valid_from": "2026-10-15T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-15T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "meet",
+   "title": "Ocean Foods sync 15 Oct"
+  },
+  {
+   "item_id": "doc_meet_bluebird_1016_c1",
+   "kind": "chunk",
+   "text": "Bluebird Clinics review 16 Oct: Client (Dr. Mala): Patients can book but the reminder SMS is not arriving. Imashi: We will check the SMS provider settings today and tell you what we find tomorrow.",
+   "source": {
+    "document_id": "doc_meet_bluebird_1016",
+    "uri": "meet://finebase-labs/Bluebird_Clinics_review_16_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-16T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-16T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "meet",
+   "title": "Bluebird Clinics review 16 Oct"
+  },
+  {
+   "item_id": "doc_meet_bluebird_1016_c2",
+   "kind": "chunk",
+   "text": "Bluebird Clinics review 16 Oct: Sachini: I will redo the booking confirmation screen with larger text by Friday. Kavindu: And I will add the clinic's second branch to the booking form by Tuesday.",
+   "source": {
+    "document_id": "doc_meet_bluebird_1016",
+    "uri": "meet://finebase-labs/Bluebird_Clinics_review_16_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-16T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-16T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "meet",
+   "title": "Bluebird Clinics review 16 Oct"
+  },
+  {
+   "item_id": "doc_meet_bluebird_1016_c3",
+   "kind": "chunk",
+   "text": "Bluebird Clinics review 16 Oct: Dr. Mala asked whether the monthly fee covers adding a third branch in December. Imashi: We will send a short answer on that after checking the agreement.",
+   "source": {
+    "document_id": "doc_meet_bluebird_1016",
+    "uri": "meet://finebase-labs/Bluebird_Clinics_review_16_Oct.txt",
+    "span": "chunk:3"
+   },
+   "valid_from": "2026-10-16T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-16T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "meet",
+   "title": "Bluebird Clinics review 16 Oct"
+  },
+  {
+   "item_id": "doc_meet_harbor_1020_c1",
+   "kind": "chunk",
+   "text": "Harbor Logistics kickoff phase 2, 20 Oct: Client (Sameera): Phase 2 is the driver app. We want live location and a signature on delivery. Ruwan: We will break it into three weeks and send you the plan.",
+   "source": {
+    "document_id": "doc_meet_harbor_1020",
+    "uri": "meet://finebase-labs/Harbor_Logistics_kickoff_phase_2_20_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-20T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-20T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "meet",
+   "title": "Harbor Logistics kickoff phase 2, 20 Oct"
+  },
+  {
+   "item_id": "doc_meet_harbor_1020_c2",
+   "kind": "chunk",
+   "text": "Harbor Logistics kickoff phase 2, 20 Oct: Kavindu: I will start the location service this week. Tharushi: I will set up the new GitHub repository and the Blaze project for the driver app on Wednesday.",
+   "source": {
+    "document_id": "doc_meet_harbor_1020",
+    "uri": "meet://finebase-labs/Harbor_Logistics_kickoff_phase_2_20_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-20T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-20T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "meet",
+   "title": "Harbor Logistics kickoff phase 2, 20 Oct"
+  },
+  {
+   "item_id": "doc_meet_harbor_1020_c3",
+   "kind": "chunk",
+   "text": "Harbor Logistics kickoff phase 2, 20 Oct: Decision: weekly update every Friday in the shared Slack channel, with a short video of the app.",
+   "source": {
+    "document_id": "doc_meet_harbor_1020",
+    "uri": "meet://finebase-labs/Harbor_Logistics_kickoff_phase_2_20_Oct.txt",
+    "span": "chunk:3"
+   },
+   "valid_from": "2026-10-20T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-20T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "meet",
+   "title": "Harbor Logistics kickoff phase 2, 20 Oct"
+  },
+  {
+   "item_id": "doc_meet_kandy_1022_c1",
+   "kind": "chunk",
+   "text": "Kandy Tea Traders check-in 22 Oct: Client (Prasad): The cart page shows the wrong total when two coupons are used. Kavindu: Understood. We will fix the coupon rule and test it with your three coupons by Monday.",
+   "source": {
+    "document_id": "doc_meet_kandy_1022",
+    "uri": "meet://finebase-labs/Kandy_Tea_Traders_check-in_22_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-22T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-22T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "meet",
+   "title": "Kandy Tea Traders check-in 22 Oct"
+  },
+  {
+   "item_id": "doc_meet_kandy_1022_c2",
+   "kind": "chunk",
+   "text": "Kandy Tea Traders check-in 22 Oct: Prasad also asked for a video walkthrough of the new checkout. Sachini: I will record it on Friday and send it on WhatsApp.",
+   "source": {
+    "document_id": "doc_meet_kandy_1022",
+    "uri": "meet://finebase-labs/Kandy_Tea_Traders_check-in_22_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-22T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-22T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "meet",
+   "title": "Kandy Tea Traders check-in 22 Oct"
+  },
+  {
+   "item_id": "doc_meet_kandy_1022_c3",
+   "kind": "chunk",
+   "text": "Kandy Tea Traders check-in 22 Oct: Ruwan reminded the team that the second invoice for Kandy Tea is overdue by 6 days and Tharushi will send a polite reminder.",
+   "source": {
+    "document_id": "doc_meet_kandy_1022",
+    "uri": "meet://finebase-labs/Kandy_Tea_Traders_check-in_22_Oct.txt",
+    "span": "chunk:3"
+   },
+   "valid_from": "2026-10-22T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-22T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "meet",
+   "title": "Kandy Tea Traders check-in 22 Oct"
+  },
+  {
+   "item_id": "doc_meet_nila_1023_c1",
+   "kind": "chunk",
+   "text": "Nila Learning first sprint review 23 Oct: Client (Anushka): The teacher login works. Students cannot upload homework files larger than 5 MB. Kavindu: We will raise the limit to 20 MB and add a progress bar by Wednesday.",
+   "source": {
+    "document_id": "doc_meet_nila_1023",
+    "uri": "meet://finebase-labs/Nila_Learning_first_sprint_review_23_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-23T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-23T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "meet",
+   "title": "Nila Learning first sprint review 23 Oct"
+  },
+  {
+   "item_id": "doc_meet_nila_1023_c2",
+   "kind": "chunk",
+   "text": "Nila Learning first sprint review 23 Oct: Imashi: Please send us the list of classes for November. Anushka: Yes, I will email it on Monday.",
+   "source": {
+    "document_id": "doc_meet_nila_1023",
+    "uri": "meet://finebase-labs/Nila_Learning_first_sprint_review_23_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-23T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-23T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "meet",
+   "title": "Nila Learning first sprint review 23 Oct"
+  },
+  {
+   "item_id": "doc_meet_nila_1023_c3",
+   "kind": "chunk",
+   "text": "Nila Learning first sprint review 23 Oct: Decision: pilot starts with two schools on 9 November. Imashi will write the first weekly update.",
+   "source": {
+    "document_id": "doc_meet_nila_1023",
+    "uri": "meet://finebase-labs/Nila_Learning_first_sprint_review_23_Oct.txt",
+    "span": "chunk:3"
+   },
+   "valid_from": "2026-10-23T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-23T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "meet",
+   "title": "Nila Learning first sprint review 23 Oct"
+  },
+  {
+   "item_id": "doc_meet_internal_1026_c1",
+   "kind": "chunk",
+   "text": "Team stand-up 26 Oct: Ruwan: Three things from last week were not done: the Ocean Foods image fix, the Bluebird SMS check and the Harbor repository. Kavindu said he did the image fix on Friday but did not post it.",
+   "source": {
+    "document_id": "doc_meet_internal_1026",
+    "uri": "meet://finebase-labs/Team_stand-up_26_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-26T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-26T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "meet",
+   "title": "Team stand-up 26 Oct"
+  },
+  {
+   "item_id": "doc_meet_internal_1026_c2",
+   "kind": "chunk",
+   "text": "Team stand-up 26 Oct: Pamuditha: From now on every task said out loud goes into the list the same day. Tharushi, please send me the tools and subscriptions list by Wednesday so we can check the spend.",
+   "source": {
+    "document_id": "doc_meet_internal_1026",
+    "uri": "meet://finebase-labs/Team_stand-up_26_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-26T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-26T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "meet",
+   "title": "Team stand-up 26 Oct"
+  },
+  {
+   "item_id": "doc_meet_internal_1026_c3",
+   "kind": "chunk",
+   "text": "Team stand-up 26 Oct: Tharushi: The Blaze bill for October is already higher than September because of the Harbor test project. I will check which projects cause it.",
+   "source": {
+    "document_id": "doc_meet_internal_1026",
+    "uri": "meet://finebase-labs/Team_stand-up_26_Oct.txt",
+    "span": "chunk:3"
+   },
+   "valid_from": "2026-10-26T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-26T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "meet",
+   "title": "Team stand-up 26 Oct"
+  },
+  {
+   "item_id": "doc_meet_internal_1019_c1",
+   "kind": "chunk",
+   "text": "Team stand-up 19 Oct: Pamuditha: We agreed last week that every client gets an update by Friday. Two clients did not hear from us. Ruwan: Lanka Print and Kandy Tea. We will fix this with a draft each Thursday.",
+   "source": {
+    "document_id": "doc_meet_internal_1019",
+    "uri": "meet://finebase-labs/Team_stand-up_19_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-19T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-19T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "meet",
+   "title": "Team stand-up 19 Oct"
+  },
+  {
+   "item_id": "doc_meet_internal_1019_c2",
+   "kind": "chunk",
+   "text": "Team stand-up 19 Oct: Sachini: I am waiting for the Ocean Foods logo files. Imashi: I asked for them on WhatsApp on Monday and have no answer yet.",
+   "source": {
+    "document_id": "doc_meet_internal_1019",
+    "uri": "meet://finebase-labs/Team_stand-up_19_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-19T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-19T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "meet",
+   "title": "Team stand-up 19 Oct"
+  },
+  {
+   "item_id": "doc_slack_lanka_1014_c1",
+   "kind": "chunk",
+   "text": "Slack #lanka-print 14 Oct: Nadeesha (client): Any update on the filters? We have a call with our board on Friday. Ruwan: The filters are on staging now. Kavindu will confirm the date filter works with the 3 test accounts.",
+   "source": {
+    "document_id": "doc_slack_lanka_1014",
+    "uri": "slack://finebase-labs/Slack_lanka-print_14_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-14T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-14T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "slack",
+   "title": "Slack #lanka-print 14 Oct"
+  },
+  {
+   "item_id": "doc_slack_lanka_1014_c2",
+   "kind": "chunk",
+   "text": "Slack #lanka-print 14 Oct: Kavindu: Date filter works. Status filter shows an empty list for cancelled orders, fixing now. Pushed fix at 16:40.",
+   "source": {
+    "document_id": "doc_slack_lanka_1014",
+    "uri": "slack://finebase-labs/Slack_lanka-print_14_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-14T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-14T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "slack",
+   "title": "Slack #lanka-print 14 Oct"
+  },
+  {
+   "item_id": "doc_slack_lanka_1022_c1",
+   "kind": "chunk",
+   "text": "Slack #lanka-print 22 Oct: Nadeesha (client): Can we get the delivery report as a PDF? And what is the status of the invoice we got last week, is the second payment due on the 24th or the 31st?",
+   "source": {
+    "document_id": "doc_slack_lanka_1022",
+    "uri": "slack://finebase-labs/Slack_lanka-print_22_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-22T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-22T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "slack",
+   "title": "Slack #lanka-print 22 Oct"
+  },
+  {
+   "item_id": "doc_slack_lanka_1022_c2",
+   "kind": "chunk",
+   "text": "Slack #lanka-print 22 Oct: Tharushi: The October invoice is due on the 31st, issued on the 16th with 15 days to pay. The PDF report is with Ruwan for review.",
+   "source": {
+    "document_id": "doc_slack_lanka_1022",
+    "uri": "slack://finebase-labs/Slack_lanka-print_22_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-22T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-22T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "slack",
+   "title": "Slack #lanka-print 22 Oct"
+  },
+  {
+   "item_id": "doc_slack_bluebird_1017_c1",
+   "kind": "chunk",
+   "text": "Slack #bluebird 17 Oct: Dr. Mala (client): Still no reminder SMS today. Imashi: We found the sender name was not approved by the provider. We have asked them to approve it, usually 2 working days.",
+   "source": {
+    "document_id": "doc_slack_bluebird_1017",
+    "uri": "slack://finebase-labs/Slack_bluebird_17_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-17T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-17T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "slack",
+   "title": "Slack #bluebird 17 Oct"
+  },
+  {
+   "item_id": "doc_slack_bluebird_1017_c2",
+   "kind": "chunk",
+   "text": "Slack #bluebird 17 Oct: Dr. Mala: Fine. Please let me know as soon as it works. Imashi: Yes, we will message here the moment it is approved.",
+   "source": {
+    "document_id": "doc_slack_bluebird_1017",
+    "uri": "slack://finebase-labs/Slack_bluebird_17_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-17T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-17T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "slack",
+   "title": "Slack #bluebird 17 Oct"
+  },
+  {
+   "item_id": "doc_slack_harbor_1024_c1",
+   "kind": "chunk",
+   "text": "Slack #harbor 24 Oct: Sameera (client): Week 1 of the driver app, what did you do? Kavindu: Location service reads the phone position every 10 seconds and saves it. Next: the map screen. Video attached.",
+   "source": {
+    "document_id": "doc_slack_harbor_1024",
+    "uri": "slack://finebase-labs/Slack_harbor_24_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-24T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-24T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "slack",
+   "title": "Slack #harbor 24 Oct"
+  },
+  {
+   "item_id": "doc_slack_harbor_1024_c2",
+   "kind": "chunk",
+   "text": "Slack #harbor 24 Oct: Sameera: Good. When do we see the signature screen? Ruwan: Week 3, around 12 November.",
+   "source": {
+    "document_id": "doc_slack_harbor_1024",
+    "uri": "slack://finebase-labs/Slack_harbor_24_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-24T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-24T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "slack",
+   "title": "Slack #harbor 24 Oct"
+  },
+  {
+   "item_id": "doc_slack_internal_1027_c1",
+   "kind": "chunk",
+   "text": "Slack #team-tasks 27 Oct: Ruwan: Reminder: Ocean Foods image fix, Bluebird SMS check and Harbor repository are open since 19 Oct. Owners please reply with progress.",
+   "source": {
+    "document_id": "doc_slack_internal_1027",
+    "uri": "slack://finebase-labs/Slack_team-tasks_27_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-27T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-27T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "slack",
+   "title": "Slack #team-tasks 27 Oct"
+  },
+  {
+   "item_id": "doc_slack_internal_1027_c2",
+   "kind": "chunk",
+   "text": "Slack #team-tasks 27 Oct: Kavindu: Image fix done and sent to Ocean Foods on 26 Oct. Tharushi: Repository for Harbor created, Blaze project created, access given to Kavindu.",
+   "source": {
+    "document_id": "doc_slack_internal_1027",
+    "uri": "slack://finebase-labs/Slack_team-tasks_27_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-27T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-27T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "slack",
+   "title": "Slack #team-tasks 27 Oct"
+  },
+  {
+   "item_id": "doc_slack_internal_1027_c3",
+   "kind": "chunk",
+   "text": "Slack #team-tasks 27 Oct: Sachini: Waiting for logo files from Ocean Foods, blocked since Monday.",
+   "source": {
+    "document_id": "doc_slack_internal_1027",
+    "uri": "slack://finebase-labs/Slack_team-tasks_27_Oct.txt",
+    "span": "chunk:3"
+   },
+   "valid_from": "2026-10-27T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-27T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "slack",
+   "title": "Slack #team-tasks 27 Oct"
+  },
+  {
+   "item_id": "doc_wa_ocean_1021_c1",
+   "kind": "chunk",
+   "text": "WhatsApp Ocean Foods 21 Oct: Dilan: Any update? We are told the app is ready to test. Imashi: A new build with the image fix was sent yesterday. Here is a 2 minute video of the ordering screen.",
+   "source": {
+    "document_id": "doc_wa_ocean_1021",
+    "uri": "whatsapp://finebase-labs/WhatsApp_Ocean_Foods_21_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-21T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-21T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "whatsapp",
+   "title": "WhatsApp Ocean Foods 21 Oct"
+  },
+  {
+   "item_id": "doc_wa_ocean_1021_c2",
+   "kind": "chunk",
+   "text": "WhatsApp Ocean Foods 21 Oct: Dilan: The video is nice. Can we pay the second payment half now and half after launch? Imashi: We will check with Pamuditha and tell you by tomorrow.",
+   "source": {
+    "document_id": "doc_wa_ocean_1021",
+    "uri": "whatsapp://finebase-labs/WhatsApp_Ocean_Foods_21_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-21T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-21T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "whatsapp",
+   "title": "WhatsApp Ocean Foods 21 Oct"
+  },
+  {
+   "item_id": "doc_wa_ocean_1022_c1",
+   "kind": "chunk",
+   "text": "WhatsApp Ocean Foods 22 Oct: Imashi: Dilan, the founder said the second payment of USD 3,100 is due on the 20th as agreed, and we can accept half on the 20th and half on the 6th of November if you confirm in writing.",
+   "source": {
+    "document_id": "doc_wa_ocean_1022",
+    "uri": "whatsapp://finebase-labs/WhatsApp_Ocean_Foods_22_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-22T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-22T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "whatsapp",
+   "title": "WhatsApp Ocean Foods 22 Oct"
+  },
+  {
+   "item_id": "doc_wa_ocean_1022_c2",
+   "kind": "chunk",
+   "text": "WhatsApp Ocean Foods 22 Oct: Dilan: Confirmed. Please send the bank details again. Imashi: Sent the Wise USD details on your invoice email.",
+   "source": {
+    "document_id": "doc_wa_ocean_1022",
+    "uri": "whatsapp://finebase-labs/WhatsApp_Ocean_Foods_22_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-22T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-22T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "whatsapp",
+   "title": "WhatsApp Ocean Foods 22 Oct"
+  },
+  {
+   "item_id": "doc_wa_kandy_1023_c1",
+   "kind": "chunk",
+   "text": "WhatsApp Kandy Tea 23 Oct: Prasad: Did you fix the coupon problem? Udayanga: It will be fixed on Monday, as we said in the meeting. I will send a short video of it working.",
+   "source": {
+    "document_id": "doc_wa_kandy_1023",
+    "uri": "whatsapp://finebase-labs/WhatsApp_Kandy_Tea_23_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-23T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-23T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "whatsapp",
+   "title": "WhatsApp Kandy Tea 23 Oct"
+  },
+  {
+   "item_id": "doc_wa_kandy_1023_c2",
+   "kind": "chunk",
+   "text": "WhatsApp Kandy Tea 23 Oct: Prasad: And how much do I still owe? Udayanga: The September invoice of USD 3,900 is unpaid, the October one is not issued yet.",
+   "source": {
+    "document_id": "doc_wa_kandy_1023",
+    "uri": "whatsapp://finebase-labs/WhatsApp_Kandy_Tea_23_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-23T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-23T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "whatsapp",
+   "title": "WhatsApp Kandy Tea 23 Oct"
+  },
+  {
+   "item_id": "doc_wa_kandy_1027_c1",
+   "kind": "chunk",
+   "text": "WhatsApp Kandy Tea 27 Oct: Udayanga: Prasad, the coupon fix is live. Here is a video with your three coupons. Prasad: Great, I will pay the September invoice today.",
+   "source": {
+    "document_id": "doc_wa_kandy_1027",
+    "uri": "whatsapp://finebase-labs/WhatsApp_Kandy_Tea_27_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-27T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-27T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "whatsapp",
+   "title": "WhatsApp Kandy Tea 27 Oct"
+  },
+  {
+   "item_id": "doc_wa_kandy_1027_c2",
+   "kind": "chunk",
+   "text": "WhatsApp Kandy Tea 27 Oct: Prasad: Is there a refund if the storefront launch is late? Udayanga: Our policy gives a refund within 14 days of paying an invoice, up to USD 500 automatically.",
+   "source": {
+    "document_id": "doc_wa_kandy_1027",
+    "uri": "whatsapp://finebase-labs/WhatsApp_Kandy_Tea_27_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-27T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-27T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "whatsapp",
+   "title": "WhatsApp Kandy Tea 27 Oct"
+  },
+  {
+   "item_id": "doc_mail_nila_1005_c1",
+   "kind": "chunk",
+   "text": "Email Nila Learning onboarding 5 Oct: From Anushka: We would like to start a pilot with two schools. Please send the agreement and the payment details. We can pay by card or bank transfer.",
+   "source": {
+    "document_id": "doc_mail_nila_1005",
+    "uri": "gmail://finebase-labs/Email_Nila_Learning_onboarding_5_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-05T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-05T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "gmail",
+   "title": "Email Nila Learning onboarding 5 Oct"
+  },
+  {
+   "item_id": "doc_mail_nila_1005_c2",
+   "kind": "chunk",
+   "text": "Email Nila Learning onboarding 5 Oct: Reply from Imashi: The agreement is attached, the monthly fee is USD 4,300 and the first 50 percent is due before we start. You can pay by card through the Stripe link or by transfer to Wise.",
+   "source": {
+    "document_id": "doc_mail_nila_1005",
+    "uri": "gmail://finebase-labs/Email_Nila_Learning_onboarding_5_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-05T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-05T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "gmail",
+   "title": "Email Nila Learning onboarding 5 Oct"
+  },
+  {
+   "item_id": "doc_mail_nila_1026_c1",
+   "kind": "chunk",
+   "text": "Email Nila Learning invoice question 26 Oct: From Anushka: The Stripe link says USD 2,150 but our finance team expected USD 2,300. Which is correct?",
+   "source": {
+    "document_id": "doc_mail_nila_1026",
+    "uri": "gmail://finebase-labs/Email_Nila_Learning_invoice_question_26_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-26T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-26T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "gmail",
+   "title": "Email Nila Learning invoice question 26 Oct"
+  },
+  {
+   "item_id": "doc_mail_nila_1026_c2",
+   "kind": "chunk",
+   "text": "Email Nila Learning invoice question 26 Oct: Reply draft: The first payment is 50 percent of USD 4,300, which is USD 2,150. The USD 2,300 figure in the earlier email included a one-off setup fee that was removed on 8 October.",
+   "source": {
+    "document_id": "doc_mail_nila_1026",
+    "uri": "gmail://finebase-labs/Email_Nila_Learning_invoice_question_26_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-26T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-26T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "customer_care",
+   "platform": "gmail",
+   "title": "Email Nila Learning invoice question 26 Oct"
+  },
+  {
+   "item_id": "doc_mail_grant_1012_c1",
+   "kind": "chunk",
+   "text": "Email Open Research Fund call 12 Oct: The Open Research Fund opens its autumn call for small teams building tools for local language education. Awards up to USD 25,000. Deadline 30 November 2026.",
+   "source": {
+    "document_id": "doc_mail_grant_1012",
+    "uri": "gmail://finebase-labs/Email_Open_Research_Fund_call_12_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-12T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-12T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "finance",
+   "platform": "gmail",
+   "title": "Email Open Research Fund call 12 Oct"
+  },
+  {
+   "item_id": "doc_mail_grant_1012_c2",
+   "kind": "chunk",
+   "text": "Email Open Research Fund call 12 Oct: Required: a 2 page summary, a budget, a letter from one partner school, and a plan to share the results openly.",
+   "source": {
+    "document_id": "doc_mail_grant_1012",
+    "uri": "gmail://finebase-labs/Email_Open_Research_Fund_call_12_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-12T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-12T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "finance",
+   "platform": "gmail",
+   "title": "Email Open Research Fund call 12 Oct"
+  },
+  {
+   "item_id": "doc_blaze_aug_c1",
+   "kind": "chunk",
+   "text": "Blaze plan invoice August 2026: Blaze plan invoice for August 2026: USD 412.30. Projects: Lanka Print portal USD 148.10, Ocean Foods app USD 131.60, Bluebird booking USD 82.40, other USD 50.20.",
+   "source": {
+    "document_id": "doc_blaze_aug",
+    "uri": "blaze://finebase-labs/Blaze_plan_invoice_August_2026.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-09-02T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-09-02T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "finance",
+   "platform": "blaze",
+   "title": "Blaze plan invoice August 2026"
+  },
+  {
+   "item_id": "doc_blaze_sep_c1",
+   "kind": "chunk",
+   "text": "Blaze plan invoice September 2026: Blaze plan invoice for September 2026: USD 538.90. Projects: Lanka Print portal USD 171.30, Ocean Foods app USD 156.00, Bluebird booking USD 96.20, Kandy Tea store USD 61.40, other USD 54.00.",
+   "source": {
+    "document_id": "doc_blaze_sep",
+    "uri": "blaze://finebase-labs/Blaze_plan_invoice_September_2026.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-02T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-02T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "finance",
+   "platform": "blaze",
+   "title": "Blaze plan invoice September 2026"
+  },
+  {
+   "item_id": "doc_blaze_oct_c1",
+   "kind": "chunk",
+   "text": "Blaze plan usage October 2026 (to 27 Oct): Blaze usage to 27 October: USD 1,140.20. Forecast for the month: USD 1,260.45. Harbor driver app test project USD 402.10, Ocean Foods app USD 188.50, Lanka Print portal USD 176.80.",
+   "source": {
+    "document_id": "doc_blaze_oct",
+    "uri": "blaze://finebase-labs/Blaze_plan_usage_October_2026_to_27_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-27T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-27T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "finance",
+   "platform": "blaze",
+   "title": "Blaze plan usage October 2026 (to 27 Oct)"
+  },
+  {
+   "item_id": "doc_blaze_oct_c2",
+   "kind": "chunk",
+   "text": "Blaze plan usage October 2026 (to 27 Oct): The Harbor test project runs location writes every 10 seconds from 40 test devices, which caused the extra cost. The October cloud budget is USD 900, so the forecast is 40 percent over budget.",
+   "source": {
+    "document_id": "doc_blaze_oct",
+    "uri": "blaze://finebase-labs/Blaze_plan_usage_October_2026_to_27_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-27T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-27T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "finance",
+   "platform": "blaze",
+   "title": "Blaze plan usage October 2026 (to 27 Oct)"
+  },
+  {
+   "item_id": "doc_subs_oct_c1",
+   "kind": "chunk",
+   "text": "Tools and subscriptions list October 2026: Subscriptions per month: Slack USD 87.50, Notion USD 64.00, Figma USD 90.00, GitHub Team USD 44.00, Google Workspace USD 126.00, Zoom USD 29.99, Linear USD 56.00, WhatsApp Business API USD 38.00.",
+   "source": {
+    "document_id": "doc_subs_oct",
+    "uri": "gdrive://finebase-labs/Tools_and_subscriptions_list_October_2026.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-28T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-28T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "finance",
+   "platform": "gdrive",
+   "title": "Tools and subscriptions list October 2026"
+  },
+  {
+   "item_id": "doc_subs_oct_c2",
+   "kind": "chunk",
+   "text": "Tools and subscriptions list October 2026: Total USD 535.49 against a budget of USD 600. Linear was added on 12 October without approval. Notion is used by nobody since August except for the old board.",
+   "source": {
+    "document_id": "doc_subs_oct",
+    "uri": "gdrive://finebase-labs/Tools_and_subscriptions_list_October_2026.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-28T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-28T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "finance",
+   "platform": "gdrive",
+   "title": "Tools and subscriptions list October 2026"
+  },
+  {
+   "item_id": "doc_stripe_oct_c1",
+   "kind": "chunk",
+   "text": "Stripe payouts and invoices October 2026: Paid in October: Lanka Print Co. USD 4,800 on 7 Oct, Bluebird Clinics USD 5,400 on 9 Oct, Harbor Logistics USD 7,100 on 15 Oct, Ocean Foods USD 3,100 on 21 Oct (half of the second payment).",
+   "source": {
+    "document_id": "doc_stripe_oct",
+    "uri": "stripe://finebase-labs/Stripe_payouts_and_invoices_October_2026.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-28T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-28T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "finance",
+   "platform": "stripe",
+   "title": "Stripe payouts and invoices October 2026"
+  },
+  {
+   "item_id": "doc_stripe_oct_c2",
+   "kind": "chunk",
+   "text": "Stripe payouts and invoices October 2026: Unpaid: Kandy Tea Traders USD 3,900 (September, 6 days late), Nila Learning USD 2,150 (first payment, due 31 Oct). Stripe fees this month USD 596.20.",
+   "source": {
+    "document_id": "doc_stripe_oct",
+    "uri": "stripe://finebase-labs/Stripe_payouts_and_invoices_October_2026.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-28T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-28T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "finance",
+   "platform": "stripe",
+   "title": "Stripe payouts and invoices October 2026"
+  },
+  {
+   "item_id": "doc_wise_oct_c1",
+   "kind": "chunk",
+   "text": "Wise transfers October 2026: Contractor payments from Wise on 28 October: Kavindu Perera USD 1,450, Sachini Fernando USD 1,320, Tharushi Silva USD 1,100. Wise fees USD 21.40.",
+   "source": {
+    "document_id": "doc_wise_oct",
+    "uri": "wise://finebase-labs/Wise_transfers_October_2026.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-28T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-28T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "finance",
+   "platform": "wise",
+   "title": "Wise transfers October 2026"
+  },
+  {
+   "item_id": "doc_wise_oct_c2",
+   "kind": "chunk",
+   "text": "Wise transfers October 2026: Incoming Wise payment: Ocean Foods USD 1,550 on 21 Oct, matched to the second invoice.",
+   "source": {
+    "document_id": "doc_wise_oct",
+    "uri": "wise://finebase-labs/Wise_transfers_October_2026.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-28T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-28T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "finance",
+   "platform": "wise",
+   "title": "Wise transfers October 2026"
+  },
+  {
+   "item_id": "doc_mercury_oct_c1",
+   "kind": "chunk",
+   "text": "Mercury account summary October 2026: Mercury operating account balance on 28 October: USD 41,860.15. Inflows this month USD 24,350.00, outflows USD 19,742.05 including payroll, Blaze, subscriptions and the Delaware registered agent fee.",
+   "source": {
+    "document_id": "doc_mercury_oct",
+    "uri": "mercury://finebase-labs/Mercury_account_summary_October_2026.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-28T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-28T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "restricted",
+   "domain": "finance",
+   "platform": "mercury",
+   "title": "Mercury account summary October 2026"
+  },
+  {
+   "item_id": "doc_mercury_oct_c2",
+   "kind": "chunk",
+   "text": "Mercury account summary October 2026: A card payment of USD 120.00 to an unfamiliar vendor on 25 October is waiting to be matched to a receipt.",
+   "source": {
+    "document_id": "doc_mercury_oct",
+    "uri": "mercury://finebase-labs/Mercury_account_summary_October_2026.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-28T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-28T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "restricted",
+   "domain": "finance",
+   "platform": "mercury",
+   "title": "Mercury account summary October 2026"
+  },
+  {
+   "item_id": "doc_llc_checklist_c1",
+   "kind": "chunk",
+   "text": "US LLC setup checklist: Finebase Labs LLC was formed in Delaware on 12 March 2026. The EIN was issued on 25 March. The Mercury business account was opened on 2 April, Wise Business on 9 April and Stripe was activated on 17 April.",
+   "source": {
+    "document_id": "doc_llc_checklist",
+    "uri": "gdocs://finebase-labs/US_LLC_setup_checklist.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-03-20T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-03-20T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "legal",
+   "platform": "gdocs",
+   "title": "US LLC setup checklist"
+  },
+  {
+   "item_id": "doc_llc_checklist_c2",
+   "kind": "chunk",
+   "text": "US LLC setup checklist: Recurring: Delaware annual report and franchise tax due 1 March each year, registered agent renewal due 12 March each year, Form 5472 with pro-forma Form 1120 due 15 April each year.",
+   "source": {
+    "document_id": "doc_llc_checklist",
+    "uri": "gdocs://finebase-labs/US_LLC_setup_checklist.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-03-20T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-03-20T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "legal",
+   "platform": "gdocs",
+   "title": "US LLC setup checklist"
+  },
+  {
+   "item_id": "doc_tax_notes_c1",
+   "kind": "chunk",
+   "text": "Tax and filing notes 2026: Because the LLC is owned by a non-US person, Form 5472 and a pro-forma 1120 must be filed even with no US tax due. The penalty for a missing 5472 is USD 25,000. The accountant needs the bank statements for the year by 15 February.",
+   "source": {
+    "document_id": "doc_tax_notes",
+    "uri": "gdocs://finebase-labs/Tax_and_filing_notes_2026.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-10T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-10T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "legal",
+   "platform": "gdocs",
+   "title": "Tax and filing notes 2026"
+  },
+  {
+   "item_id": "doc_tax_notes_c2",
+   "kind": "chunk",
+   "text": "Tax and filing notes 2026: Sales tax: none charged, services delivered abroad. Revisit if a US client is signed.",
+   "source": {
+    "document_id": "doc_tax_notes",
+    "uri": "gdocs://finebase-labs/Tax_and_filing_notes_2026.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-10T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-10T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "legal",
+   "platform": "gdocs",
+   "title": "Tax and filing notes 2026"
+  },
+  {
+   "item_id": "doc_notion_board_c1",
+   "kind": "chunk",
+   "text": "Notion Ocean board export: The board has 31 cards. 22 are in Doing. The last card moved was on 21 August. Cards still name two former members. Nobody on the team reads the board.",
+   "source": {
+    "document_id": "doc_notion_board",
+    "uri": "notion://finebase-labs/Notion_Ocean_board_export.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-25T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-25T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "notion",
+   "title": "Notion Ocean board export"
+  },
+  {
+   "item_id": "doc_notion_board_c2",
+   "kind": "chunk",
+   "text": "Notion Ocean board export: Decision proposed on 25 October: stop using the board and let the brain keep the task list from meetings.",
+   "source": {
+    "document_id": "doc_notion_board",
+    "uri": "notion://finebase-labs/Notion_Ocean_board_export.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-25T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-25T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "operations",
+   "platform": "notion",
+   "title": "Notion Ocean board export"
+  },
+  {
+   "item_id": "doc_github_week43_c1",
+   "kind": "chunk",
+   "text": "GitHub merged pull requests, week of 19 Oct: Merged: PR 214 Tracking page filters (Kavindu), PR 217 Compress menu images (Kavindu), PR 219 Coupon stacking rule (Kavindu), PR 221 Location service (Kavindu).",
+   "source": {
+    "document_id": "doc_github_week43",
+    "uri": "github://finebase-labs/GitHub_merged_pull_requests_week_of_19_Oct.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-26T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-26T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "product",
+   "platform": "github",
+   "title": "GitHub merged pull requests, week of 19 Oct"
+  },
+  {
+   "item_id": "doc_github_week43_c2",
+   "kind": "chunk",
+   "text": "GitHub merged pull requests, week of 19 Oct: Open longer than a week: PR 208 Booking form second branch (Kavindu), PR 212 Reminder SMS sender name (Imashi).",
+   "source": {
+    "document_id": "doc_github_week43",
+    "uri": "github://finebase-labs/GitHub_merged_pull_requests_week_of_19_Oct.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-26T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-26T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "product",
+   "platform": "github",
+   "title": "GitHub merged pull requests, week of 19 Oct"
+  },
+  {
+   "item_id": "doc_what_we_build_c1",
+   "kind": "chunk",
+   "text": "What we build: Finebase Labs services: Finebase Labs builds web portals, mobile apps and storefronts for small and mid-sized businesses in Sri Lanka and abroad. A project has phases: discover, design, build, launch and care.",
+   "source": {
+    "document_id": "doc_what_we_build",
+    "uri": "gdocs://finebase-labs/What_we_build_Finebase_Labs_services.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-09-28T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-09-28T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "product",
+   "platform": "gdocs",
+   "title": "What we build: Finebase Labs services"
+  },
+  {
+   "item_id": "doc_what_we_build_c2",
+   "kind": "chunk",
+   "text": "What we build: Finebase Labs services: Each phase ends with a client update: a short written report and a video. We use a fixed monthly fee, billed in USD. This page is out of date for the Harbor and Nila projects; the sections for the driver app and the learning platform are missing.",
+   "source": {
+    "document_id": "doc_what_we_build",
+    "uri": "gdocs://finebase-labs/What_we_build_Finebase_Labs_services.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-09-28T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-09-28T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "product",
+   "platform": "gdocs",
+   "title": "What we build: Finebase Labs services"
+  },
+  {
+   "item_id": "doc_grant_draft_c1",
+   "kind": "chunk",
+   "text": "Open Research Fund application draft: Summary: We will build an open reading-practice tool for Sinhala and Tamil primary schools, tested in the Nila Learning pilot with two schools. Requested amount USD 25,000 over 8 months.",
+   "source": {
+    "document_id": "doc_grant_draft",
+    "uri": "gdocs://finebase-labs/Open_Research_Fund_application_draft.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-22T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-22T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "finance",
+   "platform": "gdocs",
+   "title": "Open Research Fund application draft"
+  },
+  {
+   "item_id": "doc_grant_draft_c2",
+   "kind": "chunk",
+   "text": "Open Research Fund application draft: Budget draft: developers USD 14,000, design USD 4,000, school coordination USD 3,000, cloud USD 1,500, evaluation USD 2,500. Missing: letter from a partner school, open results plan.",
+   "source": {
+    "document_id": "doc_grant_draft",
+    "uri": "gdocs://finebase-labs/Open_Research_Fund_application_draft.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-22T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-22T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "finance",
+   "platform": "gdocs",
+   "title": "Open Research Fund application draft"
+  },
+  {
+   "item_id": "doc_deck_hackathon_c1",
+   "kind": "chunk",
+   "text": "Hackathon pitch deck: Cargo Hack 2026: Deck outline: problem (delivery drivers lose proof of delivery), demo (Harbor driver app), traction (three logistics clients), ask (a pilot with a regional carrier). 8 slides, draft 2.",
+   "source": {
+    "document_id": "doc_deck_hackathon",
+    "uri": "gdrive://finebase-labs/Hackathon_pitch_deck_Cargo_Hack_2026.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-10-18T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-18T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "sales",
+   "platform": "gdrive",
+   "title": "Hackathon pitch deck: Cargo Hack 2026"
+  },
+  {
+   "item_id": "doc_deck_hackathon_c2",
+   "kind": "chunk",
+   "text": "Hackathon pitch deck: Cargo Hack 2026: The hackathon is on 14 and 15 November in Colombo. Team of four: Ruwan, Kavindu, Sachini and Imashi. Deck due to the organisers by 12 November.",
+   "source": {
+    "document_id": "doc_deck_hackathon",
+    "uri": "gdrive://finebase-labs/Hackathon_pitch_deck_Cargo_Hack_2026.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-10-18T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-10-18T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "internal",
+   "domain": "sales",
+   "platform": "gdrive",
+   "title": "Hackathon pitch deck: Cargo Hack 2026"
+  },
+  {
+   "item_id": "doc_contract_lanka_c1",
+   "kind": "chunk",
+   "text": "Master services agreement Lanka Print Co.: Finebase Labs LLC provides the order tracking portal for a monthly fee of USD 4,800. Payment terms: invoice due 15 days after issue. Either party may end the agreement with 30 days notice.",
+   "source": {
+    "document_id": "doc_contract_lanka",
+    "uri": "gdrive://finebase-labs/Master_services_agreement_Lanka_Print_Co.txt",
+    "span": "chunk:1"
+   },
+   "valid_from": "2026-07-01T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-07-01T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "legal",
+   "platform": "gdrive",
+   "title": "Master services agreement Lanka Print Co."
+  },
+  {
+   "item_id": "doc_contract_lanka_c2",
+   "kind": "chunk",
+   "text": "Master services agreement Lanka Print Co.: Changes after the first signed scope are billed at USD 55 an hour, agreed in writing before work starts.",
+   "source": {
+    "document_id": "doc_contract_lanka",
+    "uri": "gdrive://finebase-labs/Master_services_agreement_Lanka_Print_Co.txt",
+    "span": "chunk:2"
+   },
+   "valid_from": "2026-07-01T09:00:00+05:30",
+   "valid_to": null,
+   "recorded_at": "2026-07-01T09:00:00+05:30",
+   "verified_by": null,
+   "version_ref": null,
+   "score": 0.0,
+   "sensitivity": "confidential",
+   "domain": "legal",
+   "platform": "gdrive",
+   "title": "Master services agreement Lanka Print Co."
+  }
+ ]
+}
