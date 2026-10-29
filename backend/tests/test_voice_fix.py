@@ -16,8 +16,8 @@ class Writer:
     def __init__(self, reply: str | Exception):
         self.reply, self.prompts = reply, []
 
-    def __call__(self, system: str, prompt: str) -> str:
-        self.prompts.append(prompt)
+    def __call__(self, system: str, prompt: str, fixed: str = "") -> str:
+        self.prompts.append(fixed + "\n" + prompt)
         if isinstance(self.reply, Exception):
             raise self.reply
         return self.reply

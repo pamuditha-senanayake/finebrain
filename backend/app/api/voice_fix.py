@@ -27,10 +27,14 @@ def company_words(seed: dict, hq: dict) -> list[str]:
     return list(dict.fromkeys([hq["tenant"]["name"], *APP_WORDS, *people, *first_names, *clusters, *skills, *agents]))
 
 
-def fix_prompt(text: str, words: list[str], recent: list[str]) -> str:
-    listed = ", ".join(words[:MAX_TERMS])
+def word_list(words: list[str]) -> str:
+    """The same for every question from this person, so the writer caches it."""
+    return "Word list: " + ", ".join(words[:MAX_TERMS])
+
+
+def fix_prompt(text: str, recent: list[str]) -> str:
     earlier = "\n".join(f"- {line}" for line in recent[-2:]) or "- none"
-    return f"Word list: {listed}\n\nEarlier in this chat:\n{earlier}\n\n<transcript>\n{text}\n</transcript>"
+    return f"Earlier in this chat:\n{earlier}\n\n<transcript>\n{text}\n</transcript>"
 
 
 def fixed(writer, text: str, words: list[str], recent: list[str]) -> str:
@@ -38,7 +42,7 @@ def fixed(writer, text: str, words: list[str], recent: list[str]) -> str:
     if writer is None or not text or len(text) > MAX_CHARS:
         return text
     try:
-        out = writer(FIX_SYSTEM, fix_prompt(text, words, recent)).strip().strip('"').strip()
+        out = writer(FIX_SYSTEM, fix_prompt(text, recent), word_list(words)).strip().strip('"').strip()
     except Exception:  # a fix is a nice-to-have: never lose the question over it
         return text
     return out if out and len(out) <= len(text) * MAX_GROWTH + 20 else text
