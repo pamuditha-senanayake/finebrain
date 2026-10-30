@@ -31,7 +31,7 @@ def fails_once(target, name: str, error: Exception):
 
 def replay(lane, topic: str, group: str) -> None:
     """What an operator's replay does: send each dead letter of this group again, with its own event id."""
-    for letter in [l for l in lane.bus.dead_letters(topic) if l.consumer_group == group]:
+    for letter in [dead for dead in lane.bus.dead_letters(topic) if dead.consumer_group == group]:
         lane.bus.redeliver(topic, letter.original)
     lane.bus.drain()
 
