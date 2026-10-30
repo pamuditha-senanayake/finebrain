@@ -41,7 +41,7 @@ def decision(run_id: str, allowed: bool = True) -> AccessDecision:
 
 def trace(run_id: str, **run_args) -> memory.TraceRecord:
     allowed = run_args.pop("allowed", True)
-    return memory.trace_of_run(refund_run(run_id, **run_args), TENANT, "customer_care", NOW, f"conv-{run_id}", [WINDOW], [decision(run_id, allowed)])
+    return memory.trace_of_run(refund_run(run_id, **run_args), TENANT, "customer_care", NOW, f"conv-{run_id}", [WINDOW], [memory.access_of(decision(run_id, allowed))])
 
 
 def survives_json(message: BaseModel) -> bool:

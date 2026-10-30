@@ -30,12 +30,16 @@ def policy_check_of(run: RunRecord) -> PolicyCheck:
     return {"escalated": "outside", "failed": "unknown"}.get(run.outcome, "within")
 
 
+def access_of(decision: AccessDecision) -> TraceAccess:
+    """The part of a K6 decision a trace keeps: who asked to do what, the answer, and the authority it carried."""
+    return TraceAccess(decision_id=decision.decision_id, action=decision.action or "", principal_id=decision.principal_id or "",
+                       on_behalf_of=decision.on_behalf_of, decision=decision.decision, effective_tier=decision.effective_tier)
+
+
 def trace_of_run(run: RunRecord, tenant_id: str, area: Area, started_at: datetime, input_ref: str,
-                 policies: list[TracePolicy], decisions: list[AccessDecision]) -> TraceRecord:
+                 policies: list[TracePolicy], access: list[TraceAccess]) -> TraceRecord:
     """The whole piece of work, start to end: steps by activity, the rules in force, every access decision, the why."""
     steps = [s.activity_id or activity_of(s.kind, s.decision) for s in run.steps]
-    access = [TraceAccess(decision_id=d.decision_id, action=d.action or "", principal_id=d.principal_id or "", on_behalf_of=d.on_behalf_of,
-                          decision=d.decision, effective_tier=d.effective_tier) for d in decisions if d.run_id == run.run_id]
     return TraceRecord(
         trace_id=f"tr-{run.run_id}", tenant_id=tenant_id, area=area, source="finebrain", started_at=started_at, ended_at=None,
         input_ref=input_ref, steps=steps, policies=policies, skill=run.skill_ref, access=access, outcome=run.outcome,

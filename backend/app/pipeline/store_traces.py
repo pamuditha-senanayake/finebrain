@@ -1,13 +1,15 @@
 # store_traces.py: the living memory's traces (stage 5a), the warm tier: each K16 TraceRecord by id, and one area's
 # traces newest first, a page at a time by a keyset cursor, so reading never walks the whole table. Saving the same
 # trace twice is a no-op, so a redelivered message or a second worker changes nothing. PostgresTraces and its twin.
-# Used by: tests/test_memory_stores.py; stage 5b wires it into the pipeline. Uses: contracts_memory.py.
+# Access decisions arrive on their own topic, sometimes after the run's trace: they are kept by run, and one that comes
+# late is attached to the trace already saved. Used by: stages_memory_flow.py, adapters.py, tests/test_memory_stores.py,
+# tests/test_memory_flow.py. Uses: contracts_memory.py.
 from datetime import datetime
 
 import psycopg
 from psycopg.types.json import Jsonb
 
-from app.pipeline.contracts_memory import TraceRecord
+from app.pipeline.contracts_memory import TraceAccess, TraceRecord
 
 # Config
 PAGE_SIZE = 25
@@ -21,6 +23,14 @@ CREATE TABLE IF NOT EXISTS memory_traces (
     PRIMARY KEY (tenant_id, trace_id)
 );
 CREATE INDEX IF NOT EXISTS memory_traces_area_newest ON memory_traces (tenant_id, area, started_at DESC, trace_id DESC);
+CREATE TABLE IF NOT EXISTS memory_access (
+    tenant_id   text  NOT NULL,
+    decision_id text  NOT NULL,
+    run_id      text  NOT NULL,
+    body        jsonb NOT NULL,
+    PRIMARY KEY (tenant_id, decision_id)
+);
+CREATE INDEX IF NOT EXISTS memory_access_run ON memory_access (tenant_id, run_id);
 """
 
 
@@ -48,6 +58,7 @@ class MemoryTraces:
     def __init__(self, tenant_id: str):
         self.tenant_id = tenant_id
         self.rows: dict[str, TraceRecord] = {}
+        self.access: dict[str, dict[str, TraceAccess]] = {}  # run_id to its decisions by id
 
     def save(self, trace: TraceRecord) -> bool:
         """Keep the trace. False when it was already kept."""
@@ -58,6 +69,33 @@ class MemoryTraces:
 
     def get(self, trace_id: str) -> TraceRecord | None:
         return self.rows.get(trace_id)
+
+    def add_access(self, run_id: str, access: TraceAccess) -> bool:
+        """Keep an access decision under its run. False when it was already kept."""
+        kept = self.access.setdefault(run_id, {})
+        if access.decision_id in kept:
+            return False
+        kept[access.decision_id] = access
+        return True
+
+    def access_of(self, run_id: str) -> list[TraceAccess]:
+        return list(self.access.get(run_id, {}).values())
+
+    def attach(self, trace_id: str, access: TraceAccess) -> bool:
+        """Add a late access decision to a saved trace. False when there is no such trace or it already has it."""
+        trace = self.rows.get(trace_id)
+        if not trace or any(a.decision_id == access.decision_id for a in trace.access):
+            return False
+        self.rows[trace_id] = trace.model_copy(update={"access": [*trace.access, access]})
+        return True
+
+    def scrub(self, trace_id: str, note: str) -> bool:
+        """Forgetting (step 10): replace the trace's why lines, which may quote an erased document. False when nothing changed."""
+        trace = self.rows.get(trace_id)
+        if not trace or trace.why == [note]:
+            return False
+        self.rows[trace_id] = trace.model_copy(update={"why": [note]})
+        return True
 
     def page(self, area: str, cursor: str | None = None, limit: int = PAGE_SIZE) -> tuple[list[TraceRecord], str | None]:
         after = parse_cursor(cursor)
@@ -83,6 +121,26 @@ class PostgresTraces:
     def get(self, trace_id: str) -> TraceRecord | None:
         row = self.connection.execute("SELECT body FROM memory_traces WHERE tenant_id = %s AND trace_id = %s", (self.tenant_id, trace_id)).fetchone()
         return TraceRecord.model_validate(row[0]) if row else None
+
+    def add_access(self, run_id: str, access: TraceAccess) -> bool:
+        return bool(self.connection.execute("INSERT INTO memory_access VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING",
+                                            (self.tenant_id, access.decision_id, run_id, Jsonb(access.model_dump(mode="json")))).rowcount)
+
+    def access_of(self, run_id: str) -> list[TraceAccess]:
+        rows = self.connection.execute("SELECT body FROM memory_access WHERE tenant_id = %s AND run_id = %s ORDER BY decision_id", (self.tenant_id, run_id))
+        return [TraceAccess.model_validate(row[0]) for row in rows]
+
+    def attach(self, trace_id: str, access: TraceAccess) -> bool:
+        # One statement, so two workers attaching the same decision at once still add it once
+        return bool(self.connection.execute(
+            """UPDATE memory_traces SET body = jsonb_set(body, '{access}', body->'access' || jsonb_build_array(%s::jsonb))
+               WHERE tenant_id = %s AND trace_id = %s AND NOT body->'access' @> jsonb_build_array(jsonb_build_object('decision_id', %s::text))""",
+            (Jsonb(access.model_dump(mode="json")), self.tenant_id, trace_id, access.decision_id)).rowcount)
+
+    def scrub(self, trace_id: str, note: str) -> bool:
+        return bool(self.connection.execute(
+            "UPDATE memory_traces SET body = jsonb_set(body, '{why}', jsonb_build_array(%s::text)) WHERE tenant_id = %s AND trace_id = %s AND body->'why' <> jsonb_build_array(%s::text)",
+            (note, self.tenant_id, trace_id, note)).rowcount)
 
     def page(self, area: str, cursor: str | None = None, limit: int = PAGE_SIZE) -> tuple[list[TraceRecord], str | None]:
         # One more row than the page tells whether another page follows; the index serves the order and the cursor
