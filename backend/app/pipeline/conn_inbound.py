@@ -1,7 +1,8 @@
 # conn_inbound.py: brings a live connection's customer messages into the brain. A background loop polls each live
 # connection with its cursor; a signed push lands on the same path. Every message goes through S1 (stored once, K1)
 # with its conversation in the session header, so S2 gives the signal a thread.
-# Used by: api/hq.py (starts the loop), api/connect_routes.py (push). Uses: conn_call.py, conn_spec.py, orchestrate.py, observe.py.
+# Used by: api/hq.py (starts the loop), api/connect_routes.py (push). Uses: conn_call.py, conn_spec.py, orchestrate.py, observe.py,
+# stages_memory_outside.py (the same loop polls the shop's refunds into the living memory).
 import hashlib
 import hmac
 import json
@@ -9,7 +10,7 @@ import threading
 import time
 from datetime import datetime, timezone
 
-from app.pipeline import orchestrate
+from app.pipeline import orchestrate, stages_memory_outside
 from app.pipeline.conn_call import CallFailed, Connection, all_connections, call, get_secret, load, save
 from app.pipeline.conn_spec import pick
 from app.pipeline.observe import count, log_event, touch
@@ -94,6 +95,7 @@ def poll_due(lane) -> None:
             continue
         last_polled[connection.connection_id] = time.monotonic()
         poll_safely(lane, connection)
+    stages_memory_outside.poll_due(lane)  # refunds made by hand in the shop become living memory (stage 5c)
 
 
 def poll_safely(lane, connection: Connection) -> None:
