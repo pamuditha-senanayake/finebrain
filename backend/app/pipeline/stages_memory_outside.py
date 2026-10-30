@@ -126,13 +126,14 @@ def take_refunds(lane, connection: Connection, limit: int) -> int:
 
 
 def poll_due(lane) -> None:
-    """Called from the polling loop. Polls the shop every POLL_SECONDS; a failure is counted and logged, never raised."""
-    connection = orders_database(lane) if lane.traces is not None else None
-    if connection is None or time.monotonic() - last_polled.get(connection.connection_id, 0) < POLL_SECONDS:
-        return
-    last_polled[connection.connection_id] = time.monotonic()
+    """Called from the polling loop. Polls the shop every POLL_SECONDS; a failure, even finding the shop, is counted and
+    logged, never raised, so the loop that also brings in customer messages outlives it."""
     try:
+        connection = orders_database(lane) if lane.traces is not None else None
+        if connection is None or time.monotonic() - last_polled.get(connection.connection_id, 0) < POLL_SECONDS:
+            return
+        last_polled[connection.connection_id] = time.monotonic()
         poll_refunds(lane)
     except Exception as error:  # one catch for the loop's entry point: the next pass tries again
         count("memory.outside_poll_failed")
-        log_event("memory", "outside_poll_failed", connection_id=connection.connection_id, error=type(error).__name__)
+        log_event("memory", "outside_poll_failed", error=type(error).__name__)
