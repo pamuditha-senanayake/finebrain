@@ -85,8 +85,8 @@ function Scene({ map }: { map: MemoryMap }) {
 
   return (
     <>
-      {/* The globe sits between the legend and the right-hand column, and moves left when a card opens */}
-      <section className={cn("relative h-[58dvh] sm:absolute sm:inset-y-0 sm:left-[250px] sm:right-[320px] sm:h-auto", selected && "sm:right-[440px]")} aria-label="The globe of areas">
+      {/* The globe fills the page above the legend and left of the right-hand column, and moves left when a card opens */}
+      <section className={cn("relative h-[58dvh] sm:absolute sm:bottom-[104px] sm:left-0 sm:right-[320px] sm:top-0 sm:h-auto", selected && "sm:right-[440px]")} aria-label="The globe of areas">
         {reduced || !webgl ? <GlobeFlat areas={map.areas} selected={selected} onSelect={choose} /> : (
           <Suspense fallback={<div className="absolute inset-0 m-auto size-[min(60vh,60vw)] animate-pulse rounded-full bg-muted" />}>
             <GlobeCanvas areas={map.areas} selected={selected} onSelect={choose} theme={resolvedTheme ?? "light"} />
@@ -131,11 +131,12 @@ function Figure({ label, value, hint, accent }: { label: string; value: string; 
   );
 }
 
-// Every area as a plain button: the keyboard and screen reader way in, and the key to the globe's colours.
+// Every area as a chip along the bottom: the keyboard and screen reader way in, and the key to the globe's colours.
+// Chips keep the sides of the page free, so every label on the globe has room.
 function Legend({ map, selected, onSelect }: { map: MemoryMap; selected: AreaKey | null; onSelect: (key: AreaKey) => void }) {
   return (
-    <nav aria-label="Areas" className="relative z-10 px-3 py-4 sm:absolute sm:bottom-5 sm:left-5 sm:p-0">
-      <ul className="grid grid-cols-1 gap-1.5 rounded-2xl border bg-card/85 p-2 shadow-sm backdrop-blur min-[420px]:grid-cols-2 sm:w-[230px] sm:grid-cols-1">
+    <nav aria-label="Areas" className={cn("relative z-10 px-3 py-4 sm:absolute sm:bottom-5 sm:left-5 sm:right-[340px] sm:p-0", selected && "sm:right-[460px]")}>
+      <ul className="flex flex-wrap gap-2">
         {AREA_ORDER.map((key) => {
           const area = map.areas.find((a) => a.key === key);
           if (!area) return null;
@@ -143,9 +144,9 @@ function Legend({ map, selected, onSelect }: { map: MemoryMap; selected: AreaKey
           return (
             <li key={key}>
               <button type="button" onClick={() => onSelect(key)} aria-pressed={selected === key} aria-label={areaLabel(area)}
-                className={cn("flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left text-[14px] hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring", selected === key && "bg-muted font-medium")}>
+                className={cn("flex items-center gap-2 rounded-full border bg-card/85 px-3 py-1.5 text-[14px] shadow-sm backdrop-blur hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring", selected === key && "border-foreground/40 bg-muted font-medium")}>
                 <span className="size-2.5 shrink-0 rounded-full" style={{ background: AREA_COLOR[key] }} aria-hidden />
-                <span className="flex-1 truncate">{area.name}</span>
+                <span>{area.name}</span>
                 <span className="tabular-nums text-muted-foreground">{area.traces7d}</span>
                 {drift > 0 && <span className="rounded-full bg-primary px-1.5 text-[12px] font-semibold text-primary-foreground">{drift}</span>}
               </button>

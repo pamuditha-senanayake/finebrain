@@ -3,11 +3,14 @@
 // globe-canvas.tsx: the living memory as one globe. Eight areas are solid regions of tightly packed tiles, like
 // countries, with thin seams between them; an opaque core hides the far side so no colours mix. It turns slowly
 // while idle, stops under the cursor, ripples where the cursor touches, turns a chosen area to the front, and lifts it.
-// Areas facing you carry a callout: a circle on the region, a straight line out, one rounded corner, then the label.
+// Every area carries a callout: a circle on its region (or on the rim when it is behind), a straight line out, one
+// rounded corner, then the label with its traces and drift. The wheel or the + and − buttons zoom.
 // Used by: memory.tsx. Uses: areas.ts, globe-shape.ts, three.
+import { Minus, Plus } from "lucide-react";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import type { AreaKey, MemoryArea } from "@/contracts";
+import { cn } from "@/lib/utils";
 import { AREA_COLOR, cssColor, driftTotal } from "./areas";
 import { CENTRES, makeTiles } from "./globe-shape";
 
@@ -20,11 +23,16 @@ const RIPPLE_LIFT = 0.06;
 const FOCUS_LIFT = 0.03; // the hovered or chosen area rises off the globe
 const SPIN = 0.07; // radians a second while idle
 const EASE = 0.12; // share of the gap closed each frame, for lifts and turns
-const FACING_MIN = 0.18; // an area's label shows only while it faces you at least this much
 // Globe radius as a share of the box's shorter side, leaving room for labels. A tall, narrow box (a card is open,
 // or a phone) has room above and below, so the globe can take more of its width.
 const GLOBE_SHARE = { wide: 0.31, narrow: 0.4 };
 const LABELS_MIN_WIDTH = 520;
+const LABEL_GAP = 40;
+const EDGE = 12; // px a label keeps from the box's edge
+const TITLE_CLEARANCE = 150; // px from the top the page title takes, on the left
+const ZOOM_MIN = 0.6;
+const ZOOM_MAX = 2.2;
+const ZOOM_STEP = 1.25;
 const FRONT = new THREE.Vector3(0, 0.18, 1).normalize();
 // Halo strength per theme; the colours themselves come from globals.css (--globe-core, --globe-glow, --area-*).
 const GLOW_STRENGTH = { dark: 0.32, light: 0.28 };
@@ -94,11 +102,20 @@ function calloutPath(ax: number, ay: number, bx: number, by: number, ex: number)
   return `M${ax},${ay} L${cx},${cy} Q${bx},${by} ${bx + sx * r},${by} H${ex}`;
 }
 
+// Labels on one side sit in the order of their callouts and never closer than LABEL_GAP, inside the box.
+function spreadRows(items: { key: AreaKey; by: number }[], height: number, top: number) {
+  const sorted = [...items].sort((a, b) => a.by - b.by);
+  let last = -Infinity;
+  const rows = sorted.map((item) => (last = Math.max(item.by, last + LABEL_GAP, top)));
+  const overflow = Math.max(0, (rows[rows.length - 1] ?? 0) - (height - LABEL_GAP / 2));
+  return new Map(sorted.map((item, i) => [item.key, rows[i] - overflow]));
+}
+
 export default function GlobeCanvas({ areas, selected, onSelect, theme }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const labels = useRef(new Map<AreaKey, HTMLButtonElement>());
   const lines = useRef(new Map<AreaKey, SVGGElement>());
-  const live = useRef({ areas, selected, onSelect, theme, hovered: null as AreaKey | null, repaint: () => {}, retheme: () => {} });
+  const live = useRef({ areas, selected, onSelect, theme, hovered: null as AreaKey | null, repaint: () => {}, retheme: () => {}, zoomBy: (factor: number) => void factor });
 
   useEffect(() => {
     Object.assign(live.current, { areas, selected, onSelect, theme });
@@ -190,12 +207,27 @@ export default function GlobeCanvas({ areas, selected, onSelect, theme }: Props)
       camera.aspect = width / Math.max(1, height);
       // The globe's radius is a fixed share of the box's shorter side, whatever its shape
       const focal = height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
-      camera.position.set(0, 0, focal / (GLOBE_SHARE[width < height ? "narrow" : "wide"] * Math.min(width, height)));
+      view.distance = focal / (GLOBE_SHARE[width < height ? "narrow" : "wide"] * Math.min(width, height));
       camera.updateProjectionMatrix();
-      // Callouts project before the first render, so the view matrix must be current now, not at render time
-      camera.updateMatrixWorld();
       tileMaterial.uniforms.scale.value = renderer.getPixelRatio() * focal;
+      place();
     };
+    // Zoom moves the camera, never the globe, so tiles keep their spacing; callouts project before the first render,
+    // so the view matrix is made current here rather than at render time
+    const view = { distance: 0, zoom: 1 };
+    const place = () => {
+      camera.position.set(0, 0, view.distance / view.zoom);
+      camera.updateMatrixWorld();
+    };
+    live.current.zoomBy = (factor: number) => {
+      view.zoom = THREE.MathUtils.clamp(view.zoom * factor, ZOOM_MIN, ZOOM_MAX);
+      place();
+    };
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      live.current.zoomBy(Math.exp(-e.deltaY * 0.0015));
+    };
+    canvas.addEventListener("wheel", onWheel, { passive: false });
     const resize = new ResizeObserver(fit);
     resize.observe(el);
     fit();
@@ -238,6 +270,8 @@ export default function GlobeCanvas({ areas, selected, onSelect, theme }: Props)
       }
       geometry.attributes.lift.needsUpdate = true;
     };
+    // Every area keeps its label. One facing you starts its callout on its region; one behind the globe starts on the
+    // rim, on the side it sits, with a dashed line and a softer label, so you always see where the work and the drift are.
     const moveCallouts = (width: number, height: number) => {
       // Until the first fit the camera sits inside the globe and every projection is NaN
       if (!width || !height || camera.position.z === 0) return;
@@ -245,29 +279,45 @@ export default function GlobeCanvas({ areas, selected, onSelect, theme }: Props)
       const centre = new THREE.Vector3().project(camera);
       const cx = (centre.x + 1) * 0.5 * width;
       const cy = (1 - centre.y) * 0.5 * height;
-      for (const c of CENTRES) {
-        const label = labels.current.get(c.key);
-        const line = lines.current.get(c.key);
-        if (!label || !line) continue;
+      const rim = (new THREE.Vector3(1, 0, 0).project(camera).x - centre.x) * 0.5 * width;
+      const shown = width >= LABELS_MIN_WIDTH; // on a phone the legend below the globe carries names and counts
+      const items = CENTRES.map((c, i) => {
         v.set(...c.at).applyQuaternion(globe.quaternion);
-        const facing = v.dot(toCamera);
-        // On a phone the legend below the globe carries the names and counts, so labels would only crowd it
-        const shown = facing > FACING_MIN && width >= LABELS_MIN_WIDTH;
-        label.style.opacity = line.style.opacity = shown ? String(Math.min(1, (facing - FACING_MIN) * 4)) : "0";
-        label.style.pointerEvents = shown ? "auto" : "none";
-        if (!shown) continue;
-        v.multiplyScalar(1.01).project(camera);
-        const ax = (v.x + 1) * 0.5 * width;
-        const ay = (1 - v.y) * 0.5 * height;
+        const front = v.dot(toCamera) > 0.05;
+        let ax: number;
+        let ay: number;
+        if (front) {
+          v.multiplyScalar(1.01).project(camera);
+          [ax, ay] = [(v.x + 1) * 0.5 * width, (1 - v.y) * 0.5 * height];
+        } else {
+          const side = Math.hypot(v.x, v.y) > 0.05 ? Math.atan2(-v.y, v.x) : (i / CENTRES.length) * Math.PI * 2;
+          [ax, ay] = [cx + Math.cos(side) * rim, cy + Math.sin(side) * rim];
+        }
         const out = Math.hypot(ax - cx, ay - cy) || 1;
         const bx = ax + ((ax - cx) / out) * 46;
-        const by = ay + ((ay - cy) / out) * 46;
-        const right = bx >= cx;
-        const ex = bx + (right ? 22 : -22);
-        label.style.transform = `translate(${right ? ex : ex - label.offsetWidth}px, ${by - label.offsetHeight / 2}px)`;
-        line.querySelector("path")!.setAttribute("d", calloutPath(ax, ay, bx, by, ex));
-        line.querySelector("circle")!.setAttribute("cx", String(ax));
-        line.querySelector("circle")!.setAttribute("cy", String(ay));
+        return { key: c.key, front, ax, ay, bx, by: ay + ((ay - cy) / out) * 46, right: bx >= cx };
+      });
+      // The page title sits top left, so labels on the left start below it
+      const rows = new Map([...spreadRows(items.filter((i) => !i.right), height, TITLE_CLEARANCE), ...spreadRows(items.filter((i) => i.right), height, LABEL_GAP / 2)]);
+      for (const item of items) {
+        const label = labels.current.get(item.key);
+        const line = lines.current.get(item.key);
+        if (!label || !line) continue;
+        label.style.opacity = shown ? (item.front ? "1" : "0.62") : "0";
+        line.style.opacity = shown ? (item.front ? "0.9" : "0.45") : "0";
+        label.style.pointerEvents = shown ? "auto" : "none";
+        if (!shown) continue;
+        const y = rows.get(item.key)!;
+        // Labels stay inside the box: one that would cross its edge slides in, and its line ends where it starts
+        const wanted = item.bx + (item.right ? 22 : -22);
+        const x = item.right ? Math.min(wanted, width - EDGE - label.offsetWidth) : Math.max(EDGE, wanted - label.offsetWidth);
+        const ex = item.right ? x : x + label.offsetWidth;
+        label.style.transform = `translate(${x}px, ${y - label.offsetHeight / 2}px)`;
+        const path = line.querySelector("path")!;
+        path.setAttribute("d", calloutPath(item.ax, item.ay, item.bx, y, ex));
+        path.setAttribute("stroke-dasharray", item.front ? "" : "3 4");
+        line.querySelector("circle")!.setAttribute("cx", String(item.ax));
+        line.querySelector("circle")!.setAttribute("cy", String(item.ay));
       }
     };
     const loop = () => {
@@ -285,6 +335,7 @@ export default function GlobeCanvas({ areas, selected, onSelect, theme }: Props)
       cancelAnimationFrame(frame);
       resize.disconnect();
       canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("wheel", onWheel);
       canvas.removeEventListener("pointerdown", onDown);
       window.removeEventListener("pointerup", onUp);
       el.removeEventListener("pointerenter", onEnter);
@@ -297,10 +348,10 @@ export default function GlobeCanvas({ areas, selected, onSelect, theme }: Props)
     };
   }, []);
 
-  // Labels are for the pointer; the legend beside the globe is the keyboard and screen reader way in.
+  // Labels are for the pointer; the legend beside the globe is the keyboard and screen reader way in. Zoom is for both.
   return (
-    <div ref={box} className="absolute inset-0 touch-none" aria-hidden>
-      <svg className="pointer-events-none absolute inset-0 size-full overflow-visible">
+    <div ref={box} className="absolute inset-0 touch-none">
+      <svg className="pointer-events-none absolute inset-0 size-full overflow-visible" aria-hidden>
         {CENTRES.map(({ key }) => (
           <g key={key} ref={(g) => void (g && lines.current.set(key, g))} stroke={AREA_COLOR[key]} fill="none" style={{ opacity: 0 }}>
             <path strokeWidth={selected === key ? 2 : 1.4} />
@@ -308,20 +359,26 @@ export default function GlobeCanvas({ areas, selected, onSelect, theme }: Props)
           </g>
         ))}
       </svg>
-      {CENTRES.map(({ key }) => {
-        const area = areas.find((a) => a.key === key);
-        if (!area) return null;
-        const drift = driftTotal(area);
-        return (
-          <button key={key} ref={(b) => void (b && labels.current.set(key, b))} type="button" tabIndex={-1} onClick={() => onSelect(key)} style={{ opacity: 0 }}
-            className="absolute left-0 top-0 flex items-center gap-2 whitespace-nowrap rounded-full border bg-card/90 px-3 py-1.5 text-[14px] shadow-sm backdrop-blur hover:bg-card">
-            <span className="size-2.5 rounded-full" style={{ background: AREA_COLOR[key] }} />
-            <span className="font-medium">{area.name}</span>
-            <span className="tabular-nums text-muted-foreground">{area.traces7d}</span>
-            {drift > 0 && <span className="rounded-full bg-primary px-1.5 text-[12px] font-semibold text-primary-foreground tabular-nums">{drift}</span>}
-          </button>
-        );
-      })}
+      <div aria-hidden>
+        {CENTRES.map(({ key }) => {
+          const area = areas.find((a) => a.key === key);
+          if (!area) return null;
+          const drift = driftTotal(area);
+          return (
+            <button key={key} ref={(b) => void (b && labels.current.set(key, b))} type="button" tabIndex={-1} onClick={() => onSelect(key)} style={{ opacity: 0 }}
+              className={cn("absolute left-0 top-0 flex items-center gap-2 whitespace-nowrap rounded-full border bg-card/90 px-3 py-1.5 text-[14px] shadow-sm backdrop-blur transition-opacity hover:bg-card hover:!opacity-100", selected === key && "border-foreground/40")}>
+              <span className="size-2.5 rounded-full" style={{ background: AREA_COLOR[key] }} />
+              <span className="font-medium">{area.name}</span>
+              <span className="tabular-nums text-muted-foreground">{area.traces7d} traces</span>
+              {drift > 0 && <span className="rounded-full bg-primary px-2 text-[12px] font-semibold text-primary-foreground tabular-nums">{drift} drifting</span>}
+            </button>
+          );
+        })}
+      </div>
+      <div className="absolute bottom-5 right-5 flex flex-col overflow-hidden rounded-xl border bg-card/85 shadow-sm backdrop-blur">
+        <button type="button" onClick={() => live.current.zoomBy(ZOOM_STEP)} aria-label="Zoom in" className="flex size-9 items-center justify-center hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"><Plus className="size-4" aria-hidden /></button>
+        <button type="button" onClick={() => live.current.zoomBy(1 / ZOOM_STEP)} aria-label="Zoom out" className="flex size-9 items-center justify-center border-t hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"><Minus className="size-4" aria-hidden /></button>
+      </div>
     </div>
   );
 }
