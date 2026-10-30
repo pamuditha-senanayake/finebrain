@@ -17,6 +17,7 @@ from app.api import memory_views
 from app.api.ready_notices import leaders
 from app.api.studio_approvals import open_change
 from app.api.studio_changes import ChangeRecord, notify
+from app.api.studio_draft import StudioError
 from app.api.studio_review import review
 from app.api.studio_state import Studio
 from app.pipeline import stages_memory as memory
@@ -60,11 +61,14 @@ def open_fix(lane, flag: DriftFlag) -> DriftFlag:
     """Draft, review, and open the change at L1 level; without a draft, ask the L1 leaders to decide."""
     st = Studio.of(lane)
     change = change_for(st, flag)
-    if change is None:
+    try:
+        proposal = review(lane, st.flows[change["workflowId"]]["dri"], change, st) if change else None
+    except StudioError as refused:  # e.g. the drafted value is already in force; a person decides, the night goes on
+        log_event("MEMORY", "fix_refused", flag_id=flag.flag_id, reason=str(refused))
+        proposal = None
+    if proposal is None:
         tell_leaders(lane, flag, "No fix could be drafted on its own. Please decide what should change.")
         return lane.drift.move(flag.model_copy(update={"state": "sent_to_l1"}), lane.now, "sent to L1 without a draft")
-    flow = st.flows[change["workflowId"]]
-    proposal = review(lane, flow["dri"], change, st)
     proposal = {**proposal, "review": {**proposal["review"], "criticality": max(L1_LEVEL, proposal["review"]["criticality"])}}
     opened = open_change(lane, DRAFTER, change, proposal, f"From the living memory: {flag.summary}. Evidence: {', '.join(flag.evidence_trace_ids[:5])}")
     fix = DriftFix(summary=flag.fix.summary, change_request_id=opened["changeRequestId"])

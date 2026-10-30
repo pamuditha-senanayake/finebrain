@@ -123,7 +123,7 @@ function DriftCard({ drift }: { drift: DriftItem }) {
         <span className="text-[13px] text-muted-foreground">{drift.metric.label.toLowerCase()}</span>
       </div>
       <p className="text-[15px]">
-        {drift.fix ? <>Draft fix: {drift.fix.summary}</> : <span className="text-muted-foreground">No draft: access drift goes straight to an L1 user.</span>}
+        {fixWords(drift)}
       </p>
       <StateSteps state={drift.state} />
       {drift.reopenedNote && <p className="text-[13px] text-primary">Reopened: {drift.reopenedNote}</p>}
@@ -136,6 +136,13 @@ function DriftCard({ drift }: { drift: DriftItem }) {
       </div>
     </div>
   );
+}
+
+// A fix is a draft only while it is being drafted or has a change request; past that without one, an L1 user decides.
+function fixWords(drift: DriftItem) {
+  if (!drift.fix) return <span className="text-muted-foreground">No draft: access drift goes straight to an L1 user.</span>;
+  if (drift.fix.changeRequestId || drift.state === "detected") return <>Draft fix: {drift.fix.summary}</>;
+  return <>Suggested: {drift.fix.summary} <span className="text-muted-foreground">No change could be opened, so an L1 user decides.</span></>;
 }
 
 // Where the drift stands, as a numbered step line: done, now (accent ring), and still to come. Text, never buttons.

@@ -83,7 +83,7 @@ function WorkSteps({ trace }: { trace: TraceDetail }) {
         <li key={s.id} className="rounded-xl border px-4 py-3">
           <p className="text-[15px]">{s.title} <span className="text-muted-foreground">· {s.decision}</span></p>
           {s.reason && <p className="mt-1 text-[13px] text-muted-foreground">Why: {s.reason}</p>}
-          <p className="mt-1 text-[12px] text-muted-foreground">{duration(s.durationMs)}{s.tool ? ` · ${s.tool}` : ""}</p>
+          {(s.durationMs > 0 || s.tool) && <p className="mt-1 text-[12px] text-muted-foreground">{joined([s.durationMs > 0 && duration(s.durationMs), s.tool])}</p>}
         </li>
       ))}
     </ul>
@@ -110,7 +110,7 @@ function Access({ trace }: { trace: TraceDetail }) {
         <li key={i} className="flex flex-wrap items-baseline gap-x-2 text-[15px]">
           <span className={cn("font-medium", a.decision === "deny" && "text-risk")}>{a.decision === "allow" ? "Allowed" : "Denied"}</span>
           <span>{a.action}</span>
-          <span className="text-[13px] text-muted-foreground">{a.principal}{a.onBehalfOf ? ` for ${a.onBehalfOf}` : ""} · {a.latencyMs} ms · {a.reason}</span>
+          <span className="text-[13px] text-muted-foreground">{joined([a.onBehalfOf ? `${a.principal} for ${a.onBehalfOf}` : a.principal, a.latencyMs > 0 && `${a.latencyMs} ms`, a.reason])}</span>
         </li>
       ))}
     </ul>
@@ -131,4 +131,9 @@ function Links({ trace, sample }: { trace: TraceDetail; sample: boolean }) {
       {trace.runId && <Button asChild variant="outline"><Link href={`/l3/runs/${trace.runId}`}>Open the run</Link></Button>}
     </div>
   );
+}
+
+// The parts that are known, with a dot between them; an unmeasured time (0) or a missing reason is left out.
+function joined(parts: (string | false | null | undefined)[]) {
+  return parts.filter(Boolean).join(" · ");
 }

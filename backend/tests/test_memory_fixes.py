@@ -64,6 +64,12 @@ def test_a_drift_that_cannot_be_drafted_still_goes_to_l1():
     assert lane.records.list_kind("notification")
 
 
+def test_a_fix_studio_refuses_goes_to_l1_and_the_night_goes_on():
+    _, lane = build()
+    flag = raised(lane, "policy", POLICY, "Refund window: up to 30 days, as people now refund")  # already the window in force
+    assert flag.state == "sent_to_l1" and flag.fix.change_request_id is None and lane.records.list_kind("notification")
+
+
 def test_security_drift_is_an_incident_for_the_l1_leaders_with_no_draft():
     _, lane = build()
     flag = raised(lane, "security", "agent_refund_worker", None)
