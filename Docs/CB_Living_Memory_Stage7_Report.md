@@ -46,6 +46,7 @@ Found and fixed on live data:
 - **A refused fix stopped the whole night.** When Studio refused a drafted change (here, the window it drafted was already in force), the error escaped. That failed the night and every drift after it. A refused fix now goes to the L1 leaders without a draft, and the night goes on (`memory_fixes.open_fix`, tested).
 - **The audit chain forked under two threads.** The API's request thread and its background loop write the audit through one Postgres connection, and the advisory lock doesn't block a second thread on the same connection. Both took the same number, and the night failed on its audit line. A thread lock now makes them take turns (`audit.PostgresAudit`). The new test fails without it and passes with it.
 - **The seed used the seed file's policy, not the graph.** Live HQ has refund policy v6 (a 45-day window). The script judged its traces against v3 (30 days), so it made a policy drift toward a window already in force. The script now reads the version in force on each trace's day from the graph.
+- **HQ cleaned and seeded again (2026-10-31).** The 1,082 seeded traces (389 in Postgres, 693 frozen in S3), their 8 patterns, their match and review records, the false policy drift and its notice were removed. The skill drift and its change request were kept: the seed's skill traces are the same either way. Seeded again, every refund is held to v6 (45 days). The night opened the policy fix as change request `cr_73b6768cc0dc` (up to 60 days), and both fixes now wait for an L1 user.
 - **The card said "Draft fix" for a drift with no change request.** It now says "Suggested", and that an L1 user decides.
 
 ## The real-use bar (CLAUDE.md)
@@ -65,7 +66,7 @@ Found and fixed on live data:
 
 | # | Gap | When |
 |---|---|---|
-| 1 | HQ's seeded traces were made before the seed fix, so they say "window is 30" and carry a false policy drift. Removing them and seeding again changes the demo workspace, so it waits for a yes. | Before the stage 8 demo |
+| 1 | When the API runs as `fastapi dev`, a reload can leave the old worker holding `127.0.0.1:8000` without answering. That hid a second server and made the night look hung. The dev reloader only; not seen under `fastapi run`. | Watch; restart the dev server cleanly before demos |
 | 2 | A path change of one step is absorbed by near-match triage, so it can't show as skill drift. Only bigger changes do. | A product decision: count near matches toward drift |
 | 3 | Surprises show on the trace page and the Waiting link, but not yet in To review | Stage 8 |
 | 4 | Drafts and fixes are written by rule, not by Claude | A Claude drafting pass, under the model credit rule |
