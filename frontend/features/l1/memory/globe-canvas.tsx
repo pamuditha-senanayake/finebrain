@@ -50,7 +50,9 @@ void main() {
 // A soft halo around the rim, brighter at the edge, so the globe stands off the page in both themes.
 const GLOW_VERTEX = `varying float vEdge; void main() { vEdge = 1.0 - abs(normalize(normalMatrix * normal).z); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 const GLOW_FRAGMENT = `uniform vec3 glow; uniform float strength; varying float vEdge;
-void main() { gl_FragColor = vec4(glow, pow(vEdge, 5.0) * strength); #include <colorspace_fragment>
+void main() {
+  gl_FragColor = vec4(glow, pow(vEdge, 5.0) * strength);
+  #include <colorspace_fragment>
 }`;
 
 // --- Colour and lift
