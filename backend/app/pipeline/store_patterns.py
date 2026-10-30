@@ -1,6 +1,7 @@
 # store_patterns.py: the living memory's patterns and areas (stage 5a). Each area keeps at most PATTERN_BUDGET patterns,
 # read by area and key, never by listing everything; each pattern counts its traces per week, and a redelivered trace
-# never counts twice. The area registry says which areas a company uses; Other is always on. PostgresPatterns and its twin.
+# never counts twice. The area registry says which areas a company uses; Other is always on. The nightly tidy (5d) merges
+# near-identical patterns and removes idle ones. PostgresPatterns and its twin.
 # Used by: stages_memory.py, tests/test_memory_stores.py, tests/test_memory_skeleton.py. Uses: nothing local.
 import hashlib
 from dataclasses import dataclass, field
@@ -91,6 +92,28 @@ class MemoryPatterns:
                 weeks[week] = weeks.get(week, 0) + 1
         return dict(sorted(weeks.items()))
 
+    def merge(self, area: str, survivor_key: str, merged_key: str) -> int:
+        """Fold one pattern into another (the nightly tidy): its traces count for the survivor, never twice. Returns traces moved."""
+        patterns = self.areas.get(area, {})
+        survivor, merged = patterns.get(survivor_key), patterns.pop(merged_key, None)
+        if not survivor or not merged:
+            return 0
+        moved = 0
+        for _, trace_id in [key for key in self.cases if key[0] == merged.pattern_id]:
+            week = self.cases.pop((merged.pattern_id, trace_id))
+            moved += (survivor.pattern_id, trace_id) not in self.cases  # a trace both counted stays counted once
+            self.cases.setdefault((survivor.pattern_id, trace_id), week)
+        survivor.count = sum(1 for key in self.cases if key[0] == survivor.pattern_id)
+        survivor.examples = (survivor.examples + merged.examples)[:EXAMPLES_PER_PATTERN]
+        return moved
+
+    def remove(self, area: str, key: str) -> Pattern | None:
+        """Take a pattern out of its area with its counts (the tidy archived it first), freeing room in the budget."""
+        pattern = self.areas.get(area, {}).pop(key, None)
+        if pattern:
+            self.cases = {k: week for k, week in self.cases.items() if k[0] != pattern.pattern_id}
+        return pattern
+
     def area_on(self, area: str) -> bool:
         return area == ALWAYS_ON or self.switched.get(area, True)
 
@@ -141,6 +164,34 @@ class PostgresPatterns:
         rows = self.connection.execute(
             "SELECT week, count(*) FROM memory_pattern_cases WHERE tenant_id = %s AND pattern_id = %s GROUP BY week ORDER BY week", (self.tenant_id, pattern_id))
         return {week: count for week, count in rows}
+
+    def merge(self, area: str, survivor_key: str, merged_key: str) -> int:
+        # One transaction: the merged pattern's cases move and its row goes, or nothing changes
+        with self.connection.transaction():
+            patterns = self.area_patterns(area)
+            survivor, merged = patterns.get(survivor_key), patterns.get(merged_key)
+            if not survivor or not merged:
+                return 0
+            # A trace both counted stays counted once: move the others, drop the rest, then recount from the cases themselves
+            moved = self.connection.execute(
+                """UPDATE memory_pattern_cases m SET pattern_id = %s WHERE m.tenant_id = %s AND m.pattern_id = %s
+                   AND NOT EXISTS (SELECT 1 FROM memory_pattern_cases s WHERE s.tenant_id = m.tenant_id AND s.pattern_id = %s AND s.trace_id = m.trace_id)""",
+                (survivor.pattern_id, self.tenant_id, merged.pattern_id, survivor.pattern_id)).rowcount
+            self.connection.execute("DELETE FROM memory_pattern_cases WHERE tenant_id = %s AND pattern_id = %s", (self.tenant_id, merged.pattern_id))
+            self.connection.execute(
+                """UPDATE memory_patterns SET examples = %s,
+                   total = (SELECT count(*) FROM memory_pattern_cases WHERE tenant_id = %s AND pattern_id = %s) WHERE tenant_id = %s AND pattern_id = %s""",
+                (Jsonb((survivor.examples + merged.examples)[:EXAMPLES_PER_PATTERN]), self.tenant_id, survivor.pattern_id, self.tenant_id, survivor.pattern_id))
+            self.connection.execute("DELETE FROM memory_patterns WHERE tenant_id = %s AND pattern_id = %s", (self.tenant_id, merged.pattern_id))
+        return moved
+
+    def remove(self, area: str, key: str) -> Pattern | None:
+        with self.connection.transaction():
+            pattern = self.area_patterns(area).get(key)
+            if pattern:
+                self.connection.execute("DELETE FROM memory_pattern_cases WHERE tenant_id = %s AND pattern_id = %s", (self.tenant_id, pattern.pattern_id))
+                self.connection.execute("DELETE FROM memory_patterns WHERE tenant_id = %s AND pattern_id = %s", (self.tenant_id, pattern.pattern_id))
+        return pattern
 
     def area_on(self, area: str) -> bool:
         if area == ALWAYS_ON:

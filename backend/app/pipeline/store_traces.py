@@ -1,7 +1,7 @@
 # store_traces.py: the living memory's traces (stage 5a), the warm tier: each K16 TraceRecord by id, and one area's
 # traces newest first, a page at a time by a keyset cursor, so reading never walks the whole table. Saving the same
 # trace twice is a no-op, so a redelivered message or a second worker changes nothing. PostgresTraces and its twin.
-# Access decisions arrive on their own topic, sometimes after the run's trace: they are kept by run, and one that comes
+# Since 5d the nightly tidy moves traces older than 30 days to S3 (older_than, remove). Access decisions arrive on their own topic, sometimes after the run's trace: they are kept by run, and one that comes
 # late is attached to the trace already saved. Used by: stages_memory_flow.py, adapters.py, tests/test_memory_stores.py,
 # tests/test_memory_flow.py. Uses: contracts_memory.py.
 from datetime import datetime
@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS memory_traces (
     PRIMARY KEY (tenant_id, trace_id)
 );
 CREATE INDEX IF NOT EXISTS memory_traces_area_newest ON memory_traces (tenant_id, area, started_at DESC, trace_id DESC);
+CREATE INDEX IF NOT EXISTS memory_traces_oldest ON memory_traces (tenant_id, started_at, trace_id);
 CREATE TABLE IF NOT EXISTS memory_access (
     tenant_id   text  NOT NULL,
     decision_id text  NOT NULL,
@@ -89,6 +90,17 @@ class MemoryTraces:
         self.rows[trace_id] = trace.model_copy(update={"access": [*trace.access, access]})
         return True
 
+    def older_than(self, before: datetime, limit: int) -> list[TraceRecord]:
+        """The oldest warm traces that started before this moment, oldest first: what the nightly tidy moves to cold."""
+        return sorted((t for t in self.rows.values() if t.started_at < before), key=lambda t: (t.started_at, t.trace_id))[:limit]
+
+    def remove(self, trace_id: str) -> bool:
+        """Leave the warm tier (the tidy archived it first), with the access decisions kept for its run."""
+        trace = self.rows.pop(trace_id, None)
+        if trace and trace.run_id:
+            self.access.pop(trace.run_id, None)
+        return trace is not None
+
     def scrub(self, trace_id: str, note: str) -> bool:
         """Forgetting (step 10): replace the trace's why lines, which may quote an erased document. False when nothing changed."""
         trace = self.rows.get(trace_id)
@@ -136,6 +148,17 @@ class PostgresTraces:
             """UPDATE memory_traces SET body = jsonb_set(body, '{access}', body->'access' || jsonb_build_array(%s::jsonb))
                WHERE tenant_id = %s AND trace_id = %s AND NOT body->'access' @> jsonb_build_array(jsonb_build_object('decision_id', %s::text))""",
             (Jsonb(access.model_dump(mode="json")), self.tenant_id, trace_id, access.decision_id)).rowcount)
+
+    def older_than(self, before: datetime, limit: int) -> list[TraceRecord]:
+        rows = self.connection.execute(
+            "SELECT body FROM memory_traces WHERE tenant_id = %s AND started_at < %s ORDER BY started_at, trace_id LIMIT %s", (self.tenant_id, before, limit))
+        return [TraceRecord.model_validate(row[0]) for row in rows]
+
+    def remove(self, trace_id: str) -> bool:
+        row = self.connection.execute("DELETE FROM memory_traces WHERE tenant_id = %s AND trace_id = %s RETURNING body->>'run_id'", (self.tenant_id, trace_id)).fetchone()
+        if row and row[0]:
+            self.connection.execute("DELETE FROM memory_access WHERE tenant_id = %s AND run_id = %s", (self.tenant_id, row[0]))
+        return row is not None
 
     def scrub(self, trace_id: str, note: str) -> bool:
         return bool(self.connection.execute(
