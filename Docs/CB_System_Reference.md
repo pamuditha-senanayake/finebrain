@@ -129,6 +129,10 @@ Every Kafka message is wrapped in the shared envelope: `event_id` (UUIDv7), `eve
 | K13 Commit + ChangeRequest | S12, S13, Skillify, Workflow Studio → S14 | Graph API, then `graph.commits` via outbox | commit: branch, author, changes[], criticality · CR: plain_diff, tests, impact_preview, status | Yes |
 | K14 ReleaseEvent | S14 → S3, S5, S6, S11 | Kafka `graph.released`, compacted | commit_id, changed_nodes[] | Yes |
 | K15 GapDetected | S15 → S3, S8 | Kafka `evidence.gaps` | target, required_item, due_at, action, dri_id, escalation_days | Yes |
+| K16 TraceRecord | S10 → trace store | Kafka `traces.recorded` (stage 5) | area, source (finebrain or outside), steps[] by activity, policies[] in force, skill, access[], outcome, why[], policy_check | Skeleton, in memory (`stages_memory.py`) |
+| K17 AreaMatch | Triage → pattern store, S8 To review | Kafka `traces.matched` (stage 5) | area, pattern_id, pattern_key, similarity, match (normal or surprise) | Skeleton, in memory |
+| K18 DriftFlag | S13 → S8 To review | Kafka `drift.flags` (stage 6) | kind (skill, policy, security), subject, usual, latest, evidence_trace_ids, state, fix, recheck, reopened_note | Skeleton, in memory |
+| K19 SkillDraft | S13 → S14 via Studio | Becomes a K13 change request (stage 6) | pattern_id, steps[], support, same_outcome_share, follow_rate, state | Skeleton, in memory |
 
 Shared types: `VersionRef`, `Money` (minor units, never floats: LKR 85,000 is `8500000`), `Principal`, `Criticality` (0 to 4), `PiiToken`, `Touches`.
 
@@ -261,7 +265,7 @@ Keys: `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY` and the Google OAuth and Pub/Sub key
 | Part | Status |
 |---|---|
 | FastAPI app | `backend/app/main.py` has `/health` and CORS for port 3000 |
-| Contracts K1 to K15, shared types, DeadLetter | Written in `backend/app/pipeline/contracts_signal.py`, `contracts_reason.py`, `contracts_run.py`, `contracts_graph.py`, `contracts_failure.py` |
+| Contracts K1 to K19, shared types, DeadLetter | Written in `backend/app/pipeline/contracts_signal.py`, `contracts_reason.py`, `contracts_run.py`, `contracts_graph.py`, `contracts_failure.py`, `contracts_memory.py` (K16 to K19, Docs/CB_Living_Memory_Architecture.md) |
 | Golden data and check | `backend/samples/golden_refund_run.json`, checked by `uv run python -m scripts.check_golden` |
 | UI contracts for Connect, Studio, Ask | Only in the frontend (zod) |
 | Samples | `backend/samples/pipeline_samples.json` |
