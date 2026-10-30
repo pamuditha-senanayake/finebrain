@@ -8,7 +8,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import type { AreaKey, MemoryArea } from "@/contracts";
-import { AREA_COLOR, driftTotal } from "./areas";
+import { AREA_COLOR, cssColor, driftTotal } from "./areas";
 import { CENTRES, makeTiles } from "./globe-shape";
 
 // Config
@@ -26,12 +26,10 @@ const FACING_MIN = 0.18; // an area's label shows only while it faces you at lea
 const GLOBE_SHARE = { wide: 0.31, narrow: 0.4 };
 const LABELS_MIN_WIDTH = 520;
 const FRONT = new THREE.Vector3(0, 0.18, 1).normalize();
-const THEME = {
-  dark: { core: "#17181b", glow: new THREE.Color("#7f95ff"), glowStrength: 0.4 },
-  light: { core: "#ebe7df", glow: new THREE.Color("#8c9bc4"), glowStrength: 0.3 },
-};
+// Halo strength per theme; the colours themselves come from globals.css (--globe-core, --globe-glow, --area-*).
+const GLOW_STRENGTH = { dark: 0.32, light: 0.28 };
 
-type Props = { areas: MemoryArea[]; selected: AreaKey | null; onSelect: (key: AreaKey) => void; dark: boolean };
+type Props = { areas: MemoryArea[]; selected: AreaKey | null; onSelect: (key: AreaKey) => void; theme: string };
 
 const TILE_VERTEX = `attribute float size; attribute float lift; attribute vec3 tint; uniform float scale; varying vec3 vTint; varying float vFacing;
 void main() {
@@ -41,23 +39,31 @@ void main() {
   gl_PointSize = size * scale / -mv.z;
   gl_Position = projectionMatrix * mv;
 }`;
+// Colours arrive in linear space (three converts the CSS hex); colorspace_fragment turns them back into sRGB, so a
+// tile shows the exact colour of its legend dot.
 const TILE_FRAGMENT = `varying vec3 vTint; varying float vFacing;
-void main() { if (length(gl_PointCoord - 0.5) > 0.5) discard; gl_FragColor = vec4(vTint * (0.72 + 0.28 * vFacing), 1.0); }`;
+void main() {
+  if (length(gl_PointCoord - 0.5) > 0.5) discard;
+  gl_FragColor = vec4(vTint * (0.82 + 0.18 * vFacing), 1.0);
+  #include <colorspace_fragment>
+}`;
 // A soft halo around the rim, brighter at the edge, so the globe stands off the page in both themes.
 const GLOW_VERTEX = `varying float vEdge; void main() { vEdge = 1.0 - abs(normalize(normalMatrix * normal).z); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
-const GLOW_FRAGMENT = `uniform vec3 glow; uniform float strength; varying float vEdge; void main() { gl_FragColor = vec4(glow, pow(vEdge, 5.0) * strength); }`;
+const GLOW_FRAGMENT = `uniform vec3 glow; uniform float strength; varying float vEdge;
+void main() { gl_FragColor = vec4(glow, pow(vEdge, 5.0) * strength); #include <colorspace_fragment>
+}`;
 
 // --- Colour and lift
 
-// The chosen or hovered area is bright and lifted; other areas soften while one is chosen; quiet areas fade.
-function paint(tint: Float32Array, size: Float32Array, tiles: ReturnType<typeof makeTiles>, areas: Map<AreaKey, MemoryArea>, focus: AreaKey | null, core: string) {
+// The chosen or hovered area is bright and lifted; other areas turn a calm grey while one is chosen; quiet areas fade.
+function paint(tint: Float32Array, size: Float32Array, tiles: ReturnType<typeof makeTiles>, areas: Map<AreaKey, MemoryArea>, focus: AreaKey | null, fadeTo: string) {
+  const palette = Object.fromEntries(CENTRES.map(({ key }) => [key, cssColor(`--area-${key}`)])) as Record<AreaKey, string>;
   const colour = new THREE.Color();
-  const base = new THREE.Color(core);
+  const base = new THREE.Color(fadeTo);
   tiles.forEach((tile, i) => {
     const quiet = (areas.get(tile.area)?.traces7d ?? 0) === 0;
-    const fade = focus ? (tile.area === focus ? 0 : 0.5) : quiet ? 0.55 : 0;
-    colour.set(AREA_COLOR[tile.area]).lerp(base, fade);
-    if (tile.area === focus) colour.multiplyScalar(1.12);
+    const fade = focus ? (tile.area === focus ? 0 : 0.7) : quiet ? 0.6 : 0;
+    colour.set(palette[tile.area]).lerp(base, fade);
     tint.set([colour.r, colour.g, colour.b], i * 3);
     size[i] = TILE_SIZE * (tile.border ? SEAM_SIZE : 1);
   });
@@ -86,17 +92,17 @@ function calloutPath(ax: number, ay: number, bx: number, by: number, ex: number)
   return `M${ax},${ay} L${cx},${cy} Q${bx},${by} ${bx + sx * r},${by} H${ex}`;
 }
 
-export default function GlobeCanvas({ areas, selected, onSelect, dark }: Props) {
+export default function GlobeCanvas({ areas, selected, onSelect, theme }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const labels = useRef(new Map<AreaKey, HTMLButtonElement>());
   const lines = useRef(new Map<AreaKey, SVGGElement>());
-  const live = useRef({ areas, selected, onSelect, dark, hovered: null as AreaKey | null, repaint: () => {}, retheme: () => {} });
+  const live = useRef({ areas, selected, onSelect, theme, hovered: null as AreaKey | null, repaint: () => {}, retheme: () => {} });
 
   useEffect(() => {
-    Object.assign(live.current, { areas, selected, onSelect, dark });
+    Object.assign(live.current, { areas, selected, onSelect, theme });
     live.current.retheme();
     live.current.repaint();
-  }, [areas, selected, onSelect, dark]);
+  }, [areas, selected, onSelect, theme]);
 
   useEffect(() => {
     const el = box.current;
@@ -128,14 +134,14 @@ export default function GlobeCanvas({ areas, selected, onSelect, dark }: Props) 
     globe.add(new THREE.Points(geometry, tileMaterial));
 
     // Step 2: colours follow the data, the theme and the focus
-    const theme = () => THEME[live.current.dark ? "dark" : "light"];
+    // The theme's class is on <html> already, so the CSS variables hold this theme's colours
     live.current.retheme = () => {
-      (core.material as THREE.MeshBasicMaterial).color.set(theme().core);
-      glowMaterial.uniforms.glow.value.copy(theme().glow);
-      glowMaterial.uniforms.strength.value = theme().glowStrength;
+      (core.material as THREE.MeshBasicMaterial).color.set(cssColor("--globe-core"));
+      glowMaterial.uniforms.glow.value.set(cssColor("--globe-glow"));
+      glowMaterial.uniforms.strength.value = GLOW_STRENGTH[live.current.theme === "light" ? "light" : "dark"];
     };
     live.current.repaint = () => {
-      paint(tint, size, tiles, new Map(live.current.areas.map((a) => [a.key, a])), live.current.hovered ?? live.current.selected, theme().core);
+      paint(tint, size, tiles, new Map(live.current.areas.map((a) => [a.key, a])), live.current.hovered ?? live.current.selected, cssColor("--globe-fade"));
       geometry.attributes.tint.needsUpdate = true;
       geometry.attributes.size.needsUpdate = true;
     };

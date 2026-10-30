@@ -327,6 +327,20 @@
 .scrollbar-none::-webkit-scrollbar { display: none; }
 .tabular { font-variant-numeric: tabular-nums; }
 
+/* Living memory: one colour per brain area, and the globe's core and halo. Every area has the same lightness and
+   softness, so none shouts; dark themes use lighter, calmer tones than light. The globe reads these at run time. */
+:root {
+  --area-customer_care: #4682cc; --area-finance: #219761; --area-legal: #8d6cc2; --area-people: #b85c8b;
+  --area-operations: #0095a5; --area-sales: #6f8d2a; --area-product: #a37800; --area-general: #848078;
+  --globe-core: #eae7e2; --globe-glow: #8ca1b7; --globe-fade: #d3d0ca;
+}
+.dark, .black {
+  --area-customer_care: #88b4ed; --area-finance: #7bc49a; --area-legal: #baa4e5; --area-people: #df98ba;
+  --area-operations: #5ec3ce; --area-sales: #a3bc78; --area-product: #cdad68; --area-general: #b5b0a9;
+}
+.dark { --globe-core: #35322f; --globe-glow: #a6c1dd; --globe-fade: #5c5955; }
+.black { --globe-core: #181818; --globe-glow: #97b1cd; --globe-fade: #444444; }
+
 /* Brain map: the L1 constellation. Its own surface tokens so it reads as one object in both themes. */
 :root {
   --map-bg-1: oklch(1 0 0);

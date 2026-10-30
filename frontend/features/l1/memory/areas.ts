@@ -1,15 +1,16 @@
-// areas.ts: each brain area's colour and its place on the globe, shared by the 3D globe, the still globe, the legend
+// areas.ts: each brain area's colour (from globals.css) and its place on the globe, shared by the 3D globe, the still globe, the legend
 // and the cards. Used by: globe-canvas.tsx, globe-flat.tsx, globe-shape.ts, memory.tsx, area-card.tsx, traces.tsx,
 // features/l2/skills-from-traces.tsx. Uses: contracts (AreaKey).
-import type { AreaKey, MemoryArea } from "@/contracts";
+import { AreaKey, type MemoryArea } from "@/contracts";
 
 // Config
-// Eight clearly different hues, none near the orange accent (kept for drift only). Saturated enough to read on the
-// dark globe and the light one alike.
-export const AREA_COLOR: Record<AreaKey, string> = {
-  customer_care: "#4c6fff", finance: "#1faf7a", legal: "#9566f2", people: "#e15fa5",
-  operations: "#13a8b8", sales: "#8cc63f", product: "#5bb8f0", general: "#9a9488",
-};
+// Each area's colour lives in app/globals.css (--area-*), one value per theme, so the page and the globe agree.
+export const AREA_COLOR = Object.fromEntries(AreaKey.options.map((key) => [key, `var(--area-${key})`])) as Record<AreaKey, string>;
+
+/** The colour a CSS variable holds right now, for three.js, which cannot read var(). */
+export function cssColor(name: string) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
 
 // The centre of each area on the globe, as a direction (x right, y up, z towards you). Spread so every area gets a
 // region of about the same size; the busiest areas sit on the front of the globe when it first loads.

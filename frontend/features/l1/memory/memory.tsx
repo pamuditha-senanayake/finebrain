@@ -74,7 +74,6 @@ function Scene({ map }: { map: MemoryMap }) {
   const reduced = useReducedMotion();
   const [webgl] = useState(canUseWebGL);
   const { resolvedTheme } = useTheme();
-  const dark = resolvedTheme === "dark" || resolvedTheme === "black";
 
   // Step 2: choosing an area writes it to the address; choosing it again closes the card
   const choose = (key: AreaKey | null) => {
@@ -90,7 +89,7 @@ function Scene({ map }: { map: MemoryMap }) {
       <section className={cn("relative h-[58dvh] sm:absolute sm:inset-y-0 sm:left-[250px] sm:right-[320px] sm:h-auto", selected && "sm:right-[440px]")} aria-label="The globe of areas">
         {reduced || !webgl ? <GlobeFlat areas={map.areas} selected={selected} onSelect={choose} /> : (
           <Suspense fallback={<div className="absolute inset-0 m-auto size-[min(60vh,60vw)] animate-pulse rounded-full bg-muted" />}>
-            <GlobeCanvas areas={map.areas} selected={selected} onSelect={choose} dark={dark} />
+            <GlobeCanvas areas={map.areas} selected={selected} onSelect={choose} theme={resolvedTheme ?? "light"} />
           </Suspense>
         )}
       </section>
