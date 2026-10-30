@@ -54,3 +54,16 @@ test("skills from traces and the drifting policy", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Drifting" })).toBeVisible();
   expect(errors, errors.join("\n")).toEqual([]);
 });
+
+test("new ways of working wait in To review, one at a time", async ({ page }) => {
+  const errors = collectConsoleErrors(page);
+  await setPersona(page, "h-founder");
+  await page.goto("/l1/digest?tab=new");
+  const pager = page.getByTestId("surprise-pager");
+  await expect(pager.getByRole("link", { name: "Open the trace" })).toBeVisible();
+  // Sample data says the button works on a live workspace, rather than pretending to keep the pattern
+  await expect(pager.getByText("Sample data: this works on a live workspace.")).toBeVisible();
+  await pager.getByRole("link", { name: "Open the trace" }).click();
+  await expect(page).toHaveURL(/\/l1\/memory\/traces\//);
+  expect(errors, errors.join("\n")).toEqual([]);
+});

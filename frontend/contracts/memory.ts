@@ -130,6 +130,7 @@ export const TraceDetail = TraceSummary.extend({
   steps: z.array(TraceStep),
   policies: z.array(TracePolicy),
   skill: VersionRef.nullable(),
+  skillName: z.string().nullable().optional(), // the skill's name in Studio
   access: z.array(TraceAccess),
   why: z.array(z.string()),
 });

@@ -100,7 +100,7 @@ def test_a_skill_whose_usual_path_loses_its_share_drifts_with_a_draft_fix():
     counted(lane, "finance", "skill_dunning", ["invoice_read", "plan_checked", "call_made"], "resolved", "within", [1, 0, 1, 0, 8])
     result = drift.night(lane)
     held = lane.drift.open_flag("skill", "skill_dunning")
-    assert result["skill_drift"] == 1 and held.state == "detected" and "plan_checked → call_made" in held.fix.summary
+    assert result["skill_drift"] == 1 and held.state == "detected" and "Plan checked → Call made" in held.fix.summary
 
 
 def test_work_outside_a_policy_spiking_drifts_with_a_new_window_drafted():

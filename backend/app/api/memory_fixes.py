@@ -25,6 +25,7 @@ from app.pipeline import stages_memory_drift
 from app.pipeline import stages_memory_flow as flow
 from app.pipeline.contracts_memory import AreaMatch, DriftFix, DriftFlag, DriftRecheck, SkillDraft
 from app.pipeline.stages_learn import week_of, zone_of
+from app.pipeline.stages_normalize import claim
 from app.pipeline.contracts_run import ApprovalRequest, Decision
 from app.pipeline.observe import count, log_event
 
@@ -33,6 +34,7 @@ DRAFTER = "Living memory"  # not a person, so an L1 user other than a drafter de
 L1_LEVEL = 3  # C3 and up are approved by an L1 user (studio_approvals.APPROVERS)
 NEW_DAYS = re.compile(r"up to (\d+) days")
 DRIFT_PAGE = "/l1/memory"
+DRAFT_OF_CHANGE = "memory_draft_of_change"  # records kind keyed by change request id
 MAY_ACT = {"L1", "L2"}  # stewards and leaders answer surprises and send drafts; an L1 user still approves each change
 CLOSED = {"rejected": "L1 rejected the fix", "changes_requested": "L1 asked for changes to the fix", "conflict": "The fix met a newer change and could not merge"}
 
@@ -160,12 +162,19 @@ class Answered(BaseModel):
     at: datetime
 
 
+class DraftOfChange(BaseModel):
+    """Which skill draft a change request carries, so a decision finds its draft by key (records kind DRAFT_OF_CHANGE)."""
+    draft_id: str
+
+
 def confirm_surprise(lane, trace_id: str, by: str) -> dict:
     """A person says a surprise is a normal way to work: it becomes a pattern in its area, counted, and leaves To review."""
     trace = lane.traces.get(trace_id)
     if trace is None:
         raise LookupError(trace_id)
     if lane.records.load(memory_views.CLOSED_KIND, trace_id):
+        raise NotPossible("already_answered")
+    if not claim(lane.memory_claims, f"confirm:{trace_id}"):  # two presses at once: one acts; a crash frees it when the claim expires
         raise NotPossible("already_answered")
     pattern = memory.confirm(trace, lane.patterns)
     if pattern is None:
@@ -187,22 +196,26 @@ def send_draft(lane, draft_id: str, workflow_id: str, by: str) -> dict:
         raise LookupError(draft_id if stored is None else workflow_id)
     if stored["state"] != "draft":
         raise NotPossible("already_sent")
+    if not claim(lane.memory_claims, f"send:{draft_id}"):
+        raise NotPossible("already_sent")
     shown = memory_views.draft_view(lane, stored)
     change = {"intent": "create", "kind": "skill", "targetId": None, "workflowId": workflow_id,
               "patch": {"name": shown.name, "fields": {"trigger": f"Work in {memory_views.AREA_NAMES[stored['area']]} that starts like this", "steps": [s.title for s in shown.steps]}}}
     proposal = review(lane, flow_["dri"], change, st)
     proposal = {**proposal, "review": {**proposal["review"], "criticality": max(L1_LEVEL, proposal["review"]["criticality"])}}
     opened = open_change(lane, DRAFTER, change, proposal, f"Drafted from {stored['support']} traces by the living memory; sent by {by}")
+    lane.records.save(DRAFT_OF_CHANGE, opened["changeRequestId"], DraftOfChange(draft_id=draft_id))
     lane.records.save(stages_memory_drift.DRAFT_KIND, draft_id, SkillDraft.model_validate({**stored, "state": "in_review", "change_request_id": opened["changeRequestId"]}))
     return {"changeRequestId": opened["changeRequestId"]}
 
 
 def follow_drafts(lane, cr_id: str) -> None:
     """A skill draft follows its change request: approved when merged, rejected when L1 says no."""
-    record = lane.records.load("change_request", cr_id)
-    for stored in lane.records.list_kind(stages_memory_drift.DRAFT_KIND):
-        if stored.get("change_request_id") == cr_id and record and record["status"] in ("merged", "rejected"):
-            lane.records.save(stages_memory_drift.DRAFT_KIND, stored["draft_id"], SkillDraft.model_validate({**stored, "state": "approved" if record["status"] == "merged" else "rejected"}))
+    record, carried = lane.records.load("change_request", cr_id), lane.records.load(DRAFT_OF_CHANGE, cr_id)
+    if not record or not carried or record["status"] not in ("merged", "rejected"):
+        return
+    stored = lane.records.load(stages_memory_drift.DRAFT_KIND, carried["draft_id"])
+    lane.records.save(stages_memory_drift.DRAFT_KIND, stored["draft_id"], SkillDraft.model_validate({**stored, "state": "approved" if record["status"] == "merged" else "rejected"}))
 
 
 async def body_of(request: Request) -> dict:

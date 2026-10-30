@@ -1,7 +1,7 @@
 # test_memory_real.py: stage 5b of the living memory on real infra. Anna's refund runs on SeaweedFS, Postgres, Valkey,
 # Redpanda and OPA; the memory follows it: the trace is kept in Postgres with its access decisions, K16 and K17 are read
 # back from Redpanda, and the surprise waits in To review. Then two workers triage the same trace at once and give one
-# result. Skips when services are down. Uses: stages_memory_flow.py, adapters.py, tests/test_s7_s10_real.py, tests/s7_world.py.
+# result, and two people pressing Keep on one surprise at once keep it once. Skips when services are down. Uses: stages_memory_flow.py, adapters.py, tests/test_s7_s10_real.py, tests/s7_world.py.
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
@@ -116,5 +116,42 @@ def test_security_drift_is_kept_in_postgres_and_goes_out_on_redpanda():
         held = lane.drift.open_flag("security", "agent_x")
         assert type(lane.drift).__name__ == "PostgresDrift" and held and held.evidence_trace_ids == ["tr-bad"]
         assert any(m["payload"]["flag_id"] == held.flag_id for m in read_topic(f"mem{tag}.drift.flags", 1))
+    finally:
+        delete_prefixed_topics(f"mem{tag}.")
+
+
+def pressing_keep(lane, trace_id: str) -> str:
+    from app.api import memory_fixes
+
+    try:
+        memory_fixes.confirm_surprise(lane, trace_id, "h-founder")
+    except memory_fixes.NotPossible as reason:
+        return str(reason)
+    return "kept"
+
+
+@NEEDS_INFRA
+def test_two_people_keeping_one_surprise_at_once_keep_it_once():
+    from app.pipeline.audit import PostgresAudit
+    from app.pipeline.store_traces import PostgresTraces
+
+    tag = uuid.uuid4().hex[:8]
+    lane = full_lane(real_adapters(parts(), topic_prefix=f"mem{tag}."), seed=seed_for(tag))
+    try:
+        lane.model, _ = scripted(ask(), refund())
+        says(lane, FIRST)
+        says(lane, SECOND)
+        trace_id = f"tr-{lane.bus.topics['runs.completed'][-1].payload['run_id']}"
+        # Step 1: two workers, each with its own connection, as two API processes would be
+        workers = [worker(lane), worker(lane)]
+        for each in workers:
+            connection = store_postgres.connect()
+            each.traces, each.audit = PostgresTraces(connection, lane.seed["tenant_id"]), PostgresAudit(connection, lane.seed["tenant_id"])
+        # Step 2: both press Keep at the same moment; one keeps it, the other hears it is already answered
+        with ThreadPoolExecutor(2) as pool:
+            results = list(pool.map(lambda w: pressing_keep(w, trace_id), workers))
+        assert sorted(results) == ["already_answered", "kept"]
+        pattern_id = lane.records.load(flow.MATCH_KIND, trace_id)["pattern_id"]
+        assert sum(lane.patterns.weeks(pattern_id).values()) == 1  # counted once, not once per press
     finally:
         delete_prefixed_topics(f"mem{tag}.")

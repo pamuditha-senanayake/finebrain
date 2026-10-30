@@ -138,10 +138,10 @@ function DriftCard({ drift }: { drift: DriftItem }) {
   );
 }
 
-// A fix is a draft only while it is being drafted or has a change request; past that without one, an L1 user decides.
+// Sent to L1 with no change request means Studio could not open the fix (memory_fixes.open_fix): an L1 user decides.
 function fixWords(drift: DriftItem) {
   if (!drift.fix) return <span className="text-muted-foreground">No draft: access drift goes straight to an L1 user.</span>;
-  if (drift.fix.changeRequestId || drift.state === "detected") return <>Draft fix: {drift.fix.summary}</>;
+  if (drift.state !== "sent_to_l1" || drift.fix.changeRequestId) return <>Draft fix: {drift.fix.summary}</>;
   return <>Suggested: {drift.fix.summary} <span className="text-muted-foreground">No change could be opened, so an L1 user decides.</span></>;
 }
 

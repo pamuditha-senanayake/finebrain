@@ -165,6 +165,7 @@ class TraceDetail(TraceSummary):
     steps: list[TraceStep]
     policies: list[TracePolicy]
     skill: SkillRef | None
+    skill_name: str | None = None  # the skill's name in Studio, read from the graph
     access: list[TraceAccess]
     why: list[str]
 

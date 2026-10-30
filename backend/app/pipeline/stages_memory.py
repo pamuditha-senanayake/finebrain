@@ -81,6 +81,11 @@ def policies_at(graph, policy_ids: list[str], at: datetime) -> list[TracePolicy]
 
 # --- K17: triage against the area's patterns
 
+def step_words(step: str) -> str:
+    """A step key as people read it: refund_issued becomes Refund issued."""
+    return step.replace("_", " ").capitalize()
+
+
 def pattern_key(trace: TraceRecord) -> str:
     skill = trace.skill.id if trace.skill else "none"
     return "|".join([trace.area, skill, ">".join(trace.steps), trace.outcome, trace.policy_check])

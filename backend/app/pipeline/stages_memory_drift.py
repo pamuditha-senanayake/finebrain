@@ -79,7 +79,7 @@ def check_skills(lane, area: str) -> list[DriftFlag]:
         rates, usual, latest = skill_rates(lane, patterns)
         if len(rates) < MIN_WEEKS or usual is latest:
             continue
-        fix = f"Make the usual path what people now do: {' → '.join(latest.steps)}"
+        fix = f"Make the usual path what people now do: {' → '.join(memory.step_words(s) for s in latest.steps)}"
         flag = memory.skill_drift(lane.seed["tenant_id"], area, DriftSubject(type="skill", id=skill, name=skill), rates, latest.examples, fix, lane.now)
         if flag:
             raised.append(raise_drift(lane, flag))

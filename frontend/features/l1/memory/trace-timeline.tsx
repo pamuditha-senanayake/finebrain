@@ -8,11 +8,12 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import type { ReactNode } from "react";
 import type { TraceDetail } from "@/contracts";
-import { PageHeader, QueryView, SampleBadge } from "@/components/brain/primitives";
+import { EmptyState, PageHeader, QueryView, SampleBadge } from "@/components/brain/primitives";
 import { Button } from "@/components/ui/button";
 import { useMemoryMap, useTrace } from "@/lib/api/hooks";
 import { dateTime, duration } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { RULE_WORDS } from "@/features/l2/access-check";
 import { AREA_COLOR } from "./areas";
 import { ConfirmSurprise } from "./memory-actions";
 import { NotConnected, notConnected } from "./memory";
@@ -24,7 +25,7 @@ export function TraceTimeline() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <Button asChild variant="ghost" size="sm" className="-ml-2"><Link href="/l1/memory/traces"><ArrowLeft /> Traces</Link></Button>
-      {notConnected(trace.error) ? <NotConnected /> : <QueryView query={trace} rows={8}>
+      {notConnected(trace.error) ? (map.data ? <NotFound /> : <NotConnected />) : <QueryView query={trace} rows={8}>
         {(t) => (
           <>
             <PageHeader title={t.subject} eyebrow={map.data?.isSample ? <SampleBadge /> : undefined} description={`${t.source === "outside" ? "Done outside Finebrain" : "Done by Finebrain"} · ${dateTime(t.startedAt)}`} />
@@ -82,7 +83,7 @@ function WorkSteps({ trace }: { trace: TraceDetail }) {
       {trace.steps.map((s) => (
         <li key={s.id} className="rounded-xl border px-4 py-3">
           <p className="text-[15px]">{s.title} <span className="text-muted-foreground">· {s.decision}</span></p>
-          {s.reason && <p className="mt-1 text-[13px] text-muted-foreground">Why: {s.reason}</p>}
+          {s.reason && <p className="mt-1 text-[13px] text-muted-foreground">Why: {RULE_WORDS[s.reason] ?? s.reason}</p>}
           {(s.durationMs > 0 || s.tool) && <p className="mt-1 text-[12px] text-muted-foreground">{joined([s.durationMs > 0 && duration(s.durationMs), s.tool])}</p>}
         </li>
       ))}
@@ -97,7 +98,7 @@ function Rules({ trace }: { trace: TraceDetail }) {
       {trace.policies.map((p) => (
         <li key={p.id}>{p.name} <span className="text-muted-foreground">· v{p.version}, valid from {p.validFrom.slice(0, 10)}{p.validTo ? ` to ${p.validTo.slice(0, 10)}` : ""}</span></li>
       ))}
-      {trace.skill && <li>Skill {trace.skill.id} <span className="text-muted-foreground">· v{trace.skill.version}</span></li>}
+      {trace.skill && <li>Skill {trace.skillName ?? trace.skill.id} <span className="text-muted-foreground">· v{trace.skill.version}</span></li>}
     </ul>
   );
 }
@@ -110,7 +111,7 @@ function Access({ trace }: { trace: TraceDetail }) {
         <li key={i} className="flex flex-wrap items-baseline gap-x-2 text-[15px]">
           <span className={cn("font-medium", a.decision === "deny" && "text-risk")}>{a.decision === "allow" ? "Allowed" : "Denied"}</span>
           <span>{a.action}</span>
-          <span className="text-[13px] text-muted-foreground">{joined([a.onBehalfOf ? `${a.principal} for ${a.onBehalfOf}` : a.principal, a.latencyMs > 0 && `${a.latencyMs} ms`, a.reason])}</span>
+          <span className="text-[13px] text-muted-foreground">{joined([a.onBehalfOf ? `${a.principal} for ${a.onBehalfOf}` : a.principal, a.latencyMs > 0 && `${a.latencyMs} ms`, a.reason || (a.ruleId ? RULE_WORDS[a.ruleId] : undefined)])}</span>
         </li>
       ))}
     </ul>
@@ -131,6 +132,12 @@ function Links({ trace, sample }: { trace: TraceDetail; sample: boolean }) {
       {trace.runId && <Button asChild variant="outline"><Link href={`/l3/runs/${trace.runId}`}>Open the run</Link></Button>}
     </div>
   );
+}
+
+// The memory answers but has no such trace: an old link, or one moved past what is kept.
+function NotFound() {
+  return <EmptyState title="Trace not found" description="It may be an old link. Every trace is in the list."
+    action={<Button asChild variant="outline"><Link href="/l1/memory/traces">See all traces</Link></Button>} />;
 }
 
 // The parts that are known, with a dot between them; an unmeasured time (0) or a missing reason is left out.

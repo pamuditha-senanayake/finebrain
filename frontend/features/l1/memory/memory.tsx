@@ -139,7 +139,7 @@ function Figures({ map }: { map: MemoryMap }) {
       <Figure label="Traces this week" value={map.totals.traces7d.toLocaleString()} />
       <Figure label="Patterns" value={String(map.totals.patterns)} />
       <Figure label="Drift" value={String(drift)} accent={drift > 0} hint={drift ? [skill && `${skill} skill`, policy && `${policy} policy`, security && `${security} access`].filter(Boolean).join(" · ") : "None"} />
-      <Figure label="Waiting" value={String(map.totals.surprises)} hint="to review" href={map.totals.surprises ? "/l1/memory/traces?flag=surprise" : undefined} />
+      <Figure label="Waiting" value={String(map.totals.surprises)} hint="to review" href={map.totals.surprises ? "/l1/digest?tab=new" : undefined} />
     </section>
   );
 }

@@ -9,6 +9,7 @@ from datetime import timedelta
 from app.api import ui_models_memory as ui
 from app.api import views
 from app.api.ui_models_work import TraceStep
+from app.pipeline import stages_memory as memory
 from app.pipeline import stages_memory_drift as drift
 from app.pipeline import stages_memory_flow as flow
 from app.pipeline import stages_memory_tidy as tidy
@@ -23,6 +24,15 @@ CLOSED_KIND = "memory_review_closed"  # records kind keyed by trace id: a surpri
 OPEN_STATES = ("detected", "sent_to_l1", "awaiting_approval", "approved")
 METRIC_LABEL = {"skill": "Runs that follow the skill", "policy": "Work outside the policy per week", "security": "Actions without an allow"}
 LIST_CAP = 500  # a flagged list reads at most this many traces
+
+
+# --- Names people know, read from the graph by id (Studio is where they are edited)
+
+def item_name(lane, node_type: str, item_id: str) -> str:
+    """A skill's, policy's or agent's name as Studio shows it; the id when the graph has none."""
+    versions = lane.graph.history(node_type, item_id)
+    latest = versions[-1] if versions else {}
+    return (latest.get("studio") or {}).get("name") or latest.get("name") or item_id
 
 
 # --- Surprises and drift, read from what names them
@@ -69,15 +79,16 @@ def memory_map(lane) -> ui.MemoryMap:
 
 def pattern_view(lane, key: str, pattern, total: int) -> ui.Pattern:
     _, skill, _, outcome, check = pattern.key.split("|")
-    name = f"{skill if skill != 'none' else 'No skill'} · {outcome}" + (", outside policy" if check == "outside" else "")
+    name = f"{item_name(lane, 'skill', skill) if skill != 'none' else 'No skill'} · {outcome}" + (", outside policy" if check == "outside" else "")
     weeks = [week[pattern.pattern_id] for week in drift.week_series(lane, [pattern.pattern_id])]
     return ui.Pattern(id=pattern.pattern_id, area=key, name=name, steps=pattern.steps, outcome=outcome, policy_check=check, skill_id=None if skill == "none" else skill,
                       week_counts=weeks, share=round(pattern.count / max(1, total), 2), example_trace_ids=pattern.examples[:5])
 
 
-def drift_view(flag: DriftFlag) -> ui.DriftItem:
+def drift_view(lane, flag: DriftFlag) -> ui.DriftItem:
+    subject = ui.DriftSubject(type=flag.subject.type, id=flag.subject.id, name=item_name(lane, flag.subject.type, flag.subject.id))
     return ui.DriftItem(
-        id=flag.flag_id, kind=flag.kind, area=flag.area, subject=ui.DriftSubject(**flag.subject.model_dump()), summary=flag.summary,
+        id=flag.flag_id, kind=flag.kind, area=flag.area, subject=subject, summary=flag.summary,
         metric=ui.DriftMetric(label=METRIC_LABEL[flag.kind], usual=flag.usual, latest=flag.latest), evidence_trace_ids=flag.evidence_trace_ids, state=flag.state,
         fix=ui.DriftFix(summary=flag.fix.summary, change_request_id=flag.fix.change_request_id) if flag.fix else None,
         recheck=ui.DriftRecheck(until=flag.recheck.until.isoformat(), result=flag.recheck.result) if flag.recheck else None,
@@ -90,17 +101,23 @@ def area_detail(lane, key: str) -> ui.AreaDetail | None:
     patterns = sorted(lane.patterns.area_patterns(key).values(), key=lambda p: -p.count)
     total = sum(p.count for p in patterns)
     return ui.AreaDetail(area=area_view(lane, key), patterns=[pattern_view(lane, key, p, total) for p in patterns],
-                         drifts=[drift_view(f) for f in open_flags(lane, key)])
+                         drifts=[drift_view(lane, f) for f in open_flags(lane, key)])
 
 
 # --- Traces
 
 def subject_of(lane, trace: TraceRecord) -> str:
-    """What the work was about, in the console's own words for the run; a hand refund names its refund."""
+    """What the work was about, in the console's own words for the run; a hand refund names its refund; work with no
+    run record kept is named by its first and last step, which says more than its input id."""
     if trace.source == "outside":
         return f"Refund by hand · {trace.input_ref.removeprefix('shop-')}"
     run = lane.records.load("run", trace.run_id) if trace.run_id else None
-    return views.run_view(lane, run).subject if run else trace.input_ref
+    if run:
+        return views.run_view(lane, run).subject
+    if not trace.steps:
+        return trace.input_ref
+    first, last = memory.step_words(trace.steps[0]), memory.step_words(trace.steps[-1]).lower()
+    return first if len(trace.steps) == 1 else f"{first} to {last}"
 
 
 def summary_view(lane, trace: TraceRecord, drifting: dict[str, list[str]]) -> ui.TraceSummary:
@@ -134,7 +151,7 @@ def trace_page(lane, area: str | None, flag: str | None, cursor: str | None) -> 
 def activity_steps(trace: TraceRecord) -> list[TraceStep]:
     """A trace whose run record is gone (or never kept, as with seeded history): its steps by activity, with the why."""
     why = iter(trace.why)
-    return [TraceStep(id=f"{trace.trace_id}-s{i}", idx=i, kind="judgment", title=step.replace("_", " ").capitalize(), decision="done", reason=next(why, ""),
+    return [TraceStep(id=f"{trace.trace_id}-s{i}", idx=i, kind="judgment", title=memory.step_words(step), decision="done", reason=next(why, ""),
                       duration_ms=0, at=trace.started_at.isoformat(), facts=[], access=None, gate=None, tool=None, template_fields=[], cost_tokens=0)
             for i, step in enumerate(trace.steps)]
 
@@ -152,13 +169,13 @@ def trace_detail(lane, trace_id: str) -> ui.TraceDetail | None:
         return None
     run = lane.records.load("run", trace.run_id) if trace.run_id else None
     steps = views.run_detail(lane, run).steps if run else hand_steps(trace) if trace.source == "outside" else activity_steps(trace)
-    policies = [ui.TracePolicy(id=p.policy_ref.id, name=p.policy_ref.id, version=p.policy_ref.version, valid_from=p.valid_from.isoformat(),
+    policies = [ui.TracePolicy(id=p.policy_ref.id, name=item_name(lane, "policy", p.policy_ref.id), version=p.policy_ref.version, valid_from=p.valid_from.isoformat(),
                                valid_to=p.valid_to.isoformat() if p.valid_to else None) for p in trace.policies]
     access = [ui.TraceAccess(action=a.action, principal=a.principal_id, on_behalf_of=a.on_behalf_of, decision=a.decision, rule_id=a.rule_id, reason=a.reason,
                              latency_ms=a.latency_ms) for a in trace.access]
     skill = ui.SkillRef(id=trace.skill.id, version=trace.skill.version, branch=trace.skill.branch) if trace.skill else None
     return ui.TraceDetail(**summary_view(lane, trace, drift_by_trace(lane)).model_dump(), input_ref=trace.input_ref, steps=steps, policies=policies,
-                          skill=skill, access=access, why=trace.why)
+                          skill=skill, skill_name=item_name(lane, "skill", trace.skill.id) if trace.skill else None, access=access, why=trace.why)
 
 
 # --- Skills from traces
@@ -187,7 +204,7 @@ def serve(lane, resource: str, query: dict) -> dict | list | None:
         found = trace_detail(lane, parts[2])
         return found.ui() if found else None
     if resource == "memory/drifts":
-        return [drift_view(f).ui() for f in open_flags(lane, query.get("area")) if not query.get("kind") or f.kind == query["kind"]]
+        return [drift_view(lane, f).ui() for f in open_flags(lane, query.get("area")) if not query.get("kind") or f.kind == query["kind"]]
     if resource == "memory/skills":
         return [draft_view(lane, d).ui() for d in lane.records.list_kind(drift.DRAFT_KIND)]
     return None
