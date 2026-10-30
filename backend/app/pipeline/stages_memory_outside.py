@@ -5,15 +5,14 @@
 # at a time. Used by: conn_inbound.py (the polling loop), tests/test_memory_outside.py.
 # Uses: stages_memory.py, stages_memory_flow.py (MATCH_KIND), conn_call.py, conn_db.py, tools_read.py (checked), stages_normalize.py (claim).
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 
 from pydantic import BaseModel
 
 from app.pipeline import conn_db
 from app.pipeline import stages_memory as memory
 from app.pipeline.conn_call import Connection, orders_database
-from app.pipeline.contracts_memory import PolicyCheck, TracePolicy
-from app.pipeline.contracts_signal import VersionRef
+from app.pipeline.contracts_memory import PolicyCheck
 from app.pipeline.observe import count, log_event
 from app.pipeline.stages_memory_flow import MATCH_KIND
 from app.pipeline.stages_normalize import claim
@@ -27,7 +26,6 @@ AREA = "customer_care"
 STEPS = ["refund_by_hand"]
 BATCH = 200
 POLL_SECONDS = 300
-UNKNOWN_START = datetime(1970, 1, 1, tzinfo=timezone.utc)  # a policy node with no valid-from date
 last_polled: dict[str, float] = {}  # connection id to monotonic time; in memory, so a restart polls at once
 
 
@@ -65,10 +63,8 @@ def read_refunds(db, connection: Connection, after: OutsideCursor | None, limit:
 # --- The policy check
 
 def policy_in_force(lane, at: datetime) -> dict | None:
-    """The refund policy version valid on that day: the newest whose valid-from has come; a version with no date counts as always."""
-    versions = [v for v in lane.graph.history("policy", POLICY_ID) if not v.get("_closed")]
-    dated = [v for v in versions if datetime.fromisoformat(v.get("valid_from", UNKNOWN_START.isoformat())) <= at]
-    return dated[-1] if dated else None
+    """The refund policy version valid on that day (stages_memory.policy_version_at)."""
+    return memory.policy_version_at(lane.graph, POLICY_ID, at)
 
 
 def check_refund(refund: ShopRefund, policy: dict | None) -> tuple[PolicyCheck, list[str]]:
@@ -86,7 +82,7 @@ def check_refund(refund: ShopRefund, policy: dict | None) -> tuple[PolicyCheck, 
 def trace_of_refund(lane, refund: ShopRefund) -> memory.TraceRecord:
     policy = policy_in_force(lane, refund.created_at)
     check, why = check_refund(refund, policy)
-    policies = [TracePolicy(policy_ref=VersionRef(**policy["_ref"]), valid_from=datetime.fromisoformat(policy.get("valid_from", UNKNOWN_START.isoformat())), valid_to=None)] if policy else []
+    policies = [memory.trace_policy(policy)] if policy else []
     trace = memory.trace_of_outside(lane.seed["tenant_id"], f"shop-{refund.refund_id}", AREA, refund.created_at, STEPS, f"refunded by a person ({refund.status})", check, policies)
     return trace.model_copy(update={"why": why})
 

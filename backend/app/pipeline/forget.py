@@ -18,9 +18,10 @@ MODES = ("retire", "erase")
 PROBE_WORDS = 12  # distinctive words kept in memory during one job, to search again afterwards
 NOT_CONTENT = {"seed", "model", "gateway", "now", "new_id", "embed", "rerank", "check_access", "tooling", "audit", "broadcaster",
                "grade", "choose", "classify", "extract", "resolve", "runner", "approvals", "pending", "waiting",
-               "counts", "uses", "commons", "patterns", "memory_claims"}  # a new Lane field must be listed here or covered by a layer.
+               "counts", "uses", "commons", "patterns", "memory_claims", "drift"}  # a new Lane field must be listed here or covered by a layer.
 # counts, uses: numbers, ids and times, never words; commons: shared and read only, so a tenant's forgetting never touches it
-# (its admin removes items); patterns, memory_claims: step names, ids and counts, never words (traces have their own layer)
+# (its admin removes items); patterns, memory_claims, drift: step names, ids, counts and drafted fixes, never a document's
+# words (traces have their own layer)
 
 
 @dataclass

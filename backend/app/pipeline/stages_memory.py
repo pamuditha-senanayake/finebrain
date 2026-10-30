@@ -4,12 +4,13 @@
 # Used by: tests/test_memory_skeleton.py, tests/test_memory_stores.py. Uses: contracts_memory.py, contracts_run.py,
 # contracts_reason.py, activities.py (step names), stages_learn.py (weeks), stages_spike.py (the spike bar), store_patterns.py.
 import statistics
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.pipeline.activities import activity_of
 from app.pipeline.contracts_memory import Area, AreaMatch, DriftFix, DriftFlag, DriftSubject, PolicyCheck, SkillDraft, TraceAccess, TracePolicy, TraceRecord
 from app.pipeline.contracts_reason import AccessDecision
 from app.pipeline.contracts_run import RunRecord
+from app.pipeline.contracts_signal import VersionRef
 from app.pipeline.stages_learn import week_of
 from app.pipeline.stages_spike import SPIKE_MIN, SPIKE_RATIO
 from app.pipeline.store_patterns import ALWAYS_ON, MemoryPatterns, Pattern, PostgresPatterns
@@ -54,6 +55,27 @@ def trace_of_outside(tenant_id: str, event_id: str, area: Area, at: datetime, st
     return TraceRecord(trace_id=f"tr-{event_id}", tenant_id=tenant_id, area=area, source="outside", started_at=at, ended_at=at,
                        input_ref=event_id, steps=steps, policies=policies, skill=None, access=[], outcome=outcome, decided_by=None,
                        why=[], policy_check=policy_check, run_id=None)
+
+
+# --- The policies a piece of work was held to
+
+UNKNOWN_START = datetime(1970, 1, 1, tzinfo=timezone.utc)  # a policy version with no valid-from date counts as always
+
+
+def policy_version_at(graph, policy_id: str, at: datetime) -> dict | None:
+    """The version of one policy valid at that moment: the newest whose valid-from has come, read by its key."""
+    versions = [v for v in graph.history("policy", policy_id) if not v.get("_closed")]
+    dated = [v for v in versions if datetime.fromisoformat(v.get("valid_from", UNKNOWN_START.isoformat())) <= at]
+    return dated[-1] if dated else None
+
+
+def trace_policy(version: dict) -> TracePolicy:
+    return TracePolicy(policy_ref=VersionRef(**version["_ref"]), valid_from=datetime.fromisoformat(version.get("valid_from", UNKNOWN_START.isoformat())),
+                       valid_to=datetime.fromisoformat(version["valid_to"]) if version.get("valid_to") else None)
+
+
+def policies_at(graph, policy_ids: list[str], at: datetime) -> list[TracePolicy]:
+    return [trace_policy(version) for policy_id in policy_ids if (version := policy_version_at(graph, policy_id, at))]
 
 
 # --- K17: triage against the area's patterns
@@ -129,7 +151,7 @@ def skill_drift(tenant_id: str, area: Area, skill: DriftSubject, follow_rates: l
         return None
     return DriftFlag(flag_id=f"dr-skill-{skill.id}", tenant_id=tenant_id, kind="skill", area=area, subject=skill,
                      summary="People follow the skill's steps less often", usual=usual, latest=latest, evidence_trace_ids=evidence,
-                     state="sent_to_l1", fix=DriftFix(summary=fix, change_request_id=None), recheck=None, reopened_note=None, raised_at=now)
+                     state="detected", fix=DriftFix(summary=fix, change_request_id=None), recheck=None, reopened_note=None, raised_at=now)
 
 
 def policy_drift(tenant_id: str, area: Area, policy: DriftSubject, outside_counts: list[int], evidence: list[str], fix: str, now: datetime) -> DriftFlag | None:
@@ -141,7 +163,7 @@ def policy_drift(tenant_id: str, area: Area, policy: DriftSubject, outside_count
         return None
     return DriftFlag(flag_id=f"dr-policy-{policy.id}", tenant_id=tenant_id, kind="policy", area=area, subject=policy,
                      summary="People work outside this policy more often", usual=usual, latest=latest, evidence_trace_ids=evidence,
-                     state="sent_to_l1", fix=DriftFix(summary=fix, change_request_id=None), recheck=None, reopened_note=None, raised_at=now)
+                     state="detected", fix=DriftFix(summary=fix, change_request_id=None), recheck=None, reopened_note=None, raised_at=now)
 
 
 # --- K19: a steady pattern no skill covers becomes a draft

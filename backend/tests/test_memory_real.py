@@ -12,6 +12,7 @@ from app.pipeline import stages_memory_flow as flow
 from app.pipeline import store_postgres, store_valkey
 from app.pipeline.adapters import MEMORY_CLAIM_SECONDS, missing_infra, real_adapters
 from app.pipeline.kafka_admin import delete_prefixed_topics
+from app.pipeline.store_drift import PostgresDrift
 from app.pipeline.store_patterns import PostgresPatterns
 from tests.s6_world import ask, refund, scripted
 from tests.s7_world import full_lane, says
@@ -38,7 +39,8 @@ def worker(lane) -> SimpleNamespace:
     """A second worker of the same tenant: its own connections, the same Postgres tables and Valkey claims."""
     tenant = lane.seed["tenant_id"]
     connection = store_postgres.connect()
-    return SimpleNamespace(seed=lane.seed, bus=Published(), records=store_postgres.PostgresRecords(connection, tenant), patterns=PostgresPatterns(connection, tenant),
+    return SimpleNamespace(seed=lane.seed, now=lane.now, bus=Published(), records=store_postgres.PostgresRecords(connection, tenant), patterns=PostgresPatterns(connection, tenant),
+                           drift=PostgresDrift(connection, tenant),
                            memory_claims=store_valkey.ValkeyKeySet(store_valkey.connect(), f"{tenant}:memory_claims", MEMORY_CLAIM_SECONDS))
 
 
@@ -91,5 +93,28 @@ def test_two_workers_triaging_one_trace_at_once_give_one_result():
             results = list(pool.map(lambda w: triage_or_held(w, envelope), workers))
         assert results.count("sent") == 1 and set(results) <= {"sent", "held", "done"}
         assert len(lane.records.history(flow.MATCH_KIND, trace_id)) == 1 and len(lane.records.history(flow.REVIEW_KIND, trace_id)) == 1
+    finally:
+        delete_prefixed_topics(f"mem{tag}.")
+
+
+@NEEDS_INFRA
+def test_security_drift_is_kept_in_postgres_and_goes_out_on_redpanda():
+    from app.pipeline.contracts_memory import TraceAccess, TraceRecord
+
+    tag = uuid.uuid4().hex[:8]
+    lane = full_lane(real_adapters(parts(), topic_prefix=f"mem{tag}."), seed=seed_for(tag))
+    try:
+        lane.model, _ = scripted(ask(), refund())
+        says(lane, FIRST)
+        says(lane, SECOND)
+        trace = TraceRecord.model_validate(lane.bus.topics["traces.recorded"][-1].payload)
+        deny = TraceAccess(decision_id="d-deny", action="refund:issue", principal_id="agent_x", on_behalf_of=None, decision="deny", effective_tier="internal")
+        bad = trace.model_copy(update={"trace_id": "tr-bad", "run_id": "run_bad", "access": [*trace.access, deny]})
+        lane.traces.save(bad)
+        lane.bus.publish("traces.recorded", "trace.recorded", bad, "test")
+        lane.bus.drain()
+        held = lane.drift.open_flag("security", "agent_x")
+        assert type(lane.drift).__name__ == "PostgresDrift" and held and held.evidence_trace_ids == ["tr-bad"]
+        assert any(m["payload"]["flag_id"] == held.flag_id for m in read_topic(f"mem{tag}.drift.flags", 1))
     finally:
         delete_prefixed_topics(f"mem{tag}.")

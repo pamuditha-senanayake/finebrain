@@ -1,7 +1,7 @@
 # store_traces.py: the living memory's traces (stage 5a), the warm tier: each K16 TraceRecord by id, and one area's
 # traces newest first, a page at a time by a keyset cursor, so reading never walks the whole table. Saving the same
 # trace twice is a no-op, so a redelivered message or a second worker changes nothing. PostgresTraces and its twin.
-# Since 5d the nightly tidy moves traces older than 30 days to S3 (older_than, remove). Access decisions arrive on their own topic, sometimes after the run's trace: they are kept by run, and one that comes
+# Each task's activity is kept too, so a run's trace can name the policies it was held to (stage 6). Since 5d the nightly tidy moves traces older than 30 days to S3 (older_than, remove). Access decisions arrive on their own topic, sometimes after the run's trace: they are kept by run, and one that comes
 # late is attached to the trace already saved. Used by: stages_memory_flow.py, adapters.py, tests/test_memory_stores.py,
 # tests/test_memory_flow.py. Uses: contracts_memory.py.
 from datetime import datetime
@@ -32,6 +32,12 @@ CREATE TABLE IF NOT EXISTS memory_access (
     PRIMARY KEY (tenant_id, decision_id)
 );
 CREATE INDEX IF NOT EXISTS memory_access_run ON memory_access (tenant_id, run_id);
+CREATE TABLE IF NOT EXISTS memory_tasks (
+    tenant_id   text NOT NULL,
+    task_id     text NOT NULL,
+    activity_id text NOT NULL,
+    PRIMARY KEY (tenant_id, task_id)
+);
 """
 
 
@@ -60,6 +66,7 @@ class MemoryTraces:
         self.tenant_id = tenant_id
         self.rows: dict[str, TraceRecord] = {}
         self.access: dict[str, dict[str, TraceAccess]] = {}  # run_id to its decisions by id
+        self.activities: dict[str, str] = {}  # task_id to its activity, so a run's trace finds the policies it was held to
 
     def save(self, trace: TraceRecord) -> bool:
         """Keep the trace. False when it was already kept."""
@@ -81,6 +88,12 @@ class MemoryTraces:
 
     def access_of(self, run_id: str) -> list[TraceAccess]:
         return list(self.access.get(run_id, {}).values())
+
+    def add_activity(self, task_id: str, activity_id: str) -> None:
+        self.activities.setdefault(task_id, activity_id)
+
+    def activity_of(self, task_id: str) -> str | None:
+        return self.activities.get(task_id)
 
     def attach(self, trace_id: str, access: TraceAccess) -> bool:
         """Add a late access decision to a saved trace. False when there is no such trace or it already has it."""
@@ -141,6 +154,13 @@ class PostgresTraces:
     def access_of(self, run_id: str) -> list[TraceAccess]:
         rows = self.connection.execute("SELECT body FROM memory_access WHERE tenant_id = %s AND run_id = %s ORDER BY decision_id", (self.tenant_id, run_id))
         return [TraceAccess.model_validate(row[0]) for row in rows]
+
+    def add_activity(self, task_id: str, activity_id: str) -> None:
+        self.connection.execute("INSERT INTO memory_tasks VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", (self.tenant_id, task_id, activity_id))
+
+    def activity_of(self, task_id: str) -> str | None:
+        row = self.connection.execute("SELECT activity_id FROM memory_tasks WHERE tenant_id = %s AND task_id = %s", (self.tenant_id, task_id)).fetchone()
+        return row[0] if row else None
 
     def attach(self, trace_id: str, access: TraceAccess) -> bool:
         # One statement, so two workers attaching the same decision at once still add it once

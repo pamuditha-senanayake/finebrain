@@ -1,7 +1,8 @@
 # memory_volume.py: the volume run for the living memory (stage 5e). Thousands of realistic traces across the eight areas
 # (steady patterns, a step more or less, rare surprises, refunds made by hand) go through triage the way the consumer runs
 # it; a person confirms the first surprise of each new way of working; a tenth are redelivered. Then the night moves them
-# all to cold. The rules must still hold and triage must stay inside its budget.
+# all to cold. Since stage 6 a few traces show a rogue agent, and the drift night must raise exactly one flag for it.
+# The rules must still hold and triage must stay inside its budget.
 # Run from backend/:  uv run python scripts/memory_volume.py [traces] [--real]   (--real: Postgres, Valkey and S3)
 # Exit code 1 if a rule breaks or triage averages over its budget. Uses: stages_memory_flow.py, stages_memory.py,
 # stages_memory_tidy.py, orchestrate.py, adapters.py, tests/golden.py.
@@ -17,7 +18,9 @@ from app.pipeline import stages_memory as memory
 from app.pipeline import stages_memory_flow as flow
 from app.pipeline import stages_memory_tidy as night
 from app.pipeline.adapters import make_memory_adapters, real_adapters
-from app.pipeline.contracts_memory import TraceRecord
+from app.pipeline import stages_memory_drift as drift
+from app.pipeline.contracts_memory import TraceAccess, TraceRecord
+from app.pipeline.store_drift import MAX_EVIDENCE
 from app.pipeline.contracts_signal import VersionRef
 from app.pipeline.store_patterns import PATTERN_BUDGET
 from tests.golden import NOW, SEED
@@ -41,6 +44,8 @@ WORK = {
 }
 OUTSIDE_SHARE = 0.05  # refunds made by hand in the shop
 SURPRISE_SHARE = 0.01  # work that fits no pattern at all
+ROGUE_SHARE = 0.002  # finished work whose access said deny: security drift, always the same agent
+ROGUE = TraceAccess(decision_id="d-rogue", action="refund:issue", principal_id="agent_rogue", on_behalf_of=None, decision="deny", effective_tier="internal")
 
 
 def build_lane(real: bool, tag: str):
@@ -66,8 +71,9 @@ def one_trace(lane, generator: random.Random, n: int) -> TraceRecord:
     if generator.random() < SURPRISE_SHARE:
         steps = [f"unusual_{generator.randint(1, 400)}", "handled"]  # something new
     ref = VersionRef(id=skill, version=1, branch="main", commit_id="c1") if skill else None
+    access = [ROGUE.model_copy(update={"decision_id": f"d-rogue-{n}"})] if generator.random() < ROGUE_SHARE else []
     return TraceRecord(trace_id=f"tr-vol-{n}", tenant_id=lane.seed["tenant_id"], area=area, source="finebrain", started_at=started, ended_at=started,
-                       input_ref=f"sig_vol_{n}", steps=steps, policies=[], skill=ref, access=[], outcome=outcome, decided_by="auto by policy",
+                       input_ref=f"sig_vol_{n}", steps=steps, policies=[], skill=ref, access=access, outcome=outcome, decided_by="auto by policy",
                        why=[], policy_check=check, run_id=f"run_vol_{n}")
 
 
@@ -109,6 +115,22 @@ def rules_hold(lane, count: int) -> list[str]:
     return broken
 
 
+def drift_holds(lane, count: int) -> tuple[list[str], float, dict]:
+    """The drift night on the volume: one security flag for the one rogue agent, with its evidence, and no subject flagged twice."""
+    rogues = [n for n in range(count) if (t := lane.traces.get(f"tr-vol-{n}")) and t.access and t.outcome == "resolved"]  # escalating after a deny is right, not drift
+    started = time.perf_counter()
+    result = drift.night(lane)
+    seconds = time.perf_counter() - started
+    held = lane.drift.open_flag("security", "agent_rogue")
+    broken = []
+    if rogues and (held is None or len(held.evidence_trace_ids) != min(len(rogues), MAX_EVIDENCE)):
+        broken.append(f"security drift: {len(rogues)} rogue traces, flag {held.evidence_trace_ids if held else None}")
+    subjects = [(f.kind, f.subject.id) for f in lane.drift.in_state("detected")]
+    if len(subjects) != len(set(subjects)):
+        broken.append("a subject has two open flags")
+    return broken, seconds, {**result, "security_evidence": len(rogues)}
+
+
 def night_holds(lane, count: int) -> tuple[list[str], float]:
     """Forty days later, the night moves every trace to cold, and each still reads back."""
     lane.now = NOW + timedelta(days=45)
@@ -132,12 +154,13 @@ def main() -> int:
 
     # Step 2: check the rules, then the night, then the speed
     broken = rules_hold(lane, count)
+    drift_broken, drift_seconds, drift_result = drift_holds(lane, count)
     night_broken, night_seconds = night_holds(lane, count)
-    broken += night_broken
+    broken += drift_broken + night_broken
     per_trace, slowest = sum(timings) / len(timings), sorted(timings)[int(len(timings) * 0.95)]
     patterns = {area: len(lane.patterns.area_patterns(area)) for area in sorted(flow.AREAS)}
     print(f"traces {count} ({'Postgres, Valkey, S3' if real else 'memory'}), redelivered {extra['redelivered']}, patterns per area {patterns}")
-    print(f"triage {per_trace * 1000:.2f} ms per trace, p95 {slowest * 1000:.2f} ms (budget {TRIAGE_BUDGET_SECONDS * 1000:.0f} ms); night {night_seconds:.1f} s")
+    print(f"triage {per_trace * 1000:.2f} ms per trace, p95 {slowest * 1000:.2f} ms (budget {TRIAGE_BUDGET_SECONDS * 1000:.0f} ms); drift night {drift_seconds:.1f} s {drift_result}; tidy night {night_seconds:.1f} s")
     print("rules hold" if not broken else "BROKEN: " + "; ".join(broken))
     return 0 if not broken and per_trace <= TRIAGE_BUDGET_SECONDS else 1
 

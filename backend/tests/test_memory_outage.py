@@ -115,3 +115,20 @@ def test_s3_down_at_night_removes_nothing_from_the_warm_tier():
         pass  # the Distiller's night fails loudly and runs again tomorrow
     assert lane.traces.get(old.trace_id) == old  # archive first: nothing left the warm tier without its copy in S3
     assert lane.records.load(night.RUN_KIND, NOW.date().isoformat()) is None
+
+
+def test_the_drift_store_down_at_triage_is_replayed_and_raises_the_drift_once():
+    from app.pipeline.contracts_memory import TraceAccess
+
+    lane, _ = run_sample("s2")
+    trace = flow.TraceRecord.model_validate(lane.bus.topics["traces.recorded"][-1].payload)
+    deny = TraceAccess(decision_id="d-deny", action="refund:issue", principal_id="agent_x", on_behalf_of=None, decision="deny", effective_tier="internal")
+    bad = trace.model_copy(update={"trace_id": "tr-bad", "run_id": "run_bad", "access": [deny]})
+    lane.traces.save(bad)
+    fails_once(lane.drift, "raise_flag", psycopg.OperationalError("connection refused"))
+    lane.bus.publish("traces.recorded", "trace.recorded", bad, "test")
+    lane.bus.drain()
+    assert lane.records.load(flow.MATCH_KIND, "tr-bad") is None  # nothing kept as done while the drift could not be raised
+    lane.memory_claims.clear()  # the claim times out
+    replay(lane, "traces.recorded", "memory_triage")
+    assert lane.drift.open_flag("security", "agent_x") and len(lane.bus.topics["drift.flags"]) == 1

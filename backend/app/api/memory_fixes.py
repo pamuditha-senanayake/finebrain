@@ -1,0 +1,133 @@
+# memory_fixes.py: from drift to a fix an L1 user decides (stage 6, Docs/CB_Living_Memory_Architecture.md section 8b).
+# A new skill or policy drift drafts its change in Studio and opens it as a change request at C3 or higher, so an L1 user
+# approves it; security drift has no draft and goes to the L1 leaders as an incident. The drift's state follows the change:
+# sent to L1, waiting (the approval is out), approved (merged; the 14-day re-check starts), or back to detected with the
+# reason when it is rejected. A drift whose fix cannot be drafted on its own is still sent to L1 to decide.
+# Used by: routes.py (register), tests/test_memory_fixes.py. Uses: studio_review.py, studio_approvals.py, studio_state.py,
+# studio_changes.py (notify), ready_notices.py (leaders), stages_memory_drift.py.
+import re
+
+from app.api.ready_notices import leaders
+from app.api.studio_approvals import open_change
+from app.api.studio_changes import ChangeRecord, notify
+from app.api.studio_review import review
+from app.api.studio_state import Studio
+from app.pipeline import stages_memory_drift
+from app.pipeline.contracts_memory import DriftFix, DriftFlag, DriftRecheck
+from app.pipeline.contracts_run import ApprovalRequest, Decision
+from app.pipeline.observe import count, log_event
+
+# Config
+DRAFTER = "Living memory"  # not a person, so an L1 user other than a drafter decides
+L1_LEVEL = 3  # C3 and up are approved by an L1 user (studio_approvals.APPROVERS)
+NEW_DAYS = re.compile(r"up to (\d+) days")
+DRIFT_PAGE = "/l1/memory"
+CLOSED = {"rejected": "L1 rejected the fix", "changes_requested": "L1 asked for changes to the fix", "conflict": "The fix met a newer change and could not merge"}
+
+
+# --- Drafting the change
+
+def flow_of(st: Studio, item_id: str) -> dict | None:
+    """The workflow that holds this skill or policy, read from Studio."""
+    return next((flow for flow in st.flows.values() if any(part["id"] == item_id for part in st.scope(flow))), None)
+
+
+def change_for(st: Studio, flag: DriftFlag) -> dict | None:
+    """The Studio change that would fix the drift, or None when it cannot be drafted without a person."""
+    item, flow = st.items.get(flag.subject.id), flow_of(st, flag.subject.id)
+    if not item or not flow or not flag.fix:
+        return None
+    if flag.kind == "policy":
+        days = NEW_DAYS.search(flag.fix.summary)
+        fields = {"param.days": int(days.group(1))} if days and "param.days" in item["fields"] else None
+    else:
+        fields = {"steps": [*item["fields"].get("steps", []), flag.fix.summary]}
+    return {"intent": "update", "kind": flag.kind, "targetId": flag.subject.id, "workflowId": flow["id"], "patch": {"fields": fields}} if fields else None
+
+
+def open_fix(lane, flag: DriftFlag) -> DriftFlag:
+    """Draft, review, and open the change at L1 level; without a draft, ask the L1 leaders to decide."""
+    st = Studio.of(lane)
+    change = change_for(st, flag)
+    if change is None:
+        tell_leaders(lane, flag, "No fix could be drafted on its own. Please decide what should change.")
+        return lane.drift.move(flag.model_copy(update={"state": "sent_to_l1"}), lane.now, "sent to L1 without a draft")
+    flow = st.flows[change["workflowId"]]
+    proposal = review(lane, flow["dri"], change, st)
+    proposal = {**proposal, "review": {**proposal["review"], "criticality": max(L1_LEVEL, proposal["review"]["criticality"])}}
+    opened = open_change(lane, DRAFTER, change, proposal, f"From the living memory: {flag.summary}. Evidence: {', '.join(flag.evidence_trace_ids[:5])}")
+    fix = DriftFix(summary=flag.fix.summary, change_request_id=opened["changeRequestId"])
+    return lane.drift.move(flag.model_copy(update={"state": "sent_to_l1", "fix": fix}), lane.now, f"change request {fix.change_request_id}")
+
+
+def tell_leaders(lane, flag: DriftFlag, ask: str) -> None:
+    for person in leaders(lane):
+        notify(lane, person, f"{flag.kind.capitalize()} drift: {flag.subject.name}", f"{flag.summary}. {ask}", DRIFT_PAGE, "approval")
+
+
+# --- Following the drift and its change
+
+def on_flag(lane, envelope) -> None:
+    """A new drift: security goes to the L1 leaders as an incident; skill and policy drift get their fix drafted."""
+    flag = lane.drift.get(DriftFlag.model_validate(envelope.payload).flag_id)
+    if flag is None or flag.state != "detected" or (flag.fix and flag.fix.change_request_id):
+        return  # a redelivery, or already on its way
+    if flag.kind == "security":
+        tell_leaders(lane, flag, "An action finished although its access check said deny.")
+        lane.drift.move(flag.model_copy(update={"state": "sent_to_l1"}), lane.now, "incident sent to L1")
+        return
+    open_fix(lane, flag)
+    count(f"memory.fix_opened.{flag.kind}")
+
+
+def on_requested(lane, envelope) -> None:
+    """The approval request for a drift's change went out: the L1 user has it waiting."""
+    approval = ApprovalRequest.model_validate(envelope.payload)
+    flag = lane.drift.by_change(approval.subject.ref) if approval.subject.kind == "change_request" else None
+    if flag and flag.state == "sent_to_l1":
+        lane.drift.move(flag.model_copy(update={"state": "awaiting_approval"}), lane.now, f"approval {approval.approval_id} with L1")
+
+
+def follow(lane, flag: DriftFlag) -> DriftFlag:
+    """Move the drift to where its change request now stands, read by its key. Safe to repeat: the night does it for any
+    message that came before Studio had applied it."""
+    stored = lane.records.load("change_request", flag.fix.change_request_id) if flag.fix and flag.fix.change_request_id else None
+    status = ChangeRecord.model_validate(stored).status if stored else None
+    if status == "awaiting_approval" and flag.state == "sent_to_l1":
+        return lane.drift.move(flag.model_copy(update={"state": "awaiting_approval"}), lane.now, "waiting for L1")
+    if status == "merged" and flag.state != "approved":
+        recheck = DriftRecheck(until=stages_memory_drift.approved_until(lane), result="watching")
+        return lane.drift.move(flag.model_copy(update={"state": "approved", "recheck": recheck}), lane.now, "approved and live")
+    if status in CLOSED:
+        note = CLOSED[status]
+        return lane.drift.move(flag.model_copy(update={"state": "detected", "reopened_note": note, "fix": DriftFix(summary=flag.fix.summary, change_request_id=None)}), lane.now, note)
+    return flag
+
+
+def on_decided(lane, envelope) -> None:
+    """After Studio has applied an L1 decision, the drift follows its change."""
+    decision = Decision.model_validate(envelope.payload)
+    approval = lane.records.load("approval", decision.approval_id)
+    flag = lane.drift.by_change(approval["subject"]["ref"]) if approval and approval["subject"]["kind"] == "change_request" else None
+    if flag and flag.state in ("sent_to_l1", "awaiting_approval"):
+        follow(lane, flag)
+
+
+def sync(lane) -> int:
+    """The night's catch-up, for a decision whose message arrived before Studio applied it. Returns drifts moved."""
+    moved = 0
+    for state in ("sent_to_l1", "awaiting_approval"):
+        for flag in lane.drift.in_state(state):
+            if flag.fix and flag.fix.change_request_id and follow(lane, flag).state != state:
+                moved += 1
+    log_event("memory", "drift_synced", moved=moved)
+    return moved
+
+
+def register(app, lane, check) -> None:
+    """After Studio's own consumer of approvals.decided, so the change request already shows the decision."""
+    if getattr(lane, "drift", None) is None:
+        return
+    lane.bus.subscribe("drift.flags", "memory_fixes", "S13", lambda envelope: on_flag(lane, envelope))
+    lane.bus.subscribe("approvals.requested", "memory_fixes", "S8", lambda envelope: on_requested(lane, envelope))
+    lane.bus.subscribe("approvals.decided", "memory_fixes", "S14", lambda envelope: on_decided(lane, envelope))

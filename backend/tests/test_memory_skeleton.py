@@ -83,10 +83,10 @@ def test_security_drift_has_zero_tolerance_and_no_draft():
     assert memory.security_drift(trace("r6"), NOW) is None
 
 
-def test_skill_drift_drafts_a_fix_for_an_l1_user():
+def test_skill_drift_carries_a_draft_fix_not_yet_sent():
     skill = DriftSubject(type="skill", id="refund-standard", name="Refund inside policy")
     flag = memory.skill_drift(TENANT, "customer_care", skill, [0.9, 0.92, 0.91, 0.62], ["tr-r4"], "Check the plan type first", NOW)
-    assert flag and flag.state == "sent_to_l1" and flag.fix.summary == "Check the plan type first" and survives_json(flag)
+    assert flag and flag.state == "detected" and flag.fix.summary == "Check the plan type first" and survives_json(flag)
     assert memory.skill_drift(TENANT, "customer_care", skill, [0.9, 0.88], [], "", NOW) is None
 
 

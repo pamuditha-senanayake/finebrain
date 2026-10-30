@@ -2,15 +2,19 @@
 # finished run becomes a trace (K16 on traces.recorded); each trace is claimed, triaged against its area's patterns
 # (K17 on traces.matched), and a surprise becomes one To review item. Every step is safe to repeat: stores ignore
 # duplicates, and a claim (Valkey SET NX in production) keeps two workers off one trace at a time.
-# Used by: orchestrate.py (build_lane), tests/test_memory_flow.py, tests/test_memory_real.py.
-# Uses: stages_memory.py, contracts_memory.py, contracts_run.py, contracts_reason.py, item_tags.py, stages_learn.py, stages_normalize.py (claim).
+# Since stage 6 a trace carries the policies its workflow names, and security drift is checked at triage and on a late
+# access decision. Used by: orchestrate.py (build_lane), tests/test_memory_flow.py, tests/test_memory_real.py.
+# Uses: stages_memory.py, stages_memory_drift.py, run_steps.py (activity_policies), contracts_memory.py, contracts_run.py, contracts_reason.py, item_tags.py, stages_learn.py, stages_normalize.py (claim).
 from typing import get_args
 
-from app.pipeline import item_tags
+from app.pipeline import item_tags, stages_memory_drift
 from app.pipeline import stages_memory as memory
 from app.pipeline.contracts_memory import Area, AreaMatch, TraceRecord
 from app.pipeline.contracts_reason import AccessDecision
 from app.pipeline.contracts_run import RunRecord
+from app.pipeline.contracts_signal import TaskRequest
+from app.pipeline.run_steps import activity_policies
+from app.pipeline.stages_govern import POLICY_FOR_ACTION
 from app.pipeline.observe import count, log_event
 from app.pipeline.stages_learn import zone_of
 from app.pipeline.stages_normalize import claim
@@ -38,6 +42,15 @@ def on_access(lane, envelope) -> None:
     access = memory.access_of(decision)
     lane.traces.add_access(decision.run_id, access)
     lane.traces.attach(f"tr-{decision.run_id}", access)
+    trace = lane.traces.get(f"tr-{decision.run_id}")
+    if trace and access.decision == "deny" and lane.drift is not None:  # a late deny on a finished action is security drift too; safe to repeat
+        stages_memory_drift.check_security(lane, trace, envelope)
+
+
+def on_task(lane, envelope) -> None:
+    """Keep each task's activity, so the run's trace can name the policies its workflow holds it to."""
+    task = TaskRequest.model_validate(envelope.payload)
+    lane.traces.add_activity(task.task_id, task.activity_id)
 
 
 # --- Runs to traces
@@ -56,8 +69,13 @@ def area_of(lane, signal: dict | None) -> str:
 def trace_of(lane, run: RunRecord, envelope) -> TraceRecord:
     signal = signal_of(lane, run)
     started = min((step.started_at for step in run.steps), default=envelope.occurred_at)
-    # The policy versions in force are not on the run record; stage 6 reads them from the graph
-    return memory.trace_of_run(run, lane.seed["tenant_id"], area_of(lane, signal), started, (signal or {}).get("signal_id", run.task_id), [], lane.traces.access_of(run.run_id))
+    # The policies in force when the work started: those the activity's workflow names, each at the version valid then
+    activity = lane.traces.activity_of(run.task_id)
+    named = activity_policies(lane, activity) if activity else []
+    # A workflow that names none: the policy S7 itself checks for the action the run proposed
+    checked = [POLICY_FOR_ACTION[s.decision] for s in run.steps if s.kind == "judgment" and s.decision in POLICY_FOR_ACTION]
+    policies = memory.policies_at(lane.graph, list(dict.fromkeys(named or checked)), started)
+    return memory.trace_of_run(run, lane.seed["tenant_id"], area_of(lane, signal), started, (signal or {}).get("signal_id", run.task_id), policies, lane.traces.access_of(run.run_id))
 
 
 def on_run(lane, envelope) -> None:
@@ -85,6 +103,8 @@ def on_trace(lane, envelope) -> None:
         raise TraceClaimed(trace.trace_id)
     # Step 2: match against the area's patterns, then keep the result before telling anyone
     match = memory.triage(trace, lane.patterns, zone_of(lane))
+    if lane.drift is not None:  # before the match is kept, so a failure here is replayed, never skipped as done
+        stages_memory_drift.check_security(lane, trace, envelope)
     lane.records.save(MATCH_KIND, trace.trace_id, match)
     if match.match == "surprise":
         raise_for_review(lane, match)
@@ -105,5 +125,6 @@ def subscribe_memory(lane) -> None:
     if lane.traces is None or lane.patterns is None:
         return
     lane.bus.subscribe("access.decisions", "memory_access", "S10", lambda envelope: on_access(lane, envelope))
+    lane.bus.subscribe("tasks.created", "memory_tasks", "S10", lambda envelope: on_task(lane, envelope))
     lane.bus.subscribe("runs.completed", "memory_traces", "S10", lambda envelope: on_run(lane, envelope))
     lane.bus.subscribe("traces.recorded", "memory_triage", "S13", lambda envelope: on_trace(lane, envelope))
