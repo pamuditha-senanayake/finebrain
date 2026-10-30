@@ -1,21 +1,21 @@
 # stages_memory.py: the living memory's walking skeleton (stage 4), in memory. One function per seam: a run becomes a
 # trace (K16), triage matches it to its area's patterns (K17), the drift checks raise flags (K18), and a steady
-# pattern no skill covers becomes a skill draft (K19). Thin on purpose; stage 5 and 6 thicken each one.
-# Used by: tests/test_memory_skeleton.py. Uses: contracts_memory.py, contracts_run.py, contracts_reason.py,
-# activities.py (step names), stages_spike.py (the spike bar).
+# pattern no skill covers becomes a skill draft (K19). Patterns live in a store (memory or Postgres) since stage 5a.
+# Used by: tests/test_memory_skeleton.py, tests/test_memory_stores.py. Uses: contracts_memory.py, contracts_run.py,
+# contracts_reason.py, activities.py (step names), stages_learn.py (weeks), stages_spike.py (the spike bar), store_patterns.py.
 import statistics
-from dataclasses import dataclass, field
 from datetime import datetime
 
 from app.pipeline.activities import activity_of
 from app.pipeline.contracts_memory import Area, AreaMatch, DriftFix, DriftFlag, DriftSubject, PolicyCheck, SkillDraft, TraceAccess, TracePolicy, TraceRecord
 from app.pipeline.contracts_reason import AccessDecision
 from app.pipeline.contracts_run import RunRecord
+from app.pipeline.stages_learn import week_of
 from app.pipeline.stages_spike import SPIKE_MIN, SPIKE_RATIO
+from app.pipeline.store_patterns import ALWAYS_ON, MemoryPatterns, Pattern, PostgresPatterns
 
-# Config: the starting numbers in Docs/CB_Living_Memory_Architecture.md section 13
-PATTERN_BUDGET = 50
-EXAMPLES_PER_PATTERN = 5
+# Config: the starting numbers in Docs/CB_Living_Memory_Architecture.md section 13 (the pattern budget lives in store_patterns.py)
+PatternStore = MemoryPatterns | PostgresPatterns
 NEAR_MATCH_STEPS = 1  # a trace one step away from a pattern, with the same skill and ending, still counts as normal
 NEAR_SIMILARITY = 0.8
 SKILL_DRIFT_BAR = 0.10  # follow rate this far below its usual weeks
@@ -54,33 +54,6 @@ def trace_of_outside(tenant_id: str, event_id: str, area: Area, at: datetime, st
 
 # --- K17: triage against the area's patterns
 
-@dataclass
-class Pattern:
-    pattern_id: str
-    key: str
-    steps: list[str]
-    count: int = 0
-    examples: list[str] = field(default_factory=list)
-
-
-# Data and the budget rule that guards it belong together, so this one store is a class. Stage 5 moves it to Postgres.
-@dataclass
-class PatternStore:
-    by_area: dict[tuple[str, str], dict[str, Pattern]] = field(default_factory=dict)
-
-    def area(self, tenant_id: str, area: str) -> dict[str, Pattern]:
-        return self.by_area.setdefault((tenant_id, area), {})
-
-    def add(self, trace: TraceRecord) -> Pattern | None:
-        """A new pattern from a trace a person confirmed; refused once the area is at its budget."""
-        patterns = self.area(trace.tenant_id, trace.area)
-        if len(patterns) >= PATTERN_BUDGET:
-            return None
-        pattern = Pattern(pattern_id=f"pt-{trace.area}-{len(patterns) + 1}", key=pattern_key(trace), steps=trace.steps)
-        patterns[pattern.key] = pattern
-        return pattern
-
-
 def pattern_key(trace: TraceRecord) -> str:
     skill = trace.skill.id if trace.skill else "none"
     return "|".join([trace.area, skill, ">".join(trace.steps), trace.outcome, trace.policy_check])
@@ -106,17 +79,28 @@ def near_pattern(trace: TraceRecord, patterns: dict[str, Pattern]) -> Pattern | 
     return None
 
 
-def triage(trace: TraceRecord, store: PatternStore) -> AreaMatch:
-    """Normal joins a pattern and counts; a surprise goes to a person. No Claude call, no scan beyond one area."""
-    patterns = store.area(trace.tenant_id, trace.area)
+def routed(trace: TraceRecord, store: PatternStore) -> TraceRecord:
+    """An area the company has turned off sends its work to Other, which is always on."""
+    return trace if store.area_on(trace.area) else trace.model_copy(update={"area": ALWAYS_ON})
+
+
+def triage(trace: TraceRecord, store: PatternStore, tz: str = "UTC") -> AreaMatch:
+    """Normal joins a pattern and counts once in its week; a surprise goes to a person. No Claude call, one area read."""
+    trace = routed(trace, store)
+    patterns = store.area_patterns(trace.area)
     key = pattern_key(trace)
     exact = patterns.get(key)
     pattern = exact or near_pattern(trace, patterns)
     if pattern:
-        pattern.count += 1
-        pattern.examples = ([trace.trace_id] + pattern.examples)[:EXAMPLES_PER_PATTERN]
+        store.count(pattern, week_of(trace.started_at, tz), trace.trace_id)
     return AreaMatch(trace_id=trace.trace_id, tenant_id=trace.tenant_id, area=trace.area, pattern_id=pattern.pattern_id if pattern else None,
                      pattern_key=key, similarity=1.0 if exact else NEAR_SIMILARITY if pattern else 0.0, match="normal" if pattern else "surprise")
+
+
+def confirm(trace: TraceRecord, store: PatternStore) -> Pattern | None:
+    """A person said a surprise is a normal way to work: it becomes a pattern, inside the area's budget."""
+    trace = routed(trace, store)
+    return store.add(trace.area, pattern_key(trace), trace.steps)
 
 
 # --- K18: the three drift checks

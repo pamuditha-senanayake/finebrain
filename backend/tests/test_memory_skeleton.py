@@ -1,6 +1,6 @@
 # test_memory_skeleton.py: stage 4 of the living memory. One refund walks every new seam, K16 trace, K17 area match,
 # K18 drift and K19 skill draft, and each message survives a round trip through JSON as it will on Kafka.
-# Uses: app/pipeline/stages_memory.py, contracts_memory.py, contracts_run.py, contracts_reason.py.
+# Uses: app/pipeline/stages_memory.py, store_patterns.py, contracts_memory.py, contracts_run.py, contracts_reason.py.
 from datetime import datetime, timedelta, timezone
 
 from pydantic import BaseModel
@@ -10,6 +10,7 @@ from app.pipeline.contracts_memory import DriftSubject, TracePolicy
 from app.pipeline.contracts_reason import AccessDecision
 from app.pipeline.contracts_run import Cost, RunRecord, RunStep
 from app.pipeline.contracts_signal import VersionRef
+from app.pipeline.store_patterns import PATTERN_BUDGET, MemoryPatterns, Pattern
 
 # Config
 NOW = datetime(2026, 10, 30, 9, 0, tzinfo=timezone.utc)
@@ -55,22 +56,22 @@ def test_a_refund_walks_trace_match_and_learns_a_pattern():
     assert [a.decision for a in first.access] == ["allow"] and first.policy_check == "within" and survives_json(first)
 
     # Step 2: the area has no patterns yet, so the first trace is a surprise (K17)
-    store = memory.PatternStore()
+    store = MemoryPatterns(TENANT)
     surprise = memory.triage(first, store)
     assert surprise.match == "surprise" and surprise.pattern_id is None and survives_json(surprise)
 
     # Step 3: a person confirms it; the same work again is normal and counts, and one step more is still normal
-    store.add(first)
+    memory.confirm(first, store)
     again = memory.triage(trace("r2"), store)
     near = memory.triage(trace("r3", extra_step=True), store)
     assert (again.match, again.similarity) == ("normal", 1.0)
     assert (near.match, near.similarity) == ("normal", memory.NEAR_SIMILARITY)
-    assert store.area(TENANT, "customer_care")[memory.pattern_key(first)].count == 2
+    assert store.area_patterns("customer_care")[memory.pattern_key(first)].count == 2
 
 
 def test_a_different_ending_is_a_surprise():
-    store = memory.PatternStore()
-    store.add(trace("r1"))
+    store = MemoryPatterns(TENANT)
+    memory.confirm(trace("r1"), store)
     escalated = trace("r4", outcome="escalated")
     assert escalated.policy_check == "outside"
     assert memory.triage(escalated, store).match == "surprise"
@@ -101,20 +102,20 @@ def stripe_refund(n: int, outcome: str = "Refunded by a person"):
 
 
 def test_a_steady_pattern_no_skill_covers_becomes_a_draft():
-    store = memory.PatternStore()
+    store = MemoryPatterns(TENANT)
     refunds = [stripe_refund(n) for n in range(24)]
-    pattern = store.add(refunds[0])
+    pattern = memory.confirm(refunds[0], store)
     for refund in refunds:
         memory.triage(refund, store)
     draft = memory.skill_draft(pattern, refunds[0], same_steps_total=26, latest_week_share=0.9)
     assert draft and draft.support == 24 and draft.steps == STRIPE_STEPS and draft.state == "draft" and survives_json(draft)
     # A pattern a skill already covers, or with too little support, drafts nothing
     assert memory.skill_draft(pattern, trace("r7"), 26, 0.9) is None
-    assert memory.skill_draft(memory.Pattern("pt-x", "k", STRIPE_STEPS, count=10), refunds[0], 10, 0.9) is None
+    assert memory.skill_draft(Pattern("pt-x", "k", STRIPE_STEPS, count=10), refunds[0], 10, 0.9) is None
 
 
 def test_an_area_never_holds_more_patterns_than_its_budget():
-    store = memory.PatternStore()
-    added = [store.add(stripe_refund(n, outcome=f"ending {n}")) for n in range(memory.PATTERN_BUDGET + 1)]
+    store = MemoryPatterns(TENANT)
+    added = [memory.confirm(stripe_refund(n, outcome=f"ending {n}"), store) for n in range(PATTERN_BUDGET + 1)]
     assert all(added[:-1]) and added[-1] is None
-    assert len(store.area(TENANT, "customer_care")) == memory.PATTERN_BUDGET
+    assert len(store.area_patterns("customer_care")) == PATTERN_BUDGET
