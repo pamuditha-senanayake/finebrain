@@ -25,11 +25,10 @@ const SPIN = 0.07; // radians a second while idle
 const EASE = 0.12; // share of the gap closed each frame, for lifts and turns
 // Globe radius as a share of the box's shorter side, leaving room for labels. A tall, narrow box (a card is open,
 // or a phone) has room above and below, so the globe can take more of its width.
-const GLOBE_SHARE = { wide: 0.31, narrow: 0.4 };
+const GLOBE_SHARE = { wide: 0.42, narrow: 0.44 };
 const LABELS_MIN_WIDTH = 520;
 const LABEL_GAP = 40;
 const EDGE = 12; // px a label keeps from the box's edge
-const TITLE_CLEARANCE = 150; // px from the top the page title takes, on the left
 const ZOOM_MIN = 0.6;
 const ZOOM_MAX = 2.2;
 const ZOOM_STEP = 1.25;
@@ -37,7 +36,10 @@ const FRONT = new THREE.Vector3(0, 0.18, 1).normalize();
 // Halo strength per theme; the colours themselves come from globals.css (--globe-core, --globe-glow, --area-*).
 const GLOW_STRENGTH = { dark: 0.32, light: 0.28 };
 
-type Props = { areas: MemoryArea[]; selected: AreaKey | null; onSelect: (key: AreaKey) => void; theme: string };
+// The part of the page the overlays leave free, in px from each edge. The canvas still fills the whole page; the globe
+// is centred in this room, and labels stay inside it, so nothing hides under the title, figures, card or legend.
+export type Room = { topLeft: number; topRight: number; right: number; bottom: number; left: number };
+type Props = { areas: MemoryArea[]; selected: AreaKey | null; onSelect: (key: AreaKey) => void; theme: string; room: Room };
 
 const TILE_VERTEX = `attribute float size; attribute float lift; attribute vec3 tint; uniform float scale; varying vec3 vTint; varying float vFacing;
 void main() {
@@ -103,25 +105,26 @@ function calloutPath(ax: number, ay: number, bx: number, by: number, ex: number)
 }
 
 // Labels on one side sit in the order of their callouts and never closer than LABEL_GAP, inside the box.
-function spreadRows(items: { key: AreaKey; by: number }[], height: number, top: number) {
+function spreadRows(items: { key: AreaKey; by: number }[], top: number, bottom: number) {
   const sorted = [...items].sort((a, b) => a.by - b.by);
   let last = -Infinity;
   const rows = sorted.map((item) => (last = Math.max(item.by, last + LABEL_GAP, top)));
-  const overflow = Math.max(0, (rows[rows.length - 1] ?? 0) - (height - LABEL_GAP / 2));
+  const overflow = Math.max(0, (rows[rows.length - 1] ?? 0) - bottom);
   return new Map(sorted.map((item, i) => [item.key, rows[i] - overflow]));
 }
 
-export default function GlobeCanvas({ areas, selected, onSelect, theme }: Props) {
+export default function GlobeCanvas({ areas, selected, onSelect, theme, room }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const labels = useRef(new Map<AreaKey, HTMLButtonElement>());
   const lines = useRef(new Map<AreaKey, SVGGElement>());
-  const live = useRef({ areas, selected, onSelect, theme, hovered: null as AreaKey | null, repaint: () => {}, retheme: () => {}, zoomBy: (factor: number) => void factor });
+  const live = useRef({ areas, selected, onSelect, theme, room, hovered: null as AreaKey | null, repaint: () => {}, retheme: () => {}, refit: () => {}, zoomBy: (factor: number) => void factor });
 
   useEffect(() => {
-    Object.assign(live.current, { areas, selected, onSelect, theme });
+    Object.assign(live.current, { areas, selected, onSelect, theme, room });
     live.current.retheme();
     live.current.repaint();
-  }, [areas, selected, onSelect, theme]);
+    live.current.refit();
+  }, [areas, selected, onSelect, theme, room]);
 
   useEffect(() => {
     const el = box.current;
@@ -197,7 +200,7 @@ export default function GlobeCanvas({ areas, selected, onSelect, theme }: Props)
     el.addEventListener("pointerenter", onEnter);
     el.addEventListener("pointerleave", onLeave);
 
-    // Step 4: fit to the box; a narrow box pulls the camera back so the whole globe shows
+    // Step 4: the canvas fills the page; the globe is sized to the free room and centred in it by shifting the view
     const fit = () => {
       const { width, height } = el.getBoundingClientRect();
       // A box not laid out yet has no size; fitting to it would put the camera at infinity
@@ -205,13 +208,17 @@ export default function GlobeCanvas({ areas, selected, onSelect, theme }: Props)
       renderer.setSize(width, height, false);
       Object.assign(canvas.style, { width: `${width}px`, height: `${height}px` });
       camera.aspect = width / Math.max(1, height);
-      // The globe's radius is a fixed share of the box's shorter side, whatever its shape
+      const r = live.current.room;
+      const top = Math.min(r.topLeft, r.topRight);
+      const freeWidth = Math.max(1, width - r.left - r.right);
+      const freeHeight = Math.max(1, height - top - r.bottom);
       const focal = height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
-      view.distance = focal / (GLOBE_SHARE[width < height ? "narrow" : "wide"] * Math.min(width, height));
-      camera.updateProjectionMatrix();
+      view.distance = focal / (GLOBE_SHARE[freeWidth < freeHeight ? "narrow" : "wide"] * Math.min(freeWidth, freeHeight));
+      camera.setViewOffset(width, height, width / 2 - (r.left + freeWidth / 2), height / 2 - (top + freeHeight / 2), width, height);
       tileMaterial.uniforms.scale.value = renderer.getPixelRatio() * focal;
       place();
     };
+    live.current.refit = fit;
     // Zoom moves the camera, never the globe, so tiles keep their spacing; callouts project before the first render,
     // so the view matrix is made current here rather than at render time
     const view = { distance: 0, zoom: 1 };
@@ -297,8 +304,8 @@ export default function GlobeCanvas({ areas, selected, onSelect, theme }: Props)
         const bx = ax + ((ax - cx) / out) * 46;
         return { key: c.key, front, ax, ay, bx, by: ay + ((ay - cy) / out) * 46, right: bx >= cx };
       });
-      // The page title sits top left, so labels on the left start below it
-      const rows = new Map([...spreadRows(items.filter((i) => !i.right), height, TITLE_CLEARANCE), ...spreadRows(items.filter((i) => i.right), height, LABEL_GAP / 2)]);
+      const room = live.current.room;
+      const rows = new Map([...spreadRows(items.filter((i) => !i.right), room.topLeft, height - room.bottom), ...spreadRows(items.filter((i) => i.right), room.topRight, height - room.bottom)]);
       for (const item of items) {
         const label = labels.current.get(item.key);
         const line = lines.current.get(item.key);
@@ -310,7 +317,7 @@ export default function GlobeCanvas({ areas, selected, onSelect, theme }: Props)
         const y = rows.get(item.key)!;
         // Labels stay inside the box: one that would cross its edge slides in, and its line ends where it starts
         const wanted = item.bx + (item.right ? 22 : -22);
-        const x = item.right ? Math.min(wanted, width - EDGE - label.offsetWidth) : Math.max(EDGE, wanted - label.offsetWidth);
+        const x = item.right ? Math.min(wanted, width - room.right - EDGE - label.offsetWidth) : Math.max(room.left + EDGE, wanted - label.offsetWidth);
         const ex = item.right ? x : x + label.offsetWidth;
         label.style.transform = `translate(${x}px, ${y - label.offsetHeight / 2}px)`;
         const path = line.querySelector("path")!;
@@ -375,7 +382,7 @@ export default function GlobeCanvas({ areas, selected, onSelect, theme }: Props)
           );
         })}
       </div>
-      <div className="absolute bottom-5 right-5 flex flex-col overflow-hidden rounded-xl border bg-card/85 shadow-sm backdrop-blur">
+      <div className="absolute flex flex-col overflow-hidden rounded-xl border bg-card/85 shadow-sm backdrop-blur" style={{ right: room.right + 16, bottom: room.bottom + 16 }}>
         <button type="button" onClick={() => live.current.zoomBy(ZOOM_STEP)} aria-label="Zoom in" className="flex size-9 items-center justify-center hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"><Plus className="size-4" aria-hidden /></button>
         <button type="button" onClick={() => live.current.zoomBy(1 / ZOOM_STEP)} aria-label="Zoom out" className="flex size-9 items-center justify-center border-t hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"><Minus className="size-4" aria-hidden /></button>
       </div>

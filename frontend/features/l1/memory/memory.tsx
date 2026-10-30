@@ -7,7 +7,7 @@
 import { useReducedMotion } from "motion/react";
 import { useTheme } from "next-themes";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { lazy, Suspense, useState, type ReactNode } from "react";
+import { lazy, Suspense, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { AreaKey, MemoryMap } from "@/contracts";
 import { AreaKey as AreaKeys } from "@/contracts";
 import { EmptyState, ErrorState, SampleBadge } from "@/components/brain/primitives";
@@ -17,6 +17,26 @@ import { cn } from "@/lib/utils";
 import { AreaCard } from "./area-card";
 import { AREA_COLOR, AREA_ORDER, areaLabel, driftTotal } from "./areas";
 import GlobeFlat from "./globe-flat";
+import type { Room } from "./globe-canvas";
+
+// Config
+// What the overlays cover, in px from each edge: the title (top left), the figures (top right), the legend (bottom),
+// and the card (right) when an area is open. The globe and its labels keep out of these; the page stays one canvas.
+const ROOM: Room = { topLeft: 170, topRight: 250, right: 24, bottom: 110, left: 24 };
+const ROOM_WITH_CARD = 460;
+const PHONE_ROOM: Room = { topLeft: 0, topRight: 0, right: 0, bottom: 0, left: 0 };
+
+function useWide() {
+  return useSyncExternalStore(
+    (onChange) => {
+      const query = window.matchMedia("(min-width: 640px)");
+      query.addEventListener("change", onChange);
+      return () => query.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia("(min-width: 640px)").matches,
+    () => true,
+  );
+}
 
 // React.lazy, so three.js loads only when the globe is shown, never on route prefetch.
 const GlobeCanvas = lazy(() => import("./globe-canvas"));
@@ -74,6 +94,8 @@ function Scene({ map }: { map: MemoryMap }) {
   const reduced = useReducedMotion();
   const [webgl] = useState(canUseWebGL);
   const { resolvedTheme } = useTheme();
+  const wide = useWide();
+  const room = useMemo<Room>(() => (wide ? { ...ROOM, right: selected ? ROOM_WITH_CARD : ROOM.right } : PHONE_ROOM), [wide, selected]);
 
   // Step 2: choosing an area writes it to the address; choosing it again closes the card
   const choose = (key: AreaKey | null) => {
@@ -85,11 +107,11 @@ function Scene({ map }: { map: MemoryMap }) {
 
   return (
     <>
-      {/* The globe fills the page above the legend and left of the right-hand column, and moves left when a card opens */}
-      <section className={cn("relative h-[58dvh] sm:absolute sm:bottom-[104px] sm:left-0 sm:right-[320px] sm:top-0 sm:h-auto", selected && "sm:right-[440px]")} aria-label="The globe of areas">
+      {/* The globe fills the whole page; everything else floats over it, and the globe centres itself in the room they leave */}
+      <section className="relative h-[58dvh] sm:absolute sm:inset-0 sm:h-auto" aria-label="The globe of areas">
         {reduced || !webgl ? <GlobeFlat areas={map.areas} selected={selected} onSelect={choose} /> : (
           <Suspense fallback={<div className="absolute inset-0 m-auto size-[min(60vh,60vw)] animate-pulse rounded-full bg-muted" />}>
-            <GlobeCanvas areas={map.areas} selected={selected} onSelect={choose} theme={resolvedTheme ?? "light"} />
+            <GlobeCanvas areas={map.areas} selected={selected} onSelect={choose} theme={resolvedTheme ?? "light"} room={room} />
           </Suspense>
         )}
       </section>
@@ -135,7 +157,7 @@ function Figure({ label, value, hint, accent }: { label: string; value: string; 
 // Chips keep the sides of the page free, so every label on the globe has room.
 function Legend({ map, selected, onSelect }: { map: MemoryMap; selected: AreaKey | null; onSelect: (key: AreaKey) => void }) {
   return (
-    <nav aria-label="Areas" className={cn("relative z-10 px-3 py-4 sm:absolute sm:bottom-5 sm:left-5 sm:right-[340px] sm:p-0", selected && "sm:right-[460px]")}>
+    <nav aria-label="Areas" className={cn("relative z-10 px-3 py-4 sm:absolute sm:bottom-5 sm:left-5 sm:right-[24px] sm:p-0", selected && "sm:right-[460px]")}>
       <ul className="flex flex-wrap gap-2">
         {AREA_ORDER.map((key) => {
           const area = map.areas.find((a) => a.key === key);
