@@ -6,6 +6,7 @@
 // Used by: app/(l1)/l1/memory/page.tsx. Uses: globe-canvas.tsx, globe-flat.tsx, area-card.tsx, areas.ts, lib/api/hooks.
 import { useReducedMotion } from "motion/react";
 import { useTheme } from "next-themes";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { lazy, Suspense, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { AreaKey, MemoryMap } from "@/contracts";
@@ -138,19 +139,21 @@ function Figures({ map }: { map: MemoryMap }) {
       <Figure label="Traces this week" value={map.totals.traces7d.toLocaleString()} />
       <Figure label="Patterns" value={String(map.totals.patterns)} />
       <Figure label="Drift" value={String(drift)} accent={drift > 0} hint={drift ? [skill && `${skill} skill`, policy && `${policy} policy`, security && `${security} access`].filter(Boolean).join(" · ") : "None"} />
-      <Figure label="Waiting" value={String(map.totals.surprises)} hint="to review" />
+      <Figure label="Waiting" value={String(map.totals.surprises)} hint="to review" href={map.totals.surprises ? "/l1/memory/traces?flag=surprise" : undefined} />
     </section>
   );
 }
 
-function Figure({ label, value, hint, accent }: { label: string; value: string; hint?: string; accent?: boolean }) {
-  return (
-    <div>
+function Figure({ label, value, hint, accent, href }: { label: string; value: string; hint?: string; accent?: boolean; href?: string }) {
+  const body = (
+    <>
       <p className="text-[11px] font-medium uppercase tracking-[0.07em] text-muted-foreground">{label}</p>
       <p className={cn("text-xl font-semibold tabular-nums", accent && "text-primary")}>{value}</p>
       {hint && <p className="text-[12px] text-muted-foreground">{hint}</p>}
-    </div>
+    </>
   );
+  // A figure with somewhere to go is a link: the waiting surprises open as a list
+  return href ? <Link href={href} className="-m-1.5 rounded-lg p-1.5 hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring">{body}</Link> : <div>{body}</div>;
 }
 
 // Every area as a chip along the bottom: the keyboard and screen reader way in, and the key to the globe's colours.

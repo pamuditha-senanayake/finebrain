@@ -135,6 +135,7 @@ def draft_skills(lane, area: str) -> int:
         trace = next((t for trace_id in pattern.examples if (t := lane.traces.get(trace_id))), None)
         draft = memory.skill_draft(pattern, trace, same_steps, round(latest / max(1, pattern.count), 2)) if trace else None
         if draft and not lane.records.load(DRAFT_KIND, draft.draft_id):
+            draft = draft.model_copy(update={"created_at": lane.now})
             lane.records.save(DRAFT_KIND, draft.draft_id, draft)
             lane.bus.publish("skills.drafted", "skill.drafted", draft, "memory")
             drafted += 1

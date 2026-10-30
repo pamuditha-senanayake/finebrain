@@ -10,6 +10,7 @@ import { EmptyState, QueryView, SampleBadge } from "@/components/brain/primitive
 import { Button } from "@/components/ui/button";
 import { AREA_COLOR } from "@/features/l1/memory/areas";
 import { NotConnected, notConnected } from "@/features/l1/memory/memory";
+import { SendDraft } from "@/features/l1/memory/memory-actions";
 import { useExtractedSkills, useMemoryMap } from "@/lib/api/hooks";
 import { pct } from "@/lib/format";
 
@@ -57,9 +58,9 @@ function DraftCard({ skill, areaName, sample }: { skill: ExtractedSkill; areaNam
           </li>
         ))}
       </ol>
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-start gap-3">
+        <SendDraft skill={skill} sample={sample} />
         <Button asChild variant="outline"><Link href={`/l1/memory/traces?area=${skill.area}`}>See the traces</Link></Button>
-        <p className="text-[13px] text-muted-foreground">Sending for review comes with the live connection.</p>
       </div>
     </div>
   );

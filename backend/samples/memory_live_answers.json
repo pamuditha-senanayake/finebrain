@@ -1,0 +1,493 @@
+{
+ "memory": {
+  "areas": [
+   {
+    "drift": {
+     "policy": 1,
+     "security": 0,
+     "skill": 0
+    },
+    "enabled": true,
+    "key": "customer_care",
+    "name": "Customers",
+    "outsidePolicy": 0,
+    "patternBudget": 50,
+    "patterns": 0,
+    "skills": {
+     "authored": 0,
+     "fromTraces": 1
+    },
+    "surprises": 1,
+    "traces7d": 1,
+    "tracesTotal": 1
+   },
+   {
+    "drift": {
+     "policy": 0,
+     "security": 0,
+     "skill": 0
+    },
+    "enabled": true,
+    "key": "finance",
+    "name": "Money",
+    "outsidePolicy": 0,
+    "patternBudget": 50,
+    "patterns": 0,
+    "skills": {
+     "authored": 0,
+     "fromTraces": 0
+    },
+    "surprises": 0,
+    "traces7d": 0,
+    "tracesTotal": 0
+   },
+   {
+    "drift": {
+     "policy": 0,
+     "security": 0,
+     "skill": 0
+    },
+    "enabled": true,
+    "key": "legal",
+    "name": "Rules",
+    "outsidePolicy": 0,
+    "patternBudget": 50,
+    "patterns": 0,
+    "skills": {
+     "authored": 0,
+     "fromTraces": 0
+    },
+    "surprises": 0,
+    "traces7d": 0,
+    "tracesTotal": 0
+   },
+   {
+    "drift": {
+     "policy": 0,
+     "security": 0,
+     "skill": 0
+    },
+    "enabled": true,
+    "key": "people",
+    "name": "Staff",
+    "outsidePolicy": 0,
+    "patternBudget": 50,
+    "patterns": 0,
+    "skills": {
+     "authored": 0,
+     "fromTraces": 0
+    },
+    "surprises": 0,
+    "traces7d": 0,
+    "tracesTotal": 0
+   },
+   {
+    "drift": {
+     "policy": 0,
+     "security": 0,
+     "skill": 0
+    },
+    "enabled": true,
+    "key": "operations",
+    "name": "Operations",
+    "outsidePolicy": 0,
+    "patternBudget": 50,
+    "patterns": 0,
+    "skills": {
+     "authored": 0,
+     "fromTraces": 0
+    },
+    "surprises": 0,
+    "traces7d": 0,
+    "tracesTotal": 0
+   },
+   {
+    "drift": {
+     "policy": 0,
+     "security": 0,
+     "skill": 0
+    },
+    "enabled": true,
+    "key": "sales",
+    "name": "Sales",
+    "outsidePolicy": 0,
+    "patternBudget": 50,
+    "patterns": 0,
+    "skills": {
+     "authored": 0,
+     "fromTraces": 0
+    },
+    "surprises": 0,
+    "traces7d": 0,
+    "tracesTotal": 0
+   },
+   {
+    "drift": {
+     "policy": 0,
+     "security": 0,
+     "skill": 0
+    },
+    "enabled": true,
+    "key": "product",
+    "name": "Product",
+    "outsidePolicy": 0,
+    "patternBudget": 50,
+    "patterns": 0,
+    "skills": {
+     "authored": 0,
+     "fromTraces": 0
+    },
+    "surprises": 0,
+    "traces7d": 0,
+    "tracesTotal": 0
+   },
+   {
+    "drift": {
+     "policy": 0,
+     "security": 0,
+     "skill": 0
+    },
+    "enabled": true,
+    "key": "general",
+    "name": "Other",
+    "outsidePolicy": 0,
+    "patternBudget": 50,
+    "patterns": 0,
+    "skills": {
+     "authored": 0,
+     "fromTraces": 0
+    },
+    "surprises": 0,
+    "traces7d": 0,
+    "tracesTotal": 0
+   }
+  ],
+  "asOf": "2026-10-10T10:00:00+05:30",
+  "isSample": false,
+  "tenantId": "finebase-hq",
+  "totals": {
+   "drift": {
+    "policy": 1,
+    "security": 0,
+    "skill": 0
+   },
+   "patterns": 0,
+   "surprises": 1,
+   "traces7d": 1
+  }
+ },
+ "memory/areas/customer_care": {
+  "area": {
+   "drift": {
+    "policy": 1,
+    "security": 0,
+    "skill": 0
+   },
+   "enabled": true,
+   "key": "customer_care",
+   "name": "Customers",
+   "outsidePolicy": 0,
+   "patternBudget": 50,
+   "patterns": 0,
+   "skills": {
+    "authored": 0,
+    "fromTraces": 1
+   },
+   "surprises": 1,
+   "traces7d": 1,
+   "tracesTotal": 1
+  },
+  "drifts": [
+   {
+    "area": "customer_care",
+    "evidenceTraceIds": [
+     "tr-run_0001"
+    ],
+    "fix": {
+     "changeRequestId": "cr_0001",
+     "summary": "Refund window: up to 45 days"
+    },
+    "id": "dr-policy-policy_refund",
+    "kind": "policy",
+    "metric": {
+     "label": "Work outside the policy per week",
+     "latest": 9.0,
+     "usual": 1.0
+    },
+    "raisedAt": "2026-10-10T10:00:00+05:30",
+    "recheck": null,
+    "reopenedNote": null,
+    "state": "awaiting_approval",
+    "subject": {
+     "id": "policy_refund",
+     "name": "policy_refund",
+     "type": "policy"
+    },
+    "summary": "People work outside this policy more often"
+   }
+  ],
+  "patterns": []
+ },
+ "memory/drifts": [
+  {
+   "area": "customer_care",
+   "evidenceTraceIds": [
+    "tr-run_0001"
+   ],
+   "fix": {
+    "changeRequestId": "cr_0001",
+    "summary": "Refund window: up to 45 days"
+   },
+   "id": "dr-policy-policy_refund",
+   "kind": "policy",
+   "metric": {
+    "label": "Work outside the policy per week",
+    "latest": 9.0,
+    "usual": 1.0
+   },
+   "raisedAt": "2026-10-10T10:00:00+05:30",
+   "recheck": null,
+   "reopenedNote": null,
+   "state": "awaiting_approval",
+   "subject": {
+    "id": "policy_refund",
+    "name": "policy_refund",
+    "type": "policy"
+   },
+   "summary": "People work outside this policy more often"
+  }
+ ],
+ "memory/skills": [
+  {
+   "area": "customer_care",
+   "changeRequestId": null,
+   "createdAt": "2026-10-10T10:00:00+05:30",
+   "followRate": 0.9,
+   "id": "xs-1",
+   "name": "Customers: order checked to refund by hand",
+   "patternId": "pt-1",
+   "sameOutcomeShare": 0.96,
+   "state": "draft",
+   "steps": [
+    {
+     "activity": "order_checked",
+     "title": "Order checked"
+    },
+    {
+     "activity": "refund_by_hand",
+     "title": "Refund by hand"
+    }
+   ],
+   "support": 24
+  }
+ ],
+ "memory/traces": {
+  "items": [
+   {
+    "area": "customer_care",
+    "drift": [
+     "policy"
+    ],
+    "endedAt": null,
+    "id": "tr-run_0001",
+    "match": "surprise",
+    "outcome": "resolved",
+    "patternId": null,
+    "policyCheck": "within",
+    "runId": "run_0001",
+    "source": "finebrain",
+    "startedAt": "2026-10-10T10:00:00+05:30",
+    "subject": "Issue refund LKR 12,000"
+   }
+  ],
+  "nextCursor": null,
+  "total": 1
+ },
+ "memory/traces/tr-run_0001": {
+  "access": [
+   {
+    "action": "kb.read",
+    "decision": "allow",
+    "latencyMs": 0.0,
+    "onBehalfOf": null,
+    "principal": "agent_refund_worker",
+    "reason": "4 shown, 0 withheld, searched entity; case: no shop or no customer, 0 shown, 0 withheld",
+    "ruleId": "sensitivity_by_tier"
+   },
+   {
+    "action": "refund.propose",
+    "decision": "allow",
+    "latencyMs": 0.0,
+    "onBehalfOf": null,
+    "principal": "agent_refund_worker",
+    "reason": "capability held and data readable",
+    "ruleId": "capability_and_tier"
+   }
+  ],
+  "area": "customer_care",
+  "drift": [
+   "policy"
+  ],
+  "endedAt": null,
+  "id": "tr-run_0001",
+  "inputRef": "sig_0001",
+  "match": "surprise",
+  "outcome": "resolved",
+  "patternId": null,
+  "policies": [
+   {
+    "id": "policy_refund",
+    "name": "policy_refund",
+    "validFrom": "1970-01-01T00:00:00+00:00",
+    "validTo": null,
+    "version": 3
+   }
+  ],
+  "policyCheck": "within",
+  "runId": "run_0001",
+  "skill": {
+   "branch": "main",
+   "id": "skill_refund_handling",
+   "version": 3
+  },
+  "source": "finebrain",
+  "startedAt": "2026-10-10T10:00:00+05:30",
+  "steps": [
+   {
+    "access": null,
+    "at": "2026-10-10T10:00:00+05:30",
+    "costTokens": 0,
+    "decision": "4 items",
+    "durationMs": 0,
+    "facts": [],
+    "gate": null,
+    "id": "step_01-0",
+    "idx": 0,
+    "kind": "retrieval",
+    "reason": "0 withheld",
+    "templateFields": [],
+    "title": "Read the knowledge it may see",
+    "tool": null
+   },
+   {
+    "access": null,
+    "at": "2026-10-10T10:00:00+05:30",
+    "costTokens": 3620,
+    "decision": "issue_refund",
+    "durationMs": 0,
+    "facts": [
+     {
+      "id": "item_policy_window",
+      "statement": "Customers may request a refund within 30 days of the purchase date.",
+      "validFrom": "2026-01-01T00:00:00+05:30",
+      "validTo": null
+     },
+     {
+      "id": "item_policy_auto_limit",
+      "statement": "Refunds up to LKR 50,000 inside the refund window are approved automatically.",
+      "validFrom": "2026-01-01T00:00:00+05:30",
+      "validTo": null
+     },
+     {
+      "id": "item_payment_s2",
+      "statement": "Payment pay_FB_20261004_0192: LKR 12,000 on 4 October 2026 for Finebase Pro monthly.",
+      "validFrom": "2026-10-04T00:00:00+05:30",
+      "validTo": null
+     }
+    ],
+    "gate": null,
+    "id": "step_02-1",
+    "idx": 1,
+    "kind": "judgment",
+    "reason": "Purchase was 6 days ago and LKR 12,000 is under the LKR 50,000 limit, so policy allows an automatic full refund.",
+    "templateFields": [],
+    "title": "Proposed an action",
+    "tool": null
+   },
+   {
+    "access": {
+     "action": "issue_refund",
+     "decision": "allow",
+     "ruleId": "capability_and_tier"
+    },
+    "at": "2026-10-10T10:00:00+05:30",
+    "costTokens": 0,
+    "decision": "allow",
+    "durationMs": 0,
+    "facts": [],
+    "gate": null,
+    "id": "step_03-2",
+    "idx": 2,
+    "kind": "access_check",
+    "reason": "capability_and_tier",
+    "templateFields": [],
+    "title": "Access check",
+    "tool": null
+   },
+   {
+    "access": null,
+    "at": "2026-10-10T10:00:00+05:30",
+    "costTokens": 0,
+    "decision": "succeeded",
+    "durationMs": 0,
+    "facts": [],
+    "gate": null,
+    "id": "step_04-3",
+    "idx": 3,
+    "kind": "tool",
+    "reason": "execute",
+    "templateFields": [],
+    "title": "Called the tool",
+    "tool": "tool_payment_refund"
+   }
+  ],
+  "subject": "Issue refund LKR 12,000",
+  "why": [
+   "Purchase was 6 days ago and LKR 12,000 is under the LKR 50,000 limit, so policy allows an automatic full refund."
+  ]
+ },
+ "memory/traces?flag=drift": {
+  "items": [
+   {
+    "area": "customer_care",
+    "drift": [
+     "policy"
+    ],
+    "endedAt": null,
+    "id": "tr-run_0001",
+    "match": "surprise",
+    "outcome": "resolved",
+    "patternId": null,
+    "policyCheck": "within",
+    "runId": "run_0001",
+    "source": "finebrain",
+    "startedAt": "2026-10-10T10:00:00+05:30",
+    "subject": "Issue refund LKR 12,000"
+   }
+  ],
+  "nextCursor": null,
+  "total": 1
+ },
+ "memory/traces?flag=surprise": {
+  "items": [
+   {
+    "area": "customer_care",
+    "drift": [
+     "policy"
+    ],
+    "endedAt": null,
+    "id": "tr-run_0001",
+    "match": "surprise",
+    "outcome": "resolved",
+    "patternId": null,
+    "policyCheck": "within",
+    "runId": "run_0001",
+    "source": "finebrain",
+    "startedAt": "2026-10-10T10:00:00+05:30",
+    "subject": "Issue refund LKR 12,000"
+   }
+  ],
+  "nextCursor": null,
+  "total": 1
+ }
+}

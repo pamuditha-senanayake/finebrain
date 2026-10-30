@@ -130,7 +130,9 @@ function DriftCard({ drift }: { drift: DriftItem }) {
       {drift.recheck && <p className="text-[13px] text-muted-foreground">Re-check until {drift.recheck.until.slice(0, 10)}: {RECHECK_WORDS[drift.recheck.result]}</p>}
       <div className="flex flex-wrap gap-3">
         <Button asChild variant="outline"><Link href={`/l1/memory/traces?area=${drift.area}&flag=drift`}>See drifting traces</Link></Button>
-        <Button asChild variant="ghost"><Link href="/l1/digest">Open To review</Link></Button>
+        {drift.fix?.changeRequestId
+          ? <Button asChild variant="ghost"><Link href={`/l2/versioning/${drift.fix.changeRequestId}`}>Open the change request</Link></Button>
+          : <Button asChild variant="ghost"><Link href="/l1/digest">Open To review</Link></Button>}
       </div>
     </div>
   );

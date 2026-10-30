@@ -79,3 +79,14 @@ def test_the_night_catches_up_on_a_decision_and_runs_the_drift_checks():
     lane.drift.move(lane.drift.get(flag.flag_id).model_copy(update={"state": "sent_to_l1"}), lane.now, "as if the decision message were lost")
     run = distiller.distill(lane, None, "test")
     assert run["memory"]["drift_synced"] == 1 and lane.drift.get(flag.flag_id).state == "approved" and "skill_drift" in run["memory"]["drift"]
+
+
+def test_a_drift_whose_message_was_missed_is_sent_at_night():
+    from app.api import memory_fixes
+
+    _, lane = build()
+    flag = DriftFlag(flag_id="dr-policy-policy_refund", tenant_id=lane.seed["tenant_id"], kind="policy", area="customer_care",
+                     subject=DriftSubject(type="policy", id=POLICY, name=POLICY), summary="s", usual=1, latest=9, evidence_trace_ids=["tr-1"], state="detected",
+                     fix=DriftFix(summary="Refund window: up to 45 days, as people now refund", change_request_id=None), recheck=None, reopened_note=None, raised_at=lane.now)
+    lane.drift.raise_flag(flag)  # kept, but its K18 never reached the fixer
+    assert memory_fixes.sync(lane) == 1 and lane.drift.get(flag.flag_id).fix.change_request_id

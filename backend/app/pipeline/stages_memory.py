@@ -34,7 +34,8 @@ def policy_check_of(run: RunRecord) -> PolicyCheck:
 def access_of(decision: AccessDecision) -> TraceAccess:
     """The part of a K6 decision a trace keeps: who asked to do what, the answer, and the authority it carried."""
     return TraceAccess(decision_id=decision.decision_id, action=decision.action or "", principal_id=decision.principal_id or "",
-                       on_behalf_of=decision.on_behalf_of, decision=decision.decision, effective_tier=decision.effective_tier)
+                       on_behalf_of=decision.on_behalf_of, decision=decision.decision, effective_tier=decision.effective_tier,
+                       rule_id=decision.rule_id, reason=decision.reason, latency_ms=decision.latency_ms)
 
 
 def trace_of_run(run: RunRecord, tenant_id: str, area: Area, started_at: datetime, input_ref: str,

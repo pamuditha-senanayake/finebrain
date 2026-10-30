@@ -32,6 +32,9 @@ class TraceAccess(BaseModel):
     on_behalf_of: str | None
     decision: Literal["allow", "deny"]
     effective_tier: str | None
+    rule_id: str = ""  # added in stage 7 for the trace page; optional so traces kept before validate
+    reason: str = ""
+    latency_ms: int = 0
 
 
 class TraceRecord(BaseModel):
@@ -113,3 +116,4 @@ class SkillDraft(BaseModel):
     follow_rate: float
     state: Literal["draft", "in_review", "approved", "rejected"]
     change_request_id: str | None
+    created_at: datetime | None = None  # added in stage 7 for the From traces tab; optional so drafts kept before validate

@@ -122,9 +122,15 @@ class MemoryTraces:
         self.rows[trace_id] = trace.model_copy(update={"why": [note]})
         return True
 
-    def page(self, area: str, cursor: str | None = None, limit: int = PAGE_SIZE) -> tuple[list[TraceRecord], str | None]:
+    def count(self, area: str | None = None, since: datetime | None = None, policy_check: str | None = None) -> int:
+        """How many warm traces, in one area or all, since a moment, with one policy check: the figures on the page."""
+        return sum(1 for t in self.rows.values() if (area is None or t.area == area) and (since is None or t.started_at >= since)
+                   and (policy_check is None or t.policy_check == policy_check))
+
+    def page(self, area: str | None, cursor: str | None = None, limit: int = PAGE_SIZE, policy_check: str | None = None) -> tuple[list[TraceRecord], str | None]:
         after = parse_cursor(cursor)
-        newest = sorted((t for t in self.rows.values() if t.area == area), key=lambda t: (t.started_at, t.trace_id), reverse=True)
+        newest = sorted((t for t in self.rows.values() if (area is None or t.area == area) and (policy_check is None or t.policy_check == policy_check)),
+                        key=lambda t: (t.started_at, t.trace_id), reverse=True)
         if after:
             newest = [t for t in newest if (t.started_at, t.trace_id) < after]
         return page_of(newest, limit)
@@ -185,11 +191,25 @@ class PostgresTraces:
             "UPDATE memory_traces SET body = jsonb_set(body, '{why}', jsonb_build_array(%s::text)) WHERE tenant_id = %s AND trace_id = %s AND body->'why' <> jsonb_build_array(%s::text)",
             (note, self.tenant_id, trace_id, note)).rowcount)
 
-    def page(self, area: str, cursor: str | None = None, limit: int = PAGE_SIZE) -> tuple[list[TraceRecord], str | None]:
+    def filters(self, area: str | None, since: datetime | None, policy_check: str | None) -> tuple[str, tuple]:
+        """The WHERE parts for one area (or all), a start time and a policy check, each served by an index or the row it reads."""
+        parts, args = [], []
+        for clause, value in (("area = %s", area), ("started_at >= %s", since), ("body->>'policy_check' = %s", policy_check)):
+            if value is not None:
+                parts.append(clause)
+                args.append(value)
+        return "".join(f" AND {p}" for p in parts), tuple(args)
+
+    def count(self, area: str | None = None, since: datetime | None = None, policy_check: str | None = None) -> int:
+        where, args = self.filters(area, since, policy_check)
+        return self.connection.execute(f"SELECT count(*) FROM memory_traces WHERE tenant_id = %s{where}", (self.tenant_id, *args)).fetchone()[0]
+
+    def page(self, area: str | None, cursor: str | None = None, limit: int = PAGE_SIZE, policy_check: str | None = None) -> tuple[list[TraceRecord], str | None]:
         # One more row than the page tells whether another page follows; the index serves the order and the cursor
+        where, args = self.filters(area, None, policy_check)
         after = parse_cursor(cursor)
-        where, args = ("AND (started_at, trace_id) < (%s, %s)", after) if after else ("", ())
+        if after:
+            where, args = where + " AND (started_at, trace_id) < (%s, %s)", (*args, *after)
         rows = self.connection.execute(
-            f"SELECT body FROM memory_traces WHERE tenant_id = %s AND area = %s {where} ORDER BY started_at DESC, trace_id DESC LIMIT %s",
-            (self.tenant_id, area, *args, limit + 1))
+            f"SELECT body FROM memory_traces WHERE tenant_id = %s{where} ORDER BY started_at DESC, trace_id DESC LIMIT %s", (self.tenant_id, *args, limit + 1))
         return page_of([TraceRecord.model_validate(row[0]) for row in rows], limit)

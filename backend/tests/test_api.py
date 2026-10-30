@@ -94,8 +94,8 @@ def test_access_log_and_audit(hq):
     ("runs", "someone_else", 401, {"error": "unknown_persona"}),
     ("templates", FOUNDER, 200, []),
     ("analytics", FOUNDER, 501, {"error": "not_connected_yet"}),
-    ("memory", FOUNDER, 501, {"error": "not_connected_yet"}),
-    ("memory/traces", FOUNDER, 404, {"error": "not_found"}),
+    ("memory/areas/space", FOUNDER, 404, {"error": "not_found"}),
+    ("memory/traces/tr-missing", FOUNDER, 404, {"error": "not_found"}),
     ("digest", FOUNDER, 200, None),
     ("runs/run_missing", FOUNDER, 404, {"error": "not_found"}),
 ])

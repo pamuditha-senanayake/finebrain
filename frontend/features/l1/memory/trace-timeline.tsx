@@ -14,6 +14,7 @@ import { useMemoryMap, useTrace } from "@/lib/api/hooks";
 import { dateTime, duration } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AREA_COLOR } from "./areas";
+import { ConfirmSurprise } from "./memory-actions";
 import { NotConnected, notConnected } from "./memory";
 
 export function TraceTimeline() {
@@ -28,7 +29,7 @@ export function TraceTimeline() {
           <>
             <PageHeader title={t.subject} eyebrow={map.data?.isSample ? <SampleBadge /> : undefined} description={`${t.source === "outside" ? "Done outside Finebrain" : "Done by Finebrain"} · ${dateTime(t.startedAt)}`} />
             <ol className="space-y-0" aria-label="Trace, start to end">{stages(t, map.data?.areas.find((a) => a.key === t.area)?.name ?? t.area)}</ol>
-            <Links trace={t} />
+            <Links trace={t} sample={!!map.data?.isSample} />
           </>
         )}
       </QueryView>}
@@ -122,12 +123,12 @@ function policyWords(t: TraceDetail) {
   return "policy not checked";
 }
 
-function Links({ trace }: { trace: TraceDetail }) {
+function Links({ trace, sample }: { trace: TraceDetail; sample: boolean }) {
   if (!trace.runId && trace.match !== "surprise") return null;
   return (
-    <div className="flex flex-wrap gap-3 border-t pt-6">
+    <div className="space-y-5 border-t pt-6">
+      {trace.match === "surprise" && <ConfirmSurprise traceId={trace.id} sample={sample} />}
       {trace.runId && <Button asChild variant="outline"><Link href={`/l3/runs/${trace.runId}`}>Open the run</Link></Button>}
-      {trace.match === "surprise" && <Button asChild><Link href="/l1/digest">Open To review</Link></Button>}
     </div>
   );
 }

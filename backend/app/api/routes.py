@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.api import ask as asking
-from app.api import access_views, ask_memory, connect_routes, conversations, documents, event_log_routes, forget_routes, grant_views, grants, learn_routes, lists_query, memory_fixes, memory_routes, ready_routes, search, studio_approvals, studio_routes, vault_routes, versions_views, views, voice_fix, intake, spending, tasks
+from app.api import access_views, ask_memory, connect_routes, conversations, documents, event_log_routes, forget_routes, grant_views, grants, learn_routes, lists_query, memory_fixes, memory_routes, memory_views, ready_routes, search, studio_approvals, studio_routes, vault_routes, versions_views, views, voice_fix, intake, spending, tasks
 from app.api.graph_map import graph_resource
 from app.api.lists import clusters_view, list_view, live_event, refusal_for, sensors_view, tenant_view
 from app.pipeline import capture_api, orchestrate
@@ -18,7 +18,7 @@ from app.pipeline.ui_stream import stream_events
 # Config
 # The deployed console's address goes in CONSOLE_ORIGINS (comma separated), for example https://brain.vercel.app
 CONSOLE_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", *filter(None, os.environ.get("CONSOLE_ORIGINS", "").replace(" ", "").split(","))]
-NOT_BUILT_OBJECTS = {"analytics", "memory"}  # single objects whose screens come later; memory waits for the trace store (living memory stage 7)
+NOT_BUILT_OBJECTS = {"analytics"}  # single objects whose screens come later
 NULLABLE_OBJECTS = {"digest"}
 
 
@@ -88,6 +88,13 @@ def create_api_app(lane, hq: dict, answerer=None, chatter=None, writer=None) -> 
             return documents.chunks_view(lane, resource.split("/")[1])
         if resource == "sensors":
             return sensors_view(lane, hq, started)
+        if resource == "memory" or resource.startswith("memory/"):  # the Living memory page (memory_views.py)
+            if getattr(lane, "drift", None) is None:
+                raise HTTPException(501, "not_connected_yet")
+            served = memory_views.serve(lane, resource, dict(request.query_params))
+            if served is None:
+                raise HTTPException(404, "not_found")
+            return served
         if resource == "humans":
             return [views.human_view(lane, pid, person).ui() for pid, person in lane.seed["people"].items()]
         try:
