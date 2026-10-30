@@ -6,6 +6,7 @@ import {
   BarChart3,
   Beaker,
   BookOpen,
+  Brain,
   Boxes,
   Bot,
   CalendarClock,
@@ -54,6 +55,8 @@ export const NAV: NavArea[] = [
     home: "/l1",
     items: [
       { href: "/l1", label: "nav.overview", icon: LayoutDashboard, exact: true, group: 0 },
+      // Living memory: brain areas, traces and drift (Docs/CB_Living_Memory_Screens.md). It may replace Brain overview later.
+      { href: "/l1/memory", label: "nav.memory", icon: Brain, group: 0 },
       { href: "/l1/ask", label: "nav.ask", icon: AudioLines, group: 0 },
       // To review holds approvals and evidence requests as tabs.
       { href: "/l1/digest", label: "nav.digest", icon: Inbox, group: 0, also: ["/l1/approvals", "/l1/evidence"] },

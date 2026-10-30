@@ -29,6 +29,7 @@ import type { TenantData } from "../types";
 import { runOvernightReview } from "../ops";
 import { emptyStudio, seedStudio } from "../studio/seed";
 import { seedTrends } from "./trends";
+import { seedMemory } from "./memory";
 import { ACTIVITIES, AGENTS, CLUSTERS, HUMANS, POLICIES, RUN_SUBJECTS, SENSORS, SKILLS, TEMPLATES, TOOLS } from "./catalog";
 
 const at = (days: number, hours = 0) => iso(SEED_NOW + days * DAY + hours * HOUR);
@@ -49,7 +50,7 @@ function emptyData(): Omit<TenantData, "tenant"> {
     accessRules: [], sensors: [], trackingPlan: [], templates: [], resolver: [], graph: { nodes: [], edges: [] }, librarian: [],
     runs: [], specialSteps: {}, conversations: [], accessDecisions: [], branches: [], commits: [], changeRequests: [], approvals: [],
     obligations: [], evidenceRequests: [], grants: [], risks: [], readinessRules: [], gaps: [], loops: [], experiments: [], audit: [],
-    notifications: [], digest: null, trends: [], studio: emptyStudio(), counter: 0,
+    notifications: [], digest: null, trends: [], memory: { traces: [], patterns: [], drifts: [], skills: [] }, studio: emptyStudio(), counter: 0,
   };
 }
 
@@ -295,6 +296,7 @@ export function buildFinebase(): TenantData {
   seedEntity(d);
   seedLoops(d, rng);
   seedTrends(d, rng);
+  seedMemory(d);
   generateHistoryAudit(d, rng);
   runOvernightReview(d, { now: SEED_NOW - 7.5 * HOUR, actor: { kind: "agent", id: "a-quality", name: "Quality Supervisor" } });
   d.studio = seedStudio(d);
@@ -771,6 +773,7 @@ export function buildScale(): TenantData {
   d.audit = d.runs.slice(0, 3000).map((r, i) => ({ id: `sau-${i}`, tenantId, at: r.startedAt, actor: { kind: "agent", id: r.agentId, name: r.agentId }, action: `run.${r.status}`, target: { type: "run", id: r.id, label: r.subject }, env: "production", criticality: 0, detail: "", correlationId: null }));
   runOvernightReview(d, { now: SEED_NOW - 7.5 * HOUR, actor: { kind: "agent", id: "sa-0", name: "Quality Supervisor" } });
   seedTrends(d, rng, "sh-0");
+  seedMemory(d);
   d.activities = active.flatMap((c) => roleNames.slice(0, 5).map((r, j) => ({ cluster: c.id, activity: `${r} work`, agent: d.agents.find((a) => a.clusterId === c.id)?.id ?? "sa-0", sensors: j % 2 ? ["ss-0"] : [], template: j % 3 ? "stpl-0" : "", criticality: "C1" })));
   d.studio = seedStudio(d);
   return d;

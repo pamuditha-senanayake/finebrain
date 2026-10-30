@@ -5,6 +5,7 @@ import { db, OpError, TENANTS } from "./db";
 import { analytics, ask, overview, researchSnapshots, search } from "./queries";
 import { intakeHandlers, spendingHandlers, taskHandlers } from "./intake";
 import { listPage } from "./lists";
+import { areaDetail, driftList, memoryMap, skillDraftList, traceDetail, tracePage } from "./memory-queries";
 import { generateSteps } from "./seed/build";
 import { chat, historyOf, reviewReply } from "./studio/chat";
 import { StudioError, detail, healthOf, scopeOf, summaries, workflowsUsingTool } from "./studio/engine";
@@ -105,6 +106,12 @@ const GETTERS: Record<string, Getter> = {
   notifications: (d) => d.notifications,
   digest: (d) => d.digest,
   trends: (d) => d.trends,
+  memory: (d) => memoryMap(d, db.now()),
+  "memory/areas/:key": (d, p) => areaDetail(d, str(p.key), db.now()),
+  "memory/traces": (d, _p, url) => tracePage(d, url.searchParams.get("area"), url.searchParams.get("flag"), url.searchParams.get("cursor")),
+  "memory/traces/:id": (d, p) => traceDetail(d, str(p.id)),
+  "memory/drifts": (d, _p, url) => driftList(d, url.searchParams.get("area"), url.searchParams.get("kind")),
+  "memory/skills": (d) => skillDraftList(d),
   overview: (d) => overview(d, db.now()),
   analytics: (d) => analytics(d, db.now()),
   search: (d, _p, url) => search(d, url.searchParams.get("q") ?? ""),

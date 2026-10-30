@@ -12,6 +12,7 @@ export const en = {
   "nav.studio": "Workflow Studio",
   "nav.studioL2": "L2 workflow studio",
   "nav.overview": "Brain overview",
+  "nav.memory": "Living memory",
   "nav.digest": "To review",
   "ask.greeting": "Hi sir, I am responsible for the company, and every agent is accountable for its work.",
   "ask.greetingAsk": "What do you need to know?",

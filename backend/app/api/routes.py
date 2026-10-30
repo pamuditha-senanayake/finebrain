@@ -18,7 +18,7 @@ from app.pipeline.ui_stream import stream_events
 # Config
 # The deployed console's address goes in CONSOLE_ORIGINS (comma separated), for example https://brain.vercel.app
 CONSOLE_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", *filter(None, os.environ.get("CONSOLE_ORIGINS", "").replace(" ", "").split(","))]
-NOT_BUILT_OBJECTS = {"analytics"}  # single objects whose screens come later
+NOT_BUILT_OBJECTS = {"analytics", "memory"}  # single objects whose screens come later; memory waits for the trace store (living memory stage 7)
 NULLABLE_OBJECTS = {"digest"}
 
 

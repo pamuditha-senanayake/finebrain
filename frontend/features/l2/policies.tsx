@@ -9,7 +9,7 @@ import { CategoryFilter, WorkflowFilter, countBy, countByMany } from "@/componen
 import { DataTable, type Column } from "@/components/brain/data-table";
 import { PersonChip, useLookup } from "@/components/brain/names";
 import { CritBadge, KeyValue, Mono, PageHeader, QueryView, StatusChip } from "@/components/brain/primitives";
-import { useBrainMap, useNow, usePolicies, usePolicyVersions, useStudioWorkflows } from "@/lib/api/hooks";
+import { useBrainMap, useDrifts, useNow, usePolicies, usePolicyVersions, useStudioWorkflows } from "@/lib/api/hooks";
 import { date, pct } from "@/lib/format";
 import { useCurrentUser } from "@/lib/auth";
 import { useStudio } from "@/features/studio/state";
@@ -58,6 +58,9 @@ export function PolicyRegistry() {
     }
     return m;
   }, [map.data]);
+  // Policies the living memory sees drifting: people work differently from what the rule says (Living memory).
+  const drifts = useDrifts({ kind: "policy" });
+  const driftKeys = useMemo(() => new Map((drifts.data ?? []).filter((x) => x.state !== "resolved").map((x) => [x.subject.id.split("@")[0], x.area])), [drifts.data]);
   const columns: Column<Policy>[] = useMemo(
     () => [
       { id: "name", header: "Policy", width: "minmax(280px,2.6fr)", value: (p) => p.name, cell: (p) => <div className="min-w-0"><div className="truncate font-medium">{p.name} <Mono className="text-muted-foreground">v{p.version}</Mono></div><div className="mt-0.5 truncate text-xs text-muted-foreground" title={p.statement}>{p.statement}</div></div> },
@@ -67,10 +70,11 @@ export function PolicyRegistry() {
       { id: "from", header: "Valid from", width: "110px", value: (p) => p.validFrom, hideOnMobile: true, cell: (p) => <span className="text-muted-foreground">{date(p.validFrom, lookup.tz)}</span> },
       { id: "signals", header: "Freshness", width: "120px", value: (p) => signals(p, now).filter((s) => s.fired).length, cell: (p) => {
         const n = signals(p, now).filter((s) => s.fired).length;
+        if (driftKeys.has(p.key)) return <Link href={`/l1/memory?area=${driftKeys.get(p.key)}`} onClick={(e) => e.stopPropagation()} className="rounded-full bg-primary/12 px-2.5 py-0.5 text-[13px] font-medium text-primary hover:underline">Drifting</Link>;
         return n ? <StatusChip tone={n > 1 ? "risk" : "warn"}>{n} signal{n > 1 ? "s" : ""}</StatusChip> : <StatusChip tone="ok">fresh</StatusChip>;
       } },
     ],
-    [lookup.tz, now, workflowsOf],
+    [lookup.tz, now, workflowsOf, driftKeys],
   );
   return (
     <div>
