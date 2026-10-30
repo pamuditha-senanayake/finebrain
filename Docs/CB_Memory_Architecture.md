@@ -1,5 +1,7 @@
 # Memory that stays fast as it grows
 
+> **Superseded on 2026-10-30 by `CB_Living_Memory_Architecture.md`.** The knowledge design below still holds and is folded into that doc. Read that one first.
+
 Diagram: `Docs/CB_Memory_Architecture.drawio`
 
 ## The real problem
