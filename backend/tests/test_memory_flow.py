@@ -96,6 +96,24 @@ def test_erasing_a_document_scrubs_the_why_of_traces_that_cited_it():
     assert lane.traces.get(f"tr-{run['run_id']}").why == [REMOVED]
 
 
+def test_erasing_a_document_also_scrubs_a_trace_the_night_froze():
+    from datetime import timedelta
+
+    from app.api.forget_layers_data import REMOVED, TraceLayer
+    from app.pipeline import stages_memory_tidy as tidy
+    from app.pipeline.forget import ForgetItem
+
+    lane, _ = run_sample("s2")
+    run = lane.records.list_kind("run")[0]
+    trace_id = f"tr-{run['run_id']}"
+    lane.now = lane.now + timedelta(days=45)
+    tidy.tidy(lane, "test")  # the night moves the trace to S3 and out of Postgres
+    assert lane.traces.get(trace_id) is None and tidy.cold_trace(lane, trace_id).why != [REMOVED]
+    item = ForgetItem(document_id="doc-x", record={}, chunk_ids=sorted({ref for step in run["steps"] for ref in step["refs"]}))
+    assert TraceLayer().erase(lane, item)[0] == "cleared" and TraceLayer().verify(lane, item, "erase")
+    assert tidy.cold_trace(lane, trace_id).why == [REMOVED]
+
+
 def test_a_run_that_pauses_for_approval_becomes_a_trace_only_when_it_ends():
     from app.pipeline import orchestrate
     from app.pipeline.contracts_run import Decision

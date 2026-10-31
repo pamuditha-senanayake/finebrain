@@ -3,6 +3,7 @@
 # Uses: forget.py, ask_memory.py, entity_match.py.
 from app.api import ask_memory
 from app.pipeline import entity_match
+from app.pipeline import stages_memory_tidy as tidy
 from app.pipeline.forget import ForgetItem, register
 from app.pipeline.stages_file import DocumentRecord
 
@@ -149,11 +150,12 @@ class TraceLayer:
         return "kept", "for history"
 
     def erase(self, lane, item: ForgetItem) -> tuple[str, str]:
-        scrubbed = sum(lane.traces.scrub(trace_id, REMOVED) for trace_id in self.citing(lane, item))
+        # Warm traces in Postgres, and those the night already froze to S3, which would otherwise keep the words
+        scrubbed = sum(lane.traces.scrub(trace_id, REMOVED) or tidy.scrub_cold(lane, trace_id, REMOVED) for trace_id in self.citing(lane, item))
         return ("cleared", f"{scrubbed} traces") if scrubbed else ("nothing", "")
 
     def verify(self, lane, item: ForgetItem, mode: str) -> bool:
-        traces = [lane.traces.get(trace_id) for trace_id in self.citing(lane, item)]
+        traces = [lane.traces.get(trace_id) or tidy.cold_trace(lane, trace_id) for trace_id in self.citing(lane, item)]
         return mode == "retire" or all(trace is None or trace.why == [REMOVED] for trace in traces)
 
 

@@ -64,6 +64,15 @@ def cold_trace(lane, trace_id: str) -> TraceRecord | None:
         return None
 
 
+def scrub_cold(lane, trace_id: str, note: str) -> bool:
+    """Forgetting reaches cold traces too: replace a frozen trace's why lines in S3. False when there is none or nothing changed."""
+    trace = cold_trace(lane, trace_id)
+    if trace is None or trace.why == [note]:
+        return False
+    lane.object_store[cold_uri(lane, "traces", trace_id)] = gzip.compress(trace.model_copy(update={"why": [note]}).model_dump_json().encode())
+    return True
+
+
 # --- Patterns
 
 def alike(a: Pattern, b: Pattern) -> bool:
