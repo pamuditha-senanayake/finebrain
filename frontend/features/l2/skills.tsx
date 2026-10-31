@@ -20,6 +20,7 @@ import { useCurrentUser } from "@/lib/auth";
 import { duration, pct, relTime, usd } from "@/lib/format";
 import { studioHref, useWorkflowIndex } from "@/lib/workflow-index";
 import { cn } from "@/lib/utils";
+import { SkillsFromTraces, useDraftCount } from "./skills-from-traces";
 
 function HealthBars({ s }: { s: Skill }) {
   const rows: [string, number, string][] = [
@@ -55,6 +56,7 @@ export function SkillsStudio() {
   const categoryOf = (s: Skill) => info.get(s.id)?.category ?? "general";
   const main = useMemo(() => (skills.data ?? []).filter((s) => s.branch === "main" && s.status === "active"), [skills.data]);
   const drafts = useMemo(() => (skills.data ?? []).filter((s) => s.status === "draft"), [skills.data]);
+  const fromTraces = useDraftCount();
   const columns: Column<Skill>[] = useMemo(
     () => [
       { id: "name", header: "Skill", width: "minmax(200px,1.6fr)", value: (s) => s.name, cell: (s) => <span className="font-medium">{s.name} <Mono className="text-muted-foreground">v{s.version}</Mono></span> },
@@ -77,8 +79,12 @@ export function SkillsStudio() {
         <TabsList>
           <TabsTrigger value="skills">Skills</TabsTrigger>
           <TabsTrigger value="drafts">Drafts {drafts.length > 0 && <span className="ml-1 text-muted-foreground">{drafts.length}</span>}</TabsTrigger>
+          <TabsTrigger value="from-traces">From traces {fromTraces > 0 && <span className="ml-1 text-muted-foreground">{fromTraces}</span>}</TabsTrigger>
           <TabsTrigger value="academy">Academy</TabsTrigger>
         </TabsList>
+        <TabsContent value="from-traces" className="mt-3">
+          <SkillsFromTraces />
+        </TabsContent>
         <TabsContent value="skills" className="mt-3">
           <QueryView query={skills}>{() => <DataTable label="Skills" data={main.filter((s) => (category === "all" || categoryOf(s) === category) && (wf === "all" || (info.get(s.id)?.workflows ?? []).includes(wf)))} toolbar={<><CategoryFilter label="Filter by category" allLabel="All categories" value={category} onChange={setCategory} options={countBy(main, categoryOf)} /><WorkflowFilter value={wf} onChange={setWf} options={countByMany(main, (s) => info.get(s.id)?.workflows ?? [])} /></>} columns={columns} getRowId={(s) => `${s.id}@${s.branch}`} focusOf={(s) => `skill:${s.id}`} onRowClick={(s) => router.push(`/l2/skills/${s.id}`)} initialSort={{ id: "conf", desc: false }} height="calc(100dvh - 280px)" />}</QueryView>
         </TabsContent>

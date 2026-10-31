@@ -39,6 +39,10 @@ import type {
   TrackingPlanItem,
   TraceStep,
   TrendCard,
+  DriftItem,
+  ExtractedSkill,
+  Pattern,
+  TraceSummary,
 } from "@/contracts";
 
 export type ActivityDef = {
@@ -55,6 +59,14 @@ export type StudioData = {
   items: StudioItem[];
   revisions: Revision[];
   pending: PendingChange[];
+};
+
+// Living memory: traces newest first, their patterns, drift and skill drafts (seed/memory.ts).
+export type MemoryData = {
+  traces: TraceSummary[];
+  patterns: Pattern[];
+  drifts: DriftItem[];
+  skills: ExtractedSkill[];
 };
 
 export type TenantData = {
@@ -95,6 +107,7 @@ export type TenantData = {
   notifications: Notification[];
   digest: Digest | null;
   trends: TrendCard[];
+  memory: MemoryData;
   studio: StudioData;
   counter: number;
 };

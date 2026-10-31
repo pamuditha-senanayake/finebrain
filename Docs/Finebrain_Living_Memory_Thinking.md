@@ -112,6 +112,8 @@ Other fields worth studying: law (amend, repeal, apply by date), the immune syst
 
 ## 7. The reasoning layer (proposed, not built)
 
+> **Superseded on 2026-10-30 by `CB_Living_Memory_Architecture.md`**, which turns this into areas, patterns, triage and three drift kinds.
+
 The full picture is in `Finebrain_Architecture.drawio`: inputs, the five questions, specialist agents, memory, an attention queue, five outcomes, action, and the people loop. Green is built, blue is new, yellow is not checked.
 
 **What it digitalises:** the silent step where a person makes sense of what just happened. They ask: what does this mean, is it normal, have I seen it before, does it matter, who should know? Today that is never written down.

@@ -16,7 +16,8 @@ import { reportError } from "@/lib/errors";
 // Config
 const SENSITIVITY = [["public", "Public"], ["internal", "Internal"], ["confidential", "Confidential"], ["restricted", "Restricted"]] as const;
 const ITSELF = "itself";
-const PLAIN: Record<string, string> = {
+/** Each access rule in plain words. Also used by the Living memory's trace page. */
+export const RULE_WORDS: Record<string, string> = {
   missing_capability: "This agent has not been given that capability",
   sensitivity_by_tier: "This data is too sensitive for the agent's tier",
   on_behalf_of: "The person it works for may not see this data",
@@ -87,7 +88,7 @@ export function AccessCheckDialog({ open, onOpenChange, agentId }: { open: boole
               {check.data.allow ? <Check className="mt-0.5 size-5 shrink-0" aria-hidden /> : <X className="mt-0.5 size-5 shrink-0" aria-hidden />}
               <div className="space-y-1">
                 <p className="text-[15px] font-medium">{check.data.allow ? "Allowed" : "Denied"}</p>
-                <p className="text-[14px] text-muted-foreground">{PLAIN[check.data.ruleId] ?? check.data.reason}. Acts as {check.data.effectiveTier}. <Mono>{check.data.ruleId}</Mono></p>
+                <p className="text-[14px] text-muted-foreground">{RULE_WORDS[check.data.ruleId] ?? check.data.reason}. Acts as {check.data.effectiveTier}. <Mono>{check.data.ruleId}</Mono></p>
               </div>
             </div>
           )}

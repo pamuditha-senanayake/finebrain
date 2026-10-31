@@ -30,6 +30,10 @@ class Lane:
     entities: object  # step 13a: the entity registry (store_entities.py)
     counts: object = None  # step 15: weekly counts for the spike check (store_counts.py)
     uses: object = None  # step 13c: which runs and answers cited which items (store_uses.py)
+    traces: object = None  # living memory 5a: traces and their access decisions (store_traces.py)
+    patterns: object = None  # living memory 5a: patterns per area and the area registry (store_patterns.py)
+    memory_claims: object = None  # living memory 5b: who is triaging which trace (a set; Valkey SET NX in production)
+    drift: object = None  # living memory 6: drift flags with their states (store_drift.py)
     commons: list = field(default_factory=list)  # step 13e: the linked commons collections, read only (commons.py)
     grade: object = None  # S7 grader (llm.make_grader); defaults to the fake that passes cited rationales
     choose: object = None  # S3 tie-break (llm.make_chooser); None means close calls go unrouted

@@ -94,6 +94,17 @@ def test_postgres_audit_detects_an_edit_made_in_the_database():
     assert verify_chain(audit.in_order()) == 2
 
 
+@pytest.mark.skipif(not database_is_up(), reason="no Postgres on localhost:5433")
+def test_threads_sharing_one_connection_keep_one_chain():
+    from concurrent.futures import ThreadPoolExecutor
+
+    connection, tenant = connect(), f"test_{uuid.uuid4().hex[:8]}"
+    audit = PostgresAudit(connection, tenant)
+    with ThreadPoolExecutor(8) as pool:  # the API's request thread and its background loop write through one connection
+        results = list(pool.map(lambda n: audit.append(f"evt_{n}", "runs.completed", {"run": n}), range(40)))
+    assert all(results) and [e["seq"] for e in audit.in_order()] == list(range(1, 41)) and verify_chain(audit.in_order()) is None
+
+
 # --- Personal-data guard
 
 def test_leaks_are_masked_before_people_see_them():

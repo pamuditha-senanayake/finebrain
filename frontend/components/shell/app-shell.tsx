@@ -36,7 +36,7 @@ export function AppShell({ area, children }: { area: Area; children: ReactNode }
   const allowed = canView(user, area);
   // Full-bleed canvases (maps, graphs, the studio) fill the page. Everything else keeps a readable width, so collapsing the sidebar never stretches tables and cards.
   const pathname = usePathname();
-  const fullBleed = /^\/(l1(\/ask)?|studio|l2\/graph|l2\/policies\/.+)\/?$/.test(pathname);
+  const fullBleed = /^\/(l1(\/ask|\/memory)?|studio|l2\/graph|l2\/policies\/.+)\/?$/.test(pathname);
   // Working surfaces with several panes get more room than reading pages.
   const wide = /^\/l3\/conversations(\/.+)?\/?$/.test(pathname);
   // Count page opens so features nobody uses can be found and removed.

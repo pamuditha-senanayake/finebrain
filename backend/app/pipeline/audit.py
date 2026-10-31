@@ -3,6 +3,7 @@
 # Used by: adapters.py, orchestrate.py (audit writer), tests. Uses: nothing local.
 import hashlib
 import json
+import threading
 
 import psycopg
 from psycopg.types.json import Jsonb
@@ -60,14 +61,16 @@ class MemoryAudit:
 
 
 class PostgresAudit:
-    """One row per entry. A per-tenant advisory lock keeps two writers from forking the chain."""
+    """One row per entry. A per-tenant advisory lock keeps two processes from forking the chain; the advisory lock does
+    not block a second thread on the same connection (the API's request and background threads share one), so a thread
+    lock does that."""
 
     def __init__(self, connection: psycopg.Connection, tenant_id: str):
-        self.connection, self.tenant_id = connection, tenant_id
+        self.connection, self.tenant_id, self.turn = connection, tenant_id, threading.Lock()
         connection.execute(SCHEMA)
 
     def append(self, event_id: str, topic: str, body: dict) -> bool:
-        with self.connection.transaction():
+        with self.turn, self.connection.transaction():
             self.connection.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (self.tenant_id,))
             if self.connection.execute("SELECT 1 FROM audit_log WHERE tenant_id = %s AND event_id = %s", (self.tenant_id, event_id)).fetchone():
                 return False

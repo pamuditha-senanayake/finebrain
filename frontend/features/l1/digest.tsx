@@ -12,6 +12,7 @@ import { CritBadge, EmptyState, PageHeader, QueryView, Section } from "@/compone
 import { useApprovals, useDigest, useEvidenceRequests, useOp } from "@/lib/api/hooks";
 import { ApprovalsInbox } from "@/features/l1/approvals";
 import { EvidenceRequests } from "@/features/l1/evidence";
+import { Surprises, useSurpriseCount } from "@/features/l1/memory/surprises";
 import { useCurrentUser } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -52,10 +53,10 @@ function Metric({ label, value, tone }: { label: string; value: number; tone?: "
   );
 }
 
-const TABS = ["summary", "approvals", "evidence"] as const;
+const TABS = ["summary", "approvals", "evidence", "new"] as const;
 type Tab = (typeof TABS)[number];
 
-/** Everything waiting for the owner, whenever they log in: the overnight summary, approvals and evidence requests. */
+/** Everything waiting for the owner, whenever they log in: the overnight summary, approvals, evidence requests, and new ways of working. */
 export function Digest() {
   const params = useSearchParams();
   const router = useRouter();
@@ -65,15 +66,17 @@ export function Digest() {
   const evidence = useEvidenceRequests();
   const pendingApprovals = approvals.data?.filter((a) => a.status === "pending").length ?? 0;
   const openEvidence = evidence.data?.filter((r) => r.status !== "fulfilled").length ?? 0;
+  const newWays = useSurpriseCount();
   const count = (n: number) => (n ? <span className="ml-1.5 tabular text-muted-foreground">{n}</span> : null);
   return (
     <div>
       <PageHeader title="To review" description="What needs you now." />
       <Tabs value={tab} onValueChange={(v) => router.replace(v === "summary" ? "/l1/digest" : `/l1/digest?tab=${v}`, { scroll: false })}>
-        <TabsList className="mb-6">
+        <TabsList className="mb-6 max-w-full justify-start overflow-x-auto">
           <TabsTrigger value="summary">Summary</TabsTrigger>
           <TabsTrigger value="approvals" data-testid="tab-approvals">Approvals{count(pendingApprovals)}</TabsTrigger>
           <TabsTrigger value="evidence" data-testid="tab-evidence">Evidence{count(openEvidence)}</TabsTrigger>
+          <TabsTrigger value="new" data-testid="tab-new">New ways{count(newWays)}</TabsTrigger>
         </TabsList>
         <TabsContent value="summary">
           <Summary />
@@ -83,6 +86,9 @@ export function Digest() {
         </TabsContent>
         <TabsContent value="evidence">
           <EvidenceRequests embedded />
+        </TabsContent>
+        <TabsContent value="new">
+          <Surprises />
         </TabsContent>
       </Tabs>
     </div>

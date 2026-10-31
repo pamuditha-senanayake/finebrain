@@ -1,5 +1,7 @@
 # Engineering the graph and the memory
 
+> **Superseded on 2026-10-30 by `CB_Living_Memory_Architecture.md`.** Kept for history only.
+
 > **Section 1 is built; the rest is a proposal.** What runs today is in `CB_System_Reference.md`. Each change here lands with its own tests, then that file is updated.
 
 ## The problem

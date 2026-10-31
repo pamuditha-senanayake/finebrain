@@ -17,6 +17,9 @@ from app.pipeline.store_entities import MemoryEntities, PostgresEntities
 from app.pipeline.store_uses import MemoryUses, PostgresUses
 from app.pipeline.store_graph import MemoryGraph, PostgresGraph, load_seed
 from app.pipeline.store_memory import MemoryRecords
+from app.pipeline.store_drift import MemoryDrift, PostgresDrift
+from app.pipeline.store_patterns import MemoryPatterns, PostgresPatterns
+from app.pipeline.store_traces import MemoryTraces, PostgresTraces
 from app.pipeline.tool_runners import MemoryRateLimiter, MemoryResults, ValkeyRateLimiter, ValkeyResults
 from app.pipeline.ui_stream import Broadcaster
 from app.pipeline.temporal_flow import temporal_is_up
@@ -24,6 +27,7 @@ from app.pipeline.temporal_runner import TemporalRunner
 
 # Config
 CLAIM_SECONDS = 15  # S9's claim on a reply: longer than one call, short enough that a crash frees it soon
+MEMORY_CLAIM_SECONDS = 60  # a triage claim: far longer than one triage, and a crashed worker's trace is picked up within a minute
 ALL_REAL_PARTS = frozenset({"s3", "postgres", "valkey", "kafka", "temporal", "opa"})  # "voyage" is opt-in: it costs money
 UP_CHECKS = {
     "s3": store_s3.s3_is_up,
@@ -62,6 +66,10 @@ def make_memory_adapters(seed: dict, now, new_id) -> dict:
         "counts": MemoryCounts(),
         "uses": MemoryUses(),
         "commons": memory_commons(seed, fake_embed),
+        "traces": MemoryTraces(seed["tenant_id"]),
+        "patterns": MemoryPatterns(seed["tenant_id"]),
+        "memory_claims": set(),
+        "drift": MemoryDrift(seed["tenant_id"]),
     }
     load_chunks(adapters["chunks"], adapters["graph"], adapters["embed"], item_tags.tagger(seed, adapters["entities"]))
     return adapters
@@ -108,6 +116,9 @@ def real_adapters(parts: frozenset[str] = ALL_REAL_PARTS, topic_prefix: str = ""
             adapters["entities"] = PostgresEntities(connection, tenant)
             adapters["counts"] = PostgresCounts(connection, tenant)
             adapters["uses"] = PostgresUses(connection, tenant)
+            adapters["traces"] = PostgresTraces(connection, tenant)
+            adapters["patterns"] = PostgresPatterns(connection, tenant)
+            adapters["drift"] = PostgresDrift(connection, tenant)
         handled = None
         if "valkey" in parts:
             keys = store_valkey.connect()
@@ -116,6 +127,7 @@ def real_adapters(parts: frozenset[str] = ALL_REAL_PARTS, topic_prefix: str = ""
             adapters["tooling"].update(limiter=ValkeyRateLimiter(keys), results=ValkeyResults(keys, f"{tenant}:results"),
                                        claims=store_valkey.ValkeyKeySet(keys, f"{tenant}:s9_claims", CLAIM_SECONDS),  # a crashed worker's claim expires
                                        tried=ValkeyResults(keys, f"{tenant}:s9_tried"))  # when a reply was first tried
+            adapters["memory_claims"] = store_valkey.ValkeyKeySet(keys, f"{tenant}:memory_claims", MEMORY_CLAIM_SECONDS)
         bus_class = KafkaBus if "kafka" in parts else MemoryBus
         options = {"topic_prefix": topic_prefix} if "kafka" in parts else {}
         adapters["bus"] = bus_class(bus_base(seed), now, new_id, handled=handled, **options)

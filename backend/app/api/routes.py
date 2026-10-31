@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.api import ask as asking
-from app.api import access_views, ask_memory, connect_routes, conversations, documents, event_log_routes, forget_routes, grant_views, grants, learn_routes, lists_query, memory_routes, ready_routes, search, studio_approvals, studio_routes, vault_routes, versions_views, views, voice_fix, intake, spending, tasks
+from app.api import access_views, ask_memory, connect_routes, conversations, documents, event_log_routes, forget_routes, grant_views, grants, learn_routes, lists_query, memory_fixes, memory_routes, memory_views, ready_routes, search, studio_approvals, studio_routes, vault_routes, versions_views, views, voice_fix, intake, spending, tasks
 from app.api.graph_map import graph_resource
 from app.api.lists import clusters_view, list_view, live_event, refusal_for, sensors_view, tenant_view
 from app.pipeline import capture_api, orchestrate
@@ -88,6 +88,13 @@ def create_api_app(lane, hq: dict, answerer=None, chatter=None, writer=None) -> 
             return documents.chunks_view(lane, resource.split("/")[1])
         if resource == "sensors":
             return sensors_view(lane, hq, started)
+        if resource == "memory" or resource.startswith("memory/"):  # the Living memory page (memory_views.py)
+            if getattr(lane, "drift", None) is None:
+                raise HTTPException(501, "not_connected_yet")
+            served = memory_views.serve(lane, resource, dict(request.query_params))
+            if served is None:
+                raise HTTPException(404, "not_found")
+            return served
         if resource == "humans":
             return [views.human_view(lane, pid, person).ui() for pid, person in lane.seed["people"].items()]
         try:
@@ -118,6 +125,7 @@ def create_api_app(lane, hq: dict, answerer=None, chatter=None, writer=None) -> 
     for module in (access_views, vault_routes, ready_routes, grant_views, documents, forget_routes, memory_routes, event_log_routes):  # the librarian, Check now, grants, uploads, forgetting, values, event logs
         module.register(app, lane, check)
     learn_routes.register(app, lane, check, chatter)  # counts, trends, Mark as wrong, Draft a fix (step 15)
+    memory_fixes.register(app, lane, check)  # living memory: drift to a fix an L1 user decides (after Studio's approvals consumer)
 
     @app.post("/api/t/{tenant}/ops/{op}")
     async def operation(tenant: str, op: str, request: Request, x_persona: str = Header(default="")):

@@ -1,8 +1,9 @@
-# forget_layers_data.py: step 10, the record layers: intake copies (S1 to S3), Ask conversations, the PII vault, the
-# entity registry, and the Library record, which goes last. Used by: forget_review.py (imports this file to register).
+# forget_layers_data.py: step 10, the record layers: intake copies (S1 to S3), Ask conversations, living memory traces,
+# the PII vault, the entity registry, and the Library record, which goes last. Used by: forget_review.py (imports this file to register).
 # Uses: forget.py, ask_memory.py, entity_match.py.
 from app.api import ask_memory
 from app.pipeline import entity_match
+from app.pipeline import stages_memory_tidy as tidy
 from app.pipeline.forget import ForgetItem, register
 from app.pipeline.stages_file import DocumentRecord
 
@@ -136,5 +137,27 @@ class LibraryLayer:
         return record is None if mode == "erase" else bool(record) and record["status"] == "retired"
 
 
-for layer in (BusLayer(), IntakeLayer(), ConversationLayer(), VaultLayer(), EntityLayer(), LibraryLayer()):
+class TraceLayer:
+    """Living memory traces of runs that cited the document. Their why lines may quote it, so erasing replaces them;
+    the steps, outcome and access decisions stay, because they are ids and names. Retiring changes nothing."""
+    name, stores, final = "Traces", ("traces",), False
+
+    def citing(self, lane, item: ForgetItem) -> list[str]:
+        ids = set(item.chunk_ids)
+        return [f"tr-{run['run_id']}" for run in lane.records.list_kind("run") if any(ids & set(step.get("refs", [])) for step in run.get("steps", []))]
+
+    def retire(self, lane, item: ForgetItem) -> tuple[str, str]:
+        return "kept", "for history"
+
+    def erase(self, lane, item: ForgetItem) -> tuple[str, str]:
+        # Warm traces in Postgres, and those the night already froze to S3, which would otherwise keep the words
+        scrubbed = sum(lane.traces.scrub(trace_id, REMOVED) or tidy.scrub_cold(lane, trace_id, REMOVED) for trace_id in self.citing(lane, item))
+        return ("cleared", f"{scrubbed} traces") if scrubbed else ("nothing", "")
+
+    def verify(self, lane, item: ForgetItem, mode: str) -> bool:
+        traces = [lane.traces.get(trace_id) or tidy.cold_trace(lane, trace_id) for trace_id in self.citing(lane, item)]
+        return mode == "retire" or all(trace is None or trace.why == [REMOVED] for trace in traces)
+
+
+for layer in (BusLayer(), IntakeLayer(), ConversationLayer(), TraceLayer(), VaultLayer(), EntityLayer(), LibraryLayer()):
     register(layer)

@@ -1,5 +1,5 @@
 # orchestrate.py: S4 Orchestrate. Wires S2, S3 and the task consumers onto a bus, given its adapters.
-# Used by: tests, demos, capture_api.py. Uses: lane.py, adapters.py, run_steps.py, run_approvals.py, recorder.py, audit.py, ui_stream.py, entity_match.py, item_tags.py, stages_*.py.
+# Used by: tests, demos, capture_api.py. Uses: lane.py, adapters.py, run_steps.py, run_approvals.py, recorder.py, audit.py, ui_stream.py, entity_match.py, item_tags.py, stages_*.py (stages_memory_flow.py for the living memory).
 # Each task runs in-process, or as a Temporal workflow when the adapters include a Temporal runner.
 from datetime import datetime
 
@@ -12,6 +12,7 @@ from app.pipeline.fakes import Gateway, Model, make_id_maker, pass_grader
 from app.pipeline.lane import Lane
 from app.pipeline.observe import count, log_event
 from app.pipeline.recorder import subscribe_recorder
+from app.pipeline.stages_memory_flow import subscribe_memory
 from app.pipeline.ui_stream import subscribe_broadcaster
 
 
@@ -36,6 +37,7 @@ def build_lane(seed: dict, model: Model, gateway: Gateway | None, now: datetime,
     subscribe_recorder(lane.bus, lane.records)
     subscribe_audit(lane.bus, lane.audit)
     subscribe_broadcaster(lane.bus, lane.broadcaster)
+    subscribe_memory(lane)  # the living memory: traces, triage and surprises (stages_memory_flow.py)
     if lane.runner is not None:
         lane.runner.start(lane)
     return lane

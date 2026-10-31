@@ -8,7 +8,7 @@ import * as C from "@/contracts";
 import { ResearchSnapshot } from "@/contracts/research";
 import { reportError } from "@/lib/errors";
 import { useUi } from "@/lib/store";
-import { apiGet, apiGlobal, apiPost } from "./client";
+import { ApiError, apiGet, apiGlobal, apiPost } from "./client";
 
 export function useTenantId() {
   return useUi((s) => s.tenantId);
@@ -87,6 +87,22 @@ export const useDigest = () => useResource("digest", C.Digest.nullable());
 export const useOverview = () => useResource("overview", C.Overview);
 export const useAnalytics = () => useResource("analytics", C.Analytics);
 export const useTrends = () => useResource("trends", list(C.TrendCard));
+// Living memory (Docs/CB_Living_Memory_Screens.md). Empty filters are left out of the path.
+// A workspace without the trace store answers 501 or 404: say so at once instead of retrying.
+const memoryRetry = { retry: (count: number, error: unknown) => !(error instanceof ApiError && [404, 501].includes(error.status)) && count < 2 };
+const memoryQuery = (params: Record<string, string | undefined>) => new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+export const useMemoryMap = () => useResource("memory", C.MemoryMap, memoryRetry);
+export const useMemoryArea = (key: string) => useResource(`memory/areas/${key}`, C.AreaDetail, { enabled: !!key, ...memoryRetry });
+export const useTraces = (params: { area?: string; flag?: string; cursor?: string } = {}) => {
+  const q = memoryQuery(params);
+  return useResource(q ? `memory/traces?${q}` : "memory/traces", C.TracePage, memoryRetry);
+};
+export const useTrace = (id: string) => useResource(`memory/traces/${id}`, C.TraceDetail, { enabled: !!id, ...memoryRetry });
+export const useDrifts = (params: { area?: string; kind?: string } = {}) => {
+  const q = memoryQuery(params);
+  return useResource(q ? `memory/drifts?${q}` : "memory/drifts", list(C.DriftItem), memoryRetry);
+};
+export const useExtractedSkills = () => useResource("memory/skills", list(C.ExtractedSkill), memoryRetry);
 export const useActivities = () => useResource("activities", list(z.object({ cluster: z.string(), activity: z.string(), agent: z.string(), sensors: z.array(z.string()), template: z.string(), criticality: z.string() })));
 export const useSearch = (q: string) => useResource(`search?q=${encodeURIComponent(q)}`, list(C.SearchHit), { enabled: q.trim().length > 1 });
 export const useResearch = () => useResource("research", list(ResearchSnapshot));
